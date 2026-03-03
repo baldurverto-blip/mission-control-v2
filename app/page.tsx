@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, FormEvent } from "react";
+import Link from "next/link";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -149,9 +150,10 @@ export default function Dashboard() {
   const [adding, setAdding] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [loaded, setLoaded] = useState(false);
+  const [growthops, setGrowthops] = useState<{ status: string; uptime: number; version: string; discoveryCount: number; queueCount: number } | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const [kpiRes, statusRes, inboxRes, cronRes, researchRes, agentsRes] =
+    const [kpiRes, statusRes, inboxRes, cronRes, researchRes, agentsRes, growthopsRes] =
       await Promise.all([
         fetch("/api/kpis").then((r) => r.json()).catch(() => null),
         fetch("/api/status").then((r) => r.json()).catch(() => null),
@@ -159,6 +161,7 @@ export default function Dashboard() {
         fetch("/api/cron").then((r) => r.json()).catch(() => null),
         fetch("/api/research").then((r) => r.json()).catch(() => null),
         fetch("/api/agents").then((r) => r.json()).catch(() => ({ agents: [] })),
+        fetch("/api/growthops").then((r) => r.json()).catch(() => null),
       ]);
 
     if (kpiRes && !kpiRes.error) setKpis(kpiRes);
@@ -170,6 +173,7 @@ export default function Dashboard() {
     if (cronRes && !cronRes.error) setCronJobs(cronRes.jobs ?? []);
     if (researchRes && !researchRes.error) setResearch(researchRes);
     if (agentsRes && !agentsRes.error) setAgents(agentsRes.agents ?? []);
+    if (growthopsRes) setGrowthops(growthopsRes);
     setLastUpdated(Date.now());
     setLoaded(true);
   }, []);
@@ -241,6 +245,22 @@ export default function Dashboard() {
             <p className="text-sm text-mid" suppressHydrationWarning>
               {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Copenhagen" })}
             </p>
+            <div className="flex gap-3 mt-1">
+              <Link
+                href="/proposals"
+                className="text-xs inline-block transition-opacity hover:opacity-80"
+                style={{ color: "var(--terracotta)" }}
+              >
+                Proposals &rarr;
+              </Link>
+              <Link
+                href="/calendar"
+                className="text-xs inline-block transition-opacity hover:opacity-80"
+                style={{ color: "var(--lilac)" }}
+              >
+                Content Calendar &rarr;
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -488,6 +508,63 @@ export default function Dashboard() {
               </div>
             ) : (
               <p className="text-mid text-sm py-4 text-center">Loading...</p>
+            )}
+          </div>
+          {/* ─── GROWTHOPS ─────────────────────────────────── */}
+          <div className={`card lg:col-span-4 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.35s" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl text-charcoal">GrowthOps</h2>
+              {growthops && (
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${growthops.status === "online" ? "pulse-dot" : ""}`}
+                  style={{ backgroundColor: growthops.status === "online" ? "var(--olive)" : "var(--terracotta)" }}
+                />
+              )}
+            </div>
+            {growthops ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-mid">Status</span>
+                  <Badge color={growthops.status === "online" ? "var(--olive)" : "var(--terracotta)"}>
+                    {growthops.status}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-mid">Version</span>
+                  <span className="text-xs tabular-nums text-mid/60">{growthops.version}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-mid">Discovery signals</span>
+                  <span className="text-xs tabular-nums text-mid/60">{growthops.discoveryCount}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-mid">Content queue</span>
+                  <span className="text-xs tabular-nums text-mid/60">{growthops.queueCount}</span>
+                </div>
+                <div className="pt-3 mt-2 border-t border-warm flex gap-2">
+                  <a
+                    href="http://localhost:3002"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 text-center py-2 rounded-lg text-xs tracking-wide transition-colors hover:bg-warm/80"
+                    style={{ backgroundColor: "var(--warm)", color: "var(--charcoal)" }}
+                  >
+                    Dashboard &rarr;
+                  </a>
+                  <Link
+                    href="/calendar"
+                    className="flex-1 text-center py-2 rounded-lg text-xs tracking-wide transition-colors hover:opacity-80"
+                    style={{ backgroundColor: "var(--lilac)" + "20", color: "var(--lilac)" }}
+                  >
+                    Calendar &rarr;
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center">
+                <p className="text-mid/60 text-sm">Connecting...</p>
+                <p className="text-mid/40 text-xs mt-1">GrowthOps on :3002</p>
+              </div>
             )}
           </div>
         </div>
