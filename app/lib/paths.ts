@@ -13,3 +13,5 @@ export const AGENTS_DIR = join(BRAIN, "agents");
 export const PROPOSALS_DIR = join(BRAIN, "proposals");
 export const CONTENT_DIR = join(WORKSPACE, "company", "content");
 export const SCHEDULE_JSON = join(CONTENT_DIR, "schedule.json");
+export const PULSES_DIR = join(OPS, "pulses");
+export const BRIEFS_DIR = join(OPS, "briefs");

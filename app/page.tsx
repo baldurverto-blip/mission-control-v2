@@ -6,8 +6,28 @@ import { StatusDot } from "./components/StatusDot";
 import { ProgressBar } from "./components/ProgressBar";
 import { Badge } from "./components/Badge";
 import { KpiChip } from "./components/KpiChip";
+import { PulseStream } from "./components/PulseStream";
 
 // ─── Types ───────────────────────────────────────────────────────────
+
+interface PulseEvent {
+  agent: string;
+  action: string;
+  goal: string;
+  outcome: string;
+  duration_ms: number;
+  timestamp: string;
+}
+
+interface PulseData {
+  pulses: PulseEvent[];
+  stats: {
+    totalToday: number;
+    activeAgents: string[];
+    hasAttention: boolean;
+    lastPulse: string | null;
+  };
+}
 
 interface KPIs {
   roadmap: { done: number; total: number };
@@ -17,6 +37,37 @@ interface KPIs {
   research: { count: number; scoutScore: number };
   failures: { recent: number; daysSince: number | null };
   skills: { count: number };
+  workflows?: { active: number; approvalPending: number; completedToday: number; totalRuns: number };
+}
+
+interface WorkflowDef {
+  name: string;
+  file: string;
+  steps: string[];
+}
+
+interface WorkflowActive {
+  workflow: string;
+  runId: string;
+  trigger: string;
+  startedAt: string;
+  currentStep: string | null;
+  approvalPending: boolean;
+  lastStepStatus?: string;
+}
+
+interface WorkflowCompleted {
+  workflow: string;
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  finalStatus: string;
+}
+
+interface WorkflowData {
+  state: { active: WorkflowActive[]; completed: WorkflowCompleted[]; blocked: unknown[] };
+  stats: { totalRuns: number; completedToday: number; approvalsPending: number };
+  definitions: WorkflowDef[];
 }
 
 interface InboxItem {
@@ -45,6 +96,11 @@ interface CronJob {
 }
 
 interface AgentFile {
+  name: string;
+  content: string;
+}
+
+interface BriefFile {
   name: string;
   content: string;
 }
@@ -79,7 +135,7 @@ function parseMdSections(md: string): { status: string; wins: string[]; focus: s
   let current: string[] | null = null;
   for (const line of clean.split("\n")) {
     if (/today.s wins/i.test(line)) { current = wins; continue; }
-    if (/week.*focus/i.test(line)) { current = focus; continue; }
+    if (/week.*focus|sprint.*focus/i.test(line)) { current = focus; continue; }
     if (/active blockers|needs attention/i.test(line)) { current = blockers; continue; }
     if (/tonight|scheduled|current roadmap/i.test(line)) { current = null; continue; }
     if (/^##/.test(line)) { current = null; continue; }
@@ -97,6 +153,13 @@ function extractAgentMeta(content: string): { model: string; role: string } {
   return { model, role };
 }
 
+function previewBrief(content: string, max = 600): string {
+  return content
+    .replace(/^---[\s\S]*?---\n*/m, "")
+    .trim()
+    .slice(0, max);
+}
+
 // ─── Dashboard ───────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -112,9 +175,12 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [loaded, setLoaded] = useState(false);
   const [growthops, setGrowthops] = useState<{ status: string; uptime: number; version: string; discoveryCount: number; queueCount: number } | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowData | null>(null);
+  const [pulseData, setPulseData] = useState<PulseData | null>(null);
+  const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
 
   const fetchAll = useCallback(async () => {
-    const [kpiRes, statusRes, inboxRes, cronRes, researchRes, agentsRes, growthopsRes] =
+    const [kpiRes, statusRes, inboxRes, cronRes, researchRes, agentsRes, growthopsRes, workflowRes, pulseRes, briefsRes] =
       await Promise.all([
         fetch("/api/kpis").then((r) => r.json()).catch(() => null),
         fetch("/api/status").then((r) => r.json()).catch(() => null),
@@ -123,6 +189,9 @@ export default function Dashboard() {
         fetch("/api/research").then((r) => r.json()).catch(() => null),
         fetch("/api/agents").then((r) => r.json()).catch(() => ({ agents: [] })),
         fetch("/api/growthops").then((r) => r.json()).catch(() => null),
+        fetch("/api/workflows").then((r) => r.json()).catch(() => null),
+        fetch("/api/pulses").then((r) => r.json()).catch(() => null),
+        fetch("/api/briefs").then((r) => r.json()).catch(() => null),
       ]);
 
     if (kpiRes && !kpiRes.error) setKpis(kpiRes);
@@ -135,6 +204,9 @@ export default function Dashboard() {
     if (researchRes && !researchRes.error) setResearch(researchRes);
     if (agentsRes && !agentsRes.error) setAgents(agentsRes.agents ?? []);
     if (growthopsRes) setGrowthops(growthopsRes);
+    if (workflowRes && !workflowRes.error) setWorkflows(workflowRes);
+    if (pulseRes && !pulseRes.error) setPulseData(pulseRes);
+    if (briefsRes && !briefsRes.error) setBriefs({ morning: briefsRes.morning ?? null, evening: briefsRes.evening ?? null });
     setLastUpdated(Date.now());
     setLoaded(true);
   }, []);
@@ -219,7 +291,7 @@ export default function Dashboard() {
             <KpiChip label="Research" value={String(kpis.research.count)} sub="reports" color="var(--lilac)" />
             <KpiChip label="Scout" value={String(kpis.research.scoutScore)} sub="signals" color="var(--lilac)" />
             <KpiChip label="Uptime" value={kpis.failures.daysSince !== null ? `${kpis.failures.daysSince}d` : "—"} sub="clean" color={kpis.failures.recent > 0 ? "var(--terracotta)" : "var(--olive)"} />
-            <KpiChip label="Skills" value={String(kpis.skills.count)} sub="patterns" color="var(--lilac)" />
+            <KpiChip label="Pulses" value={String(pulseData?.stats.totalToday ?? 0)} sub={pulseData?.stats.activeAgents.length ? `${pulseData.stats.activeAgents.length} active` : "idle"} color={pulseData?.stats.hasAttention ? "var(--terracotta)" : pulseData?.stats.totalToday ? "var(--olive)" : "var(--mid)"} />
           </div>
         )}
       </header>
@@ -227,6 +299,15 @@ export default function Dashboard() {
       {/* ─── Main Grid ──────────────────────────────────────── */}
       <main className="px-8 pb-12 max-w-[1440px] mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+          {/* ─── PULSE STREAM ─────────────────────────────── */}
+          {pulseData && (
+            <PulseStream
+              pulses={pulseData.pulses}
+              stats={pulseData.stats}
+              loaded={loaded}
+            />
+          )}
 
           {/* ─── NOW ──────────────────────────────────────── */}
           <div className={`card lg:col-span-8 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.05s" }}>
@@ -278,6 +359,40 @@ export default function Dashboard() {
             )}
 
             {!nowRaw && <p className="text-mid text-sm">Loading...</p>}
+          </div>
+
+          {/* ─── BRIEFS ───────────────────────────────────── */}
+          <div className={`card lg:col-span-12 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.08s" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl text-charcoal">Briefs</h2>
+              <span className="text-xs text-mid">Source: ops/briefs</span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-lg bg-warm/40 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="label-caps" style={{ color: "var(--charcoal)" }}>Latest Morning</p>
+                  <span className="text-[0.65rem] text-mid">{briefs.morning?.name ?? "—"}</span>
+                </div>
+                {briefs.morning ? (
+                  <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid max-h-48 overflow-y-auto custom-scroll">{previewBrief(briefs.morning.content, 900)}</pre>
+                ) : (
+                  <p className="text-sm text-mid/60">No morning brief yet.</p>
+                )}
+              </div>
+
+              <div className="rounded-lg bg-warm/40 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="label-caps" style={{ color: "var(--charcoal)" }}>Latest Evening</p>
+                  <span className="text-[0.65rem] text-mid">{briefs.evening?.name ?? "—"}</span>
+                </div>
+                {briefs.evening ? (
+                  <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid max-h-48 overflow-y-auto custom-scroll">{previewBrief(briefs.evening.content, 900)}</pre>
+                ) : (
+                  <p className="text-sm text-mid/60">No evening brief yet.</p>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* ─── INBOX ────────────────────────────────────── */}
@@ -455,6 +570,85 @@ export default function Dashboard() {
               <p className="text-mid text-sm py-4 text-center">Loading...</p>
             )}
           </div>
+          {/* ─── WORKFLOWS ────────────────────────────────── */}
+          <div className={`card lg:col-span-8 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.32s" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl text-charcoal">Pipelines</h2>
+              {workflows && (
+                <div className="flex gap-2">
+                  <Badge color="var(--mid)">{workflows.definitions.length} workflows</Badge>
+                  {workflows.stats.approvalsPending > 0 && (
+                    <Badge color="var(--terracotta)">{workflows.stats.approvalsPending} awaiting</Badge>
+                  )}
+                </div>
+              )}
+            </div>
+            {workflows ? (
+              <div className="space-y-3">
+                {/* Active workflows */}
+                {workflows.state.active.length > 0 && (
+                  <div>
+                    <p className="label-caps text-mid/60 mb-2">Active</p>
+                    {workflows.state.active.map((w) => (
+                      <div key={w.runId} className="flex items-center gap-3 p-3 rounded-lg bg-warm/40 mb-2">
+                        <StatusDot status={w.approvalPending ? "warn" : "ok"} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{w.workflow}</p>
+                          <p className="text-xs text-mid">
+                            Step: <span className="text-charcoal">{w.currentStep ?? "starting"}</span>
+                            {w.approvalPending && <span className="text-terracotta ml-2">· awaiting approval</span>}
+                          </p>
+                        </div>
+                        <p className="text-[0.625rem] text-mid/50">{relTime(new Date(w.startedAt).getTime())}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Workflow definitions with step visualization */}
+                <div>
+                  <p className="label-caps text-mid/60 mb-2">Available Pipelines</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {workflows.definitions.map((def) => (
+                      <div key={def.file} className="p-3 rounded-lg bg-warm/30">
+                        <p className="text-sm font-medium mb-1">{def.name}</p>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {def.steps.map((step, i) => (
+                            <span key={step} className="flex items-center gap-1">
+                              <span className="text-[0.6rem] text-mid bg-warm rounded px-1.5 py-0.5">{step}</span>
+                              {i < def.steps.length - 1 && <span className="text-mid/30 text-[0.5rem]">→</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recent completions */}
+                {workflows.state.completed.length > 0 && (
+                  <div>
+                    <p className="label-caps text-mid/60 mb-2">Recent</p>
+                    {workflows.state.completed.slice(0, 5).map((w) => (
+                      <div key={w.runId} className="flex items-center gap-3 py-1.5">
+                        <StatusDot status={w.finalStatus === "done" ? "ok" : "error"} />
+                        <p className="text-xs text-mid flex-1">{w.workflow}</p>
+                        <p className="text-[0.625rem] text-mid/50">{w.finalStatus}</p>
+                        <p className="text-[0.625rem] text-mid/50">{relTime(new Date(w.finishedAt).getTime())}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {workflows.state.active.length === 0 && workflows.state.completed.length === 0 && (
+                  <p className="text-sm text-mid/60 py-2 text-center">No pipeline activity yet</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-mid text-sm py-4 text-center">Loading...</p>
+            )}
+          </div>
+
           {/* ─── GROWTHOPS ─────────────────────────────────── */}
           <div className={`card lg:col-span-4 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.35s" }}>
             <div className="flex items-center justify-between mb-4">
