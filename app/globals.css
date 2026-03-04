@@ -12,6 +12,8 @@
   --olive-soft: #76875a20;
   --lilac: #9899C1;
   --lilac-soft: #9899c120;
+  --amber: #C9A227;
+  --amber-soft: #C9A22720;
 }
 
 @theme inline {
@@ -23,6 +25,7 @@
   --color-terracotta: var(--terracotta);
   --color-olive: var(--olive);
   --color-lilac: var(--lilac);
+  --color-amber: var(--amber);
   --font-heading: var(--font-cormorant);
   --font-mono: var(--font-dm-mono);
 }

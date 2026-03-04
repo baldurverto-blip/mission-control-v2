@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -132,15 +132,7 @@ export default function CalendarPage() {
             <h1 className="text-4xl text-charcoal tracking-tight">Content Calendar</h1>
             <p className="text-mid text-sm mt-1">Weekly overview across all channels</p>
           </div>
-          <div className="text-right flex items-center gap-4">
-            <Link
-              href="/"
-              className="text-xs transition-opacity hover:opacity-80"
-              style={{ color: "var(--terracotta)" }}
-            >
-              &larr; Mission Control
-            </Link>
-          </div>
+          <div className="text-right" />
         </div>
 
         {/* Stats Strip */}

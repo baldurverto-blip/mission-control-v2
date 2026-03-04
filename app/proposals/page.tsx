@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -112,9 +112,6 @@ export default function ProposalsPage() {
       {/* Header */}
       <header className="px-6 pt-6 pb-4 flex items-center justify-between">
         <div>
-          <Link href="/" className="text-xs mb-1 block" style={{ color: "var(--mid)" }}>
-            &larr; Mission Control
-          </Link>
           <h1 className="text-3xl" style={{ color: "var(--charcoal)" }}>Proposals</h1>
           <p className="text-xs mt-1" style={{ color: "var(--mid)" }}>
             {pending > 0 ? `${pending} awaiting your decision` : "All proposals reviewed"}

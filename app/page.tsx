@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import Link from "next/link";
+import { StatusDot } from "./components/StatusDot";
+import { ProgressBar } from "./components/ProgressBar";
+import { Badge } from "./components/Badge";
+import { KpiChip } from "./components/KpiChip";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -91,49 +95,6 @@ function extractAgentMeta(content: string): { model: string; role: string } {
   const model = content.match(/Model:\s*(.+)/)?.[1]?.trim() ?? "—";
   const role = content.match(/Role:\s*(.+)/)?.[1]?.trim() ?? "—";
   return { model, role };
-}
-
-// ─── Micro Components ────────────────────────────────────────────────
-
-function StatusDot({ status, size = "sm" }: { status?: string; size?: "sm" | "md" }) {
-  const color =
-    status === "ok" ? "var(--olive)"
-    : status === "error" ? "var(--terracotta)"
-    : "var(--mid)";
-  const px = size === "md" ? "w-2.5 h-2.5" : "w-1.5 h-1.5";
-  return (
-    <span
-      className={`inline-block ${px} rounded-full flex-shrink-0 ${status === "ok" ? "pulse-dot" : ""}`}
-      style={{ backgroundColor: color }}
-    />
-  );
-}
-
-function ProgressBar({ done, total, color = "var(--olive)" }: { done: number; total: number; color?: string }) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  return (
-    <div className="w-full h-1.5 rounded-full bg-warm overflow-hidden relative">
-      <div
-        className="h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden"
-        style={{ width: `${pct}%`, backgroundColor: color }}
-      >
-        {pct > 0 && pct < 100 && (
-          <div className="absolute inset-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent" style={{ animation: "shine 2s ease-in-out infinite" }} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Badge({ children, color }: { children: React.ReactNode; color: string }) {
-  return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-medium tracking-wide"
-      style={{ backgroundColor: `${color}18`, color }}
-    >
-      {children}
-    </span>
-  );
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────
@@ -245,22 +206,6 @@ export default function Dashboard() {
             <p className="text-sm text-mid" suppressHydrationWarning>
               {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Copenhagen" })}
             </p>
-            <div className="flex gap-3 mt-1">
-              <Link
-                href="/proposals"
-                className="text-xs inline-block transition-opacity hover:opacity-80"
-                style={{ color: "var(--terracotta)" }}
-              >
-                Proposals &rarr;
-              </Link>
-              <Link
-                href="/calendar"
-                className="text-xs inline-block transition-opacity hover:opacity-80"
-                style={{ color: "var(--lilac)" }}
-              >
-                Content Calendar &rarr;
-              </Link>
-            </div>
           </div>
         </div>
 
@@ -542,21 +487,19 @@ export default function Dashboard() {
                   <span className="text-xs tabular-nums text-mid/60">{growthops.queueCount}</span>
                 </div>
                 <div className="pt-3 mt-2 border-t border-warm flex gap-2">
-                  <a
-                    href="http://localhost:3002"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href="/growth/queue"
                     className="flex-1 text-center py-2 rounded-lg text-xs tracking-wide transition-colors hover:bg-warm/80"
                     style={{ backgroundColor: "var(--warm)", color: "var(--charcoal)" }}
                   >
-                    Dashboard &rarr;
-                  </a>
+                    Queue &rarr;
+                  </Link>
                   <Link
-                    href="/calendar"
+                    href="/growth/discovery"
                     className="flex-1 text-center py-2 rounded-lg text-xs tracking-wide transition-colors hover:opacity-80"
                     style={{ backgroundColor: "var(--lilac)" + "20", color: "var(--lilac)" }}
                   >
-                    Calendar &rarr;
+                    Discovery &rarr;
                   </Link>
                 </div>
               </div>
@@ -584,18 +527,3 @@ export default function Dashboard() {
   );
 }
 
-// ─── KPI Chip ────────────────────────────────────────────────────────
-
-function KpiChip({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
-  return (
-    <div className="bg-paper/60 border border-warm/60 rounded-xl px-3 py-2.5 text-center transition-all hover:bg-paper hover:border-warm">
-      <p className="text-lg font-medium leading-none mb-0.5 tabular-nums" style={{ color, fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 400, fontSize: "1.5rem" }}>
-        {value}
-      </p>
-      <p className="label-caps text-[0.5rem] leading-none">
-        <span className="text-mid/60">{label}</span>
-        {sub && <span className="text-mid/35 ml-0.5">· {sub}</span>}
-      </p>
-    </div>
-  );
-}

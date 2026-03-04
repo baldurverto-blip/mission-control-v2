@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Mono } from "next/font/google";
 import "./globals.css";
+import { AppShell } from "./components/AppShell";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
@@ -27,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${cormorant.variable} ${dmMono.variable}`}>
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
