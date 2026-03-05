@@ -1,33 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback, FormEvent } from "react";
-import Link from "next/link";
+import { useEffect, useState, useCallback, useMemo, FormEvent } from "react";
+import { isAttention, type PulseData } from "@/app/lib/agents";
+import { NerveCenter } from "./components/NerveCenter";
+import { AttentionBar } from "./components/AttentionBar";
+import { MissionBands } from "./components/MissionBands";
+import { ActivityTimeline } from "./components/ActivityTimeline";
 import { StatusDot } from "./components/StatusDot";
-import { ProgressBar } from "./components/ProgressBar";
 import { Badge } from "./components/Badge";
-import { KpiChip } from "./components/KpiChip";
-import { PulseStream } from "./components/PulseStream";
+import { TabBar } from "./components/TabBar";
 
 // ─── Types ───────────────────────────────────────────────────────────
-
-interface PulseEvent {
-  agent: string;
-  action: string;
-  goal: string;
-  outcome: string;
-  duration_ms: number;
-  timestamp: string;
-}
-
-interface PulseData {
-  pulses: PulseEvent[];
-  stats: {
-    totalToday: number;
-    activeAgents: string[];
-    hasAttention: boolean;
-    lastPulse: string | null;
-  };
-}
 
 interface KPIs {
   roadmap: { done: number; total: number };
@@ -40,83 +23,28 @@ interface KPIs {
   workflows?: { active: number; approvalPending: number; completedToday: number; totalRuns: number };
 }
 
-interface WorkflowDef {
+interface InboxItem { text: string; done: boolean; }
+interface BriefFile { name: string; content: string; }
+interface PhaseProgress { name: string; total: number; done: number; }
+
+interface GoalData {
+  id: string;
   name: string;
-  file: string;
-  steps: string[];
+  pulseCount: number;
+  agents: { id: string; count: number }[];
+  lastPulse: string | null;
 }
 
-interface WorkflowActive {
-  workflow: string;
-  runId: string;
-  trigger: string;
-  startedAt: string;
-  currentStep: string | null;
-  approvalPending: boolean;
-  lastStepStatus?: string;
-}
-
-interface WorkflowCompleted {
-  workflow: string;
-  runId: string;
-  startedAt: string;
-  finishedAt: string;
-  finalStatus: string;
-}
-
+interface WorkflowDef { name: string; file: string; steps: string[]; }
+interface WorkflowActive { workflow: string; runId: string; trigger: string; startedAt: string; currentStep: string | null; approvalPending: boolean; }
+interface WorkflowCompleted { workflow: string; runId: string; startedAt: string; finishedAt: string; finalStatus: string; }
 interface WorkflowData {
   state: { active: WorkflowActive[]; completed: WorkflowCompleted[]; blocked: unknown[] };
   stats: { totalRuns: number; completedToday: number; approvalsPending: number };
   definitions: WorkflowDef[];
 }
 
-interface InboxItem {
-  text: string;
-  done: boolean;
-}
-
-interface PhaseProgress {
-  name: string;
-  total: number;
-  done: number;
-}
-
-interface CronJob {
-  id: string;
-  name: string;
-  agentId: string;
-  enabled: boolean;
-  state: {
-    lastRunStatus?: string;
-    lastRunAtMs?: number;
-    nextRunAtMs?: number;
-    lastDurationMs?: number;
-    consecutiveErrors?: number;
-  };
-}
-
-interface AgentFile {
-  name: string;
-  content: string;
-}
-
-interface BriefFile {
-  name: string;
-  content: string;
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────
-
-function relTime(ms: number | null | undefined): string {
-  if (!ms) return "—";
-  const diff = Date.now() - ms;
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -131,7 +59,6 @@ function parseMdSections(md: string): { status: string; wins: string[]; focus: s
   const wins: string[] = [];
   const focus: string[] = [];
   const blockers: string[] = [];
-
   let current: string[] | null = null;
   for (const line of clean.split("\n")) {
     if (/today.s wins/i.test(line)) { current = wins; continue; }
@@ -143,55 +70,55 @@ function parseMdSections(md: string): { status: string; wins: string[]; focus: s
       current.push(line.trim().replace(/^-\s*/, "").replace(/^\*\*/, "").replace(/\*\*:?\s*/, ": ").replace(/\*\*/g, ""));
     }
   }
-
   return { status, wins, focus, blockers };
 }
 
-function extractAgentMeta(content: string): { model: string; role: string } {
-  const model = content.match(/Model:\s*(.+)/)?.[1]?.trim() ?? "—";
-  const role = content.match(/Role:\s*(.+)/)?.[1]?.trim() ?? "—";
-  return { model, role };
+function previewBrief(content: string, max = 900): string {
+  return content.replace(/^---[\s\S]*?---\n*/m, "").trim().slice(0, max);
 }
 
-function previewBrief(content: string, max = 600): string {
-  return content
-    .replace(/^---[\s\S]*?---\n*/m, "")
-    .trim()
-    .slice(0, max);
+function relTimeMs(ms: number | null | undefined): string {
+  if (!ms) return "—";
+  const diff = Date.now() - ms;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  // State
   const [kpis, setKpis] = useState<KPIs | null>(null);
-  const [nowRaw, setNowRaw] = useState<string>("");
+  const [nowRaw, setNowRaw] = useState("");
   const [phases, setPhases] = useState<PhaseProgress[]>([]);
   const [inbox, setInbox] = useState<InboxItem[]>([]);
-  const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
-  const [research, setResearch] = useState<{ latest: { name: string; content: string } | null; weekCount: number }>({ latest: null, weekCount: 0 });
-  const [agents, setAgents] = useState<AgentFile[]>([]);
+  const [pulseData, setPulseData] = useState<PulseData | null>(null);
+  const [goals, setGoals] = useState<GoalData[]>([]);
+  const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
+  const [workflows, setWorkflows] = useState<WorkflowData | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [adding, setAdding] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
-  const [loaded, setLoaded] = useState(false);
-  const [growthops, setGrowthops] = useState<{ status: string; uptime: number; version: string; discoveryCount: number; queueCount: number } | null>(null);
-  const [workflows, setWorkflows] = useState<WorkflowData | null>(null);
-  const [pulseData, setPulseData] = useState<PulseData | null>(null);
-  const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
+
+  // Cockpit interaction state
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
+  const [contextTab, setContextTab] = useState("inbox");
 
   const fetchAll = useCallback(async () => {
-    const [kpiRes, statusRes, inboxRes, cronRes, researchRes, agentsRes, growthopsRes, workflowRes, pulseRes, briefsRes] =
+    const [kpiRes, statusRes, inboxRes, pulseRes, goalsRes, briefsRes, workflowRes] =
       await Promise.all([
-        fetch("/api/kpis").then((r) => r.json()).catch(() => null),
-        fetch("/api/status").then((r) => r.json()).catch(() => null),
-        fetch("/api/inbox").then((r) => r.json()).catch(() => null),
-        fetch("/api/cron").then((r) => r.json()).catch(() => null),
-        fetch("/api/research").then((r) => r.json()).catch(() => null),
-        fetch("/api/agents").then((r) => r.json()).catch(() => ({ agents: [] })),
-        fetch("/api/growthops").then((r) => r.json()).catch(() => null),
-        fetch("/api/workflows").then((r) => r.json()).catch(() => null),
-        fetch("/api/pulses").then((r) => r.json()).catch(() => null),
-        fetch("/api/briefs").then((r) => r.json()).catch(() => null),
+        fetch("/api/kpis").then(r => r.json()).catch(() => null),
+        fetch("/api/status").then(r => r.json()).catch(() => null),
+        fetch("/api/inbox").then(r => r.json()).catch(() => null),
+        fetch("/api/pulses").then(r => r.json()).catch(() => null),
+        fetch("/api/goals").then(r => r.json()).catch(() => null),
+        fetch("/api/briefs").then(r => r.json()).catch(() => null),
+        fetch("/api/workflows").then(r => r.json()).catch(() => null),
       ]);
 
     if (kpiRes && !kpiRes.error) setKpis(kpiRes);
@@ -200,14 +127,10 @@ export default function Dashboard() {
       setPhases(statusRes.roadmap?.phases ?? []);
     }
     if (inboxRes && !inboxRes.error) setInbox(inboxRes.items ?? []);
-    if (cronRes && !cronRes.error) setCronJobs(cronRes.jobs ?? []);
-    if (researchRes && !researchRes.error) setResearch(researchRes);
-    if (agentsRes && !agentsRes.error) setAgents(agentsRes.agents ?? []);
-    if (growthopsRes) setGrowthops(growthopsRes);
-    if (workflowRes && !workflowRes.error) setWorkflows(workflowRes);
     if (pulseRes && !pulseRes.error) setPulseData(pulseRes);
+    if (goalsRes && !goalsRes.error) setGoals(goalsRes.goals ?? []);
     if (briefsRes && !briefsRes.error) setBriefs({ morning: briefsRes.morning ?? null, evening: briefsRes.evening ?? null });
-    setLastUpdated(Date.now());
+    if (workflowRes && !workflowRes.error) setWorkflows(workflowRes);
     setLoaded(true);
   }, []);
 
@@ -234,490 +157,294 @@ export default function Dashboard() {
     }
   }
 
+  // Derived
   const now = parseMdSections(nowRaw);
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const openInbox = inbox.filter((i) => !i.done);
-  const doneInbox = inbox.filter((i) => i.done);
+  const openInbox = inbox.filter(i => !i.done);
+  const doneInbox = inbox.filter(i => i.done);
+  const roadmapPct = kpis ? Math.round((kpis.roadmap.done / Math.max(kpis.roadmap.total, 1)) * 100) : 0;
 
-  // Derive overall health
+  const attentionPulses = useMemo(() => {
+    if (!pulseData) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    return pulseData.pulses.filter(p => p.timestamp.startsWith(today) && isAttention(p));
+  }, [pulseData]);
+
   const systemHealth = kpis
     ? kpis.cron.healthy === kpis.cron.total && kpis.failures.recent === 0
-      ? "healthy"
-      : kpis.failures.recent > 0
-        ? "alert"
-        : "degraded"
+      ? "healthy" : kpis.failures.recent > 0 ? "alert" : "degraded"
     : "loading";
-
   const healthColor = systemHealth === "healthy" ? "var(--olive)" : systemHealth === "alert" ? "var(--terracotta)" : "var(--mid)";
-  const healthLabel = systemHealth === "healthy" ? "All systems nominal" : systemHealth === "alert" ? "Attention needed" : systemHealth === "degraded" ? "Partially degraded" : "Loading...";
+
+  const contextTabs = [
+    { id: "inbox", label: "Inbox", count: openInbox.length || undefined },
+    { id: "brief", label: "Briefs" },
+    { id: "focus", label: "Focus" },
+    { id: "flows", label: "Workflows", count: workflows?.stats.approvalsPending || undefined },
+  ];
 
   return (
-    <div className="min-h-screen">
-      {/* ─── Header ─────────────────────────────────────────── */}
-      <header className="px-8 pt-8 pb-6 max-w-[1440px] mx-auto">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-4xl text-charcoal tracking-tight">{getGreeting()}, Mads</h1>
-            </div>
-            <p className="text-mid text-sm flex items-center gap-2">
-              <span
-                className="inline-block w-2 h-2 rounded-full pulse-dot"
-                style={{ backgroundColor: healthColor }}
-              />
-              {healthLabel}
-              {kpis && (
-                <span className="text-mid/60 ml-1">
-                  · {kpis.roadmap.done}/{kpis.roadmap.total} checkpoints
-                </span>
-              )}
-            </p>
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* ═══ HEADER ═══════════════════════════════════════════════════ */}
+      <header className="px-6 pt-5 pb-3 flex-shrink-0">
+        <div className="flex items-center justify-between max-w-[1440px] mx-auto">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl text-charcoal tracking-tight">{getGreeting()}, Mads</h1>
+            <span className="inline-block w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: healthColor }} />
           </div>
-          <div className="text-right">
-            <p className="label-caps text-lilac mb-1">Mission Control</p>
-            <p className="text-sm text-mid" suppressHydrationWarning>
-              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Copenhagen" })}
+          <div className="flex items-center gap-4">
+            {kpis && (
+              <div className="flex items-center gap-2">
+                <span className="label-caps text-mid/50">Roadmap</span>
+                <div className="w-24 h-1.5 rounded-full bg-warm overflow-hidden">
+                  <div className="h-full rounded-full bg-olive transition-all" style={{ width: `${roadmapPct}%` }} />
+                </div>
+                <span className="text-[0.6rem] text-mid tabular-nums">{roadmapPct}%</span>
+              </div>
+            )}
+            <p className="text-xs text-mid/50" suppressHydrationWarning>
+              {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/Copenhagen" })}
             </p>
           </div>
         </div>
-
-        {/* ─── KPI Strip ───────────────────────────────────────── */}
-        {kpis && (
-          <div className={`grid grid-cols-4 lg:grid-cols-8 gap-2 ${loaded ? "fade-up" : "opacity-0"}`}>
-            <KpiChip label="Roadmap" value={`${kpis.roadmap.done}/${kpis.roadmap.total}`} sub={`${Math.round((kpis.roadmap.done / Math.max(kpis.roadmap.total, 1)) * 100)}%`} color="var(--olive)" />
-            <KpiChip label="Week" value={`W${kpis.week.number}`} sub={dayNames[new Date().getDay()]} color="var(--charcoal)" />
-            <KpiChip label="Crons" value={`${kpis.cron.healthy}/${kpis.cron.total}`} sub={kpis.cron.healthy === kpis.cron.total ? "all ok" : "issues"} color={kpis.cron.healthy === kpis.cron.total ? "var(--olive)" : "var(--terracotta)"} />
-            <KpiChip label="Inbox" value={String(kpis.inbox.open)} sub={kpis.inbox.open === 0 ? "clear" : kpis.inbox.open > 5 ? "backlog" : "open"} color={kpis.inbox.open > 5 ? "var(--terracotta)" : "var(--mid)"} />
-            <KpiChip label="Research" value={String(kpis.research.count)} sub="reports" color="var(--lilac)" />
-            <KpiChip label="Scout" value={String(kpis.research.scoutScore)} sub="signals" color="var(--lilac)" />
-            <KpiChip label="Uptime" value={kpis.failures.daysSince !== null ? `${kpis.failures.daysSince}d` : "—"} sub="clean" color={kpis.failures.recent > 0 ? "var(--terracotta)" : "var(--olive)"} />
-            <KpiChip label="Pulses" value={String(pulseData?.stats.totalToday ?? 0)} sub={pulseData?.stats.activeAgents.length ? `${pulseData.stats.activeAgents.length} active` : "idle"} color={pulseData?.stats.hasAttention ? "var(--terracotta)" : pulseData?.stats.totalToday ? "var(--olive)" : "var(--mid)"} />
-          </div>
-        )}
       </header>
 
-      {/* ─── Main Grid ──────────────────────────────────────── */}
-      <main className="px-8 pb-12 max-w-[1440px] mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* ═══ MAIN COCKPIT ══════════════════════════════════════════════ */}
+      <main className="flex-1 overflow-hidden px-6 pb-4">
+        <div className="max-w-[1440px] mx-auto h-full flex flex-col gap-3">
 
-          {/* ─── PULSE STREAM ─────────────────────────────── */}
+          {/* ─── ZONE 1: Nerve Center ─────────────────────────── */}
           {pulseData && (
-            <PulseStream
+            <NerveCenter
               pulses={pulseData.pulses}
               stats={pulseData.stats}
-              loaded={loaded}
+              cronHealth={kpis ? { healthy: kpis.cron.healthy, total: kpis.cron.total } : undefined}
+              selectedAgent={selectedAgent}
+              onSelectAgent={(id) => { setSelectedAgent(id); setSelectedGoal(null); }}
             />
           )}
 
-          {/* ─── NOW ──────────────────────────────────────── */}
-          <div className={`card lg:col-span-8 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.05s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">Current Focus</h2>
-              {now.status && <Badge color="var(--terracotta)">{now.status}</Badge>}
-            </div>
+          {/* ─── ZONE 2: Attention + Mission Bands ────────────── */}
+          {attentionPulses.length > 0 && !selectedAgent && !selectedGoal && (
+            <AttentionBar pulses={attentionPulses} />
+          )}
 
-            {now.focus.length > 0 && (
-              <div className="mb-4">
-                <p className="label-caps mb-2" style={{ color: "var(--terracotta)" }}>This week</p>
-                <div className="space-y-1.5">
-                  {now.focus.map((item, i) => (
-                    <div key={i} className="flex items-start gap-2.5 text-sm">
-                      <span className="mt-1.5 w-1 h-1 rounded-full bg-terracotta flex-shrink-0" />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          {goals.length > 0 && (
+            <MissionBands
+              goals={goals}
+              selectedGoal={selectedGoal}
+              onSelectGoal={(id) => { setSelectedGoal(id); setSelectedAgent(null); }}
+            />
+          )}
 
-            {now.wins.length > 0 && (
-              <div className="mb-4">
-                <p className="label-caps mb-2" style={{ color: "var(--olive)" }}>Wins today</p>
-                <div className="space-y-1.5">
-                  {now.wins.map((item, i) => (
-                    <div key={i} className="flex items-start gap-2.5 text-sm text-mid">
-                      <span className="mt-0.5 flex-shrink-0 text-olive">&#10003;</span>
-                      <span>{item.replace(/^✅\s*/, "")}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {now.blockers.length > 0 && (
-              <div>
-                <p className="label-caps mb-2" style={{ color: "var(--terracotta)" }}>Blockers</p>
-                <div className="space-y-1.5">
-                  {now.blockers.map((item, i) => (
-                    <div key={i} className="flex items-start gap-2.5 text-sm text-mid">
-                      <span className="mt-0.5 flex-shrink-0 text-terracotta">!</span>
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {!nowRaw && <p className="text-mid text-sm">Loading...</p>}
-          </div>
-
-          {/* ─── BRIEFS ───────────────────────────────────── */}
-          <div className={`card lg:col-span-12 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.08s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">Briefs</h2>
-              <span className="text-xs text-mid">Source: ops/briefs</span>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-lg bg-warm/40 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="label-caps" style={{ color: "var(--charcoal)" }}>Latest Morning</p>
-                  <span className="text-[0.65rem] text-mid">{briefs.morning?.name ?? "—"}</span>
-                </div>
-                {briefs.morning ? (
-                  <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid max-h-48 overflow-y-auto custom-scroll">{previewBrief(briefs.morning.content, 900)}</pre>
-                ) : (
-                  <p className="text-sm text-mid/60">No morning brief yet.</p>
-                )}
-              </div>
-
-              <div className="rounded-lg bg-warm/40 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="label-caps" style={{ color: "var(--charcoal)" }}>Latest Evening</p>
-                  <span className="text-[0.65rem] text-mid">{briefs.evening?.name ?? "—"}</span>
-                </div>
-                {briefs.evening ? (
-                  <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid max-h-48 overflow-y-auto custom-scroll">{previewBrief(briefs.evening.content, 900)}</pre>
-                ) : (
-                  <p className="text-sm text-mid/60">No evening brief yet.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ─── INBOX ────────────────────────────────────── */}
-          <div className={`card lg:col-span-4 flex flex-col ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.1s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">Inbox</h2>
-              {openInbox.length > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-xs font-medium text-paper" style={{ backgroundColor: openInbox.length > 5 ? "var(--terracotta)" : "var(--mid)" }}>
-                  {openInbox.length}
-                </span>
-              )}
-            </div>
-
-            <div className="flex-1 space-y-1 mb-4 max-h-56 overflow-y-auto custom-scroll">
-              {openInbox.length === 0 && doneInbox.length === 0 && (
-                <p className="text-mid text-sm py-4 text-center">Inbox zero</p>
-              )}
-              {openInbox.map((item, i) => (
-                <div key={`open-${i}`} className="flex items-start gap-2.5 py-1.5 px-2 rounded-md hover:bg-warm/50 transition-colors text-sm group">
-                  <span className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded border border-mid/40 group-hover:border-terracotta transition-colors" />
-                  <span className="leading-snug">{item.text}</span>
-                </div>
-              ))}
-              {doneInbox.length > 0 && (
-                <div className="pt-2 mt-2 border-t border-warm">
-                  {doneInbox.map((item, i) => (
-                    <div key={`done-${i}`} className="flex items-start gap-2.5 py-1 px-2 text-sm text-mid/50">
-                      <span className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded bg-olive/30 border border-olive/30 flex items-center justify-center text-[8px] text-olive">&#10003;</span>
-                      <span className="leading-snug line-through">{item.text}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={handleAddItem} className="flex gap-2 mt-auto">
-              <input
-                type="text"
-                value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
-                placeholder="Add to inbox..."
-                className="flex-1 bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal placeholder:text-mid/50 focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"
-              />
-              <button
-                type="submit"
-                disabled={adding || !newItem.trim()}
-                className="px-4 py-2 bg-charcoal text-paper rounded-lg text-sm tracking-wide hover:bg-charcoal/90 disabled:opacity-30 transition-all"
-              >
-                {adding ? "..." : "Add"}
-              </button>
-            </form>
-          </div>
-
-          {/* ─── ROADMAP ──────────────────────────────────── */}
-          <div className={`card lg:col-span-8 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.15s" }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl text-charcoal">Roadmap</h2>
-              {kpis && (
-                <span className="text-sm text-mid">
-                  {Math.round((kpis.roadmap.done / Math.max(kpis.roadmap.total, 1)) * 100)}% complete
-                </span>
-              )}
-            </div>
-            <div className="space-y-4">
-              {phases.map((phase) => {
-                const pct = phase.total > 0 ? Math.round((phase.done / phase.total) * 100) : 0;
-                const isDone = phase.done === phase.total && phase.total > 0;
-                return (
-                  <div key={phase.name} className={isDone ? "opacity-50" : ""}>
-                    <div className="flex items-center justify-between text-sm mb-1.5">
-                      <span className="truncate mr-3 flex items-center gap-2">
-                        {isDone && <span className="text-olive text-xs">&#10003;</span>}
-                        {phase.name}
-                      </span>
-                      <span className="text-mid flex-shrink-0 tabular-nums text-xs">
-                        {phase.done}/{phase.total}
-                        <span className="text-mid/40 ml-1">({pct}%)</span>
-                      </span>
-                    </div>
-                    <ProgressBar
-                      done={phase.done}
-                      total={phase.total}
-                      color={isDone ? "var(--olive)" : pct > 0 ? "var(--olive)" : "var(--mid)"}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ─── CRON HEALTH ──────────────────────────────── */}
-          <div className={`card lg:col-span-4 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.2s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">Cron Jobs</h2>
-              {kpis && (
-                <Badge color={kpis.cron.healthy === kpis.cron.total ? "var(--olive)" : "var(--terracotta)"}>
-                  {kpis.cron.healthy}/{kpis.cron.total}
-                </Badge>
-              )}
-            </div>
-            <div className="space-y-0.5">
-              {cronJobs.map((job) => (
-                <div key={job.id} className="flex items-center justify-between py-2 px-2 rounded-md hover:bg-warm/50 transition-colors text-sm">
-                  <div className="flex items-center gap-2.5">
-                    <StatusDot status={job.state.lastRunStatus} size="md" />
-                    <span>{job.name}</span>
-                    {job.agentId !== "main" && (
-                      <span className="text-[0.6rem] text-lilac bg-lilac/10 px-1.5 py-0.5 rounded">{job.agentId}</span>
-                    )}
-                  </div>
-                  <span className="text-mid/60 text-xs tabular-nums">
-                    {relTime(job.state.lastRunAtMs)}
-                  </span>
-                </div>
-              ))}
-              {cronJobs.length === 0 && <p className="text-mid text-sm py-4 text-center">Loading...</p>}
-            </div>
-          </div>
-
-          {/* ─── RESEARCH ─────────────────────────────────── */}
-          <div className={`card lg:col-span-8 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.25s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">Latest Research</h2>
-              {research.latest && (
-                <span className="text-xs text-mid">{research.latest.name}</span>
-              )}
-            </div>
-            {research.latest ? (
-              <div className="max-h-72 overflow-y-auto custom-scroll">
-                <pre className="text-sm whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid">
-                  {research.latest.content
-                    .replace(/^---[\s\S]*?---\n*/m, "")
-                    .replace(/^#+\s*/gm, "")
-                    .trim()
-                    .slice(0, 2000)}
-                </pre>
-              </div>
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-mid/60 text-sm">No research files yet</p>
-                <p className="text-mid/40 text-xs mt-1">Scout runs nightly at 02:00 CET</p>
-              </div>
-            )}
-          </div>
-
-          {/* ─── AGENTS ───────────────────────────────────── */}
-          <div className={`card lg:col-span-4 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.3s" }}>
-            <h2 className="text-xl text-charcoal mb-4">Agents</h2>
-            {agents.length > 0 ? (
-              <div className="space-y-3">
-                {agents
-                  .filter((a) => !a.name.includes("brief"))
-                  .map((agent) => {
-                    const meta = extractAgentMeta(agent.content);
-                    const name = agent.name.replace(".md", "");
-                    const gradient =
-                      name === "main" ? "from-[#5B8C8A] to-[#7BB5B3]"
-                      : name === "scout" ? "from-[#76875A] to-[#A3B87A]"
-                      : "from-[#9899C1] to-[#B8B9D8]";
-                    return (
-                      <div key={agent.name} className="flex items-start gap-3 p-3 rounded-lg bg-warm/40">
-                        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center text-paper text-sm font-medium flex-shrink-0`}>
-                          {name[0].toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium capitalize">{name === "main" ? "Baldur" : name}</p>
-                          <p className="text-xs text-mid truncate">{meta.role}</p>
-                          <p className="text-[0.625rem] text-mid/50 mt-0.5 truncate">{meta.model}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            ) : (
-              <p className="text-mid text-sm py-4 text-center">Loading...</p>
-            )}
-          </div>
-          {/* ─── WORKFLOWS ────────────────────────────────── */}
-          <div className={`card lg:col-span-8 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.32s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">Pipelines</h2>
-              {workflows && (
-                <div className="flex gap-2">
-                  <Badge color="var(--mid)">{workflows.definitions.length} workflows</Badge>
-                  {workflows.stats.approvalsPending > 0 && (
-                    <Badge color="var(--terracotta)">{workflows.stats.approvalsPending} awaiting</Badge>
-                  )}
-                </div>
-              )}
-            </div>
-            {workflows ? (
-              <div className="space-y-3">
-                {/* Active workflows */}
-                {workflows.state.active.length > 0 && (
-                  <div>
-                    <p className="label-caps text-mid/60 mb-2">Active</p>
-                    {workflows.state.active.map((w) => (
-                      <div key={w.runId} className="flex items-center gap-3 p-3 rounded-lg bg-warm/40 mb-2">
-                        <StatusDot status={w.approvalPending ? "warn" : "ok"} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">{w.workflow}</p>
-                          <p className="text-xs text-mid">
-                            Step: <span className="text-charcoal">{w.currentStep ?? "starting"}</span>
-                            {w.approvalPending && <span className="text-terracotta ml-2">· awaiting approval</span>}
-                          </p>
-                        </div>
-                        <p className="text-[0.625rem] text-mid/50">{relTime(new Date(w.startedAt).getTime())}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Workflow definitions with step visualization */}
-                <div>
-                  <p className="label-caps text-mid/60 mb-2">Available Pipelines</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {workflows.definitions.map((def) => (
-                      <div key={def.file} className="p-3 rounded-lg bg-warm/30">
-                        <p className="text-sm font-medium mb-1">{def.name}</p>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {def.steps.map((step, i) => (
-                            <span key={step} className="flex items-center gap-1">
-                              <span className="text-[0.6rem] text-mid bg-warm rounded px-1.5 py-0.5">{step}</span>
-                              {i < def.steps.length - 1 && <span className="text-mid/30 text-[0.5rem]">→</span>}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Recent completions */}
-                {workflows.state.completed.length > 0 && (
-                  <div>
-                    <p className="label-caps text-mid/60 mb-2">Recent</p>
-                    {workflows.state.completed.slice(0, 5).map((w) => (
-                      <div key={w.runId} className="flex items-center gap-3 py-1.5">
-                        <StatusDot status={w.finalStatus === "done" ? "ok" : "error"} />
-                        <p className="text-xs text-mid flex-1">{w.workflow}</p>
-                        <p className="text-[0.625rem] text-mid/50">{w.finalStatus}</p>
-                        <p className="text-[0.625rem] text-mid/50">{relTime(new Date(w.finishedAt).getTime())}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {workflows.state.active.length === 0 && workflows.state.completed.length === 0 && (
-                  <p className="text-sm text-mid/60 py-2 text-center">No pipeline activity yet</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-mid text-sm py-4 text-center">Loading...</p>
-            )}
-          </div>
-
-          {/* ─── GROWTHOPS ─────────────────────────────────── */}
-          <div className={`card lg:col-span-4 ${loaded ? "fade-up" : "opacity-0"}`} style={{ animationDelay: "0.35s" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-charcoal">GrowthOps</h2>
-              {growthops && (
-                <span
-                  className={`inline-block w-2 h-2 rounded-full ${growthops.status === "online" ? "pulse-dot" : ""}`}
-                  style={{ backgroundColor: growthops.status === "online" ? "var(--olive)" : "var(--terracotta)" }}
+          {/* ─── ZONE 3: Timeline + Context Panel ─────────────── */}
+          <div className="flex-1 grid grid-cols-12 gap-3 min-h-0">
+            {/* Activity Timeline (7 cols) */}
+            <div className="col-span-7 min-h-0 flex flex-col">
+              {pulseData && (
+                <ActivityTimeline
+                  pulses={pulseData.pulses}
+                  selectedAgent={selectedAgent}
+                  selectedGoal={selectedGoal}
                 />
               )}
             </div>
-            {growthops ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-mid">Status</span>
-                  <Badge color={growthops.status === "online" ? "var(--olive)" : "var(--terracotta)"}>
-                    {growthops.status}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-mid">Version</span>
-                  <span className="text-xs tabular-nums text-mid/60">{growthops.version}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-mid">Discovery signals</span>
-                  <span className="text-xs tabular-nums text-mid/60">{growthops.discoveryCount}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-mid">Content queue</span>
-                  <span className="text-xs tabular-nums text-mid/60">{growthops.queueCount}</span>
-                </div>
-                <div className="pt-3 mt-2 border-t border-warm flex gap-2">
-                  <Link
-                    href="/growth/queue"
-                    className="flex-1 text-center py-2 rounded-lg text-xs tracking-wide transition-colors hover:bg-warm/80"
-                    style={{ backgroundColor: "var(--warm)", color: "var(--charcoal)" }}
-                  >
-                    Queue &rarr;
-                  </Link>
-                  <Link
-                    href="/growth/discovery"
-                    className="flex-1 text-center py-2 rounded-lg text-xs tracking-wide transition-colors hover:opacity-80"
-                    style={{ backgroundColor: "var(--lilac)" + "20", color: "var(--lilac)" }}
-                  >
-                    Discovery &rarr;
-                  </Link>
-                </div>
+
+            {/* Context Panel (5 cols) */}
+            <div className="col-span-5 bg-paper border border-warm rounded-xl overflow-hidden flex flex-col fade-up min-h-0">
+              <div className="px-4 pt-3 pb-2 flex-shrink-0">
+                <TabBar tabs={contextTabs} active={contextTab} onChange={setContextTab} />
               </div>
-            ) : (
-              <div className="py-6 text-center">
-                <p className="text-mid/60 text-sm">Connecting...</p>
-                <p className="text-mid/40 text-xs mt-1">GrowthOps on :3002</p>
+
+              <div className="flex-1 overflow-y-auto custom-scroll px-4 pb-4">
+                {/* ── Inbox Tab ─────────────────────────────── */}
+                {contextTab === "inbox" && (
+                  <div>
+                    <div className="space-y-0.5 mb-4">
+                      {openInbox.length === 0 && doneInbox.length === 0 && (
+                        <p className="text-mid text-sm py-4 text-center">Inbox zero</p>
+                      )}
+                      {openInbox.map((item, i) => (
+                        <div key={`open-${i}`} className="flex items-start gap-2.5 py-1.5 px-2 rounded-md hover:bg-warm/50 transition-colors text-sm group">
+                          <span className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded border border-mid/40 group-hover:border-terracotta transition-colors" />
+                          <span className="leading-snug">{item.text}</span>
+                        </div>
+                      ))}
+                      {doneInbox.length > 0 && (
+                        <div className="pt-2 mt-2 border-t border-warm">
+                          {doneInbox.map((item, i) => (
+                            <div key={`done-${i}`} className="flex items-start gap-2.5 py-1 px-2 text-sm text-mid/50">
+                              <span className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded bg-olive/30 border border-olive/30 flex items-center justify-center text-[8px] text-olive">&#10003;</span>
+                              <span className="leading-snug line-through">{item.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <form onSubmit={handleAddItem} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newItem}
+                        onChange={(e) => setNewItem(e.target.value)}
+                        placeholder="Add to inbox..."
+                        className="flex-1 bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal placeholder:text-mid/50 focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"
+                      />
+                      <button
+                        type="submit"
+                        disabled={adding || !newItem.trim()}
+                        className="px-3 py-2 bg-charcoal text-paper rounded-lg text-sm tracking-wide hover:bg-charcoal/90 disabled:opacity-30 transition-all cursor-pointer"
+                      >
+                        {adding ? "..." : "Add"}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* ── Brief Tab ─────────────────────────────── */}
+                {contextTab === "brief" && (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="label-caps" style={{ color: "var(--charcoal)" }}>Morning</p>
+                        <span className="text-[0.6rem] text-mid/50">{briefs.morning?.name ?? "—"}</span>
+                      </div>
+                      {briefs.morning ? (
+                        <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid">{previewBrief(briefs.morning.content)}</pre>
+                      ) : (
+                        <p className="text-sm text-mid/60">No morning brief yet.</p>
+                      )}
+                    </div>
+                    <div className="border-t border-warm pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="label-caps" style={{ color: "var(--charcoal)" }}>Evening</p>
+                        <span className="text-[0.6rem] text-mid/50">{briefs.evening?.name ?? "—"}</span>
+                      </div>
+                      {briefs.evening ? (
+                        <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid">{previewBrief(briefs.evening.content)}</pre>
+                      ) : (
+                        <p className="text-sm text-mid/60">No evening brief yet.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Focus Tab ─────────────────────────────── */}
+                {contextTab === "focus" && (
+                  <div>
+                    {now.status && (
+                      <div className="mb-3">
+                        <Badge color="var(--terracotta)">{now.status}</Badge>
+                      </div>
+                    )}
+                    {now.focus.length > 0 && (
+                      <div className="mb-4">
+                        <p className="label-caps mb-2" style={{ color: "var(--terracotta)" }}>This week</p>
+                        <div className="space-y-1.5">
+                          {now.focus.map((item, i) => (
+                            <div key={i} className="flex items-start gap-2.5 text-sm">
+                              <span className="mt-1.5 w-1 h-1 rounded-full bg-terracotta flex-shrink-0" />
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {now.wins.length > 0 && (
+                      <div className="mb-4">
+                        <p className="label-caps mb-2" style={{ color: "var(--olive)" }}>Wins today</p>
+                        <div className="space-y-1.5">
+                          {now.wins.map((item, i) => (
+                            <div key={i} className="flex items-start gap-2.5 text-sm text-mid">
+                              <span className="mt-0.5 flex-shrink-0 text-olive">&#10003;</span>
+                              <span>{item.replace(/^✅\s*/, "")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {now.blockers.length > 0 && (
+                      <div>
+                        <p className="label-caps mb-2" style={{ color: "var(--terracotta)" }}>Blockers</p>
+                        <div className="space-y-1.5">
+                          {now.blockers.map((item, i) => (
+                            <div key={i} className="flex items-start gap-2.5 text-sm text-mid">
+                              <span className="mt-0.5 flex-shrink-0 text-terracotta">!</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {!nowRaw && <p className="text-mid text-sm">Loading...</p>}
+                  </div>
+                )}
+
+                {/* ── Workflows Tab ─────────────────────────── */}
+                {contextTab === "flows" && (
+                  <div className="space-y-3">
+                    {workflows ? (
+                      <>
+                        {workflows.state.active.length > 0 && (
+                          <div>
+                            <p className="label-caps text-mid/60 mb-2">Active</p>
+                            {workflows.state.active.map((w) => (
+                              <div key={w.runId} className="flex items-center gap-3 p-2.5 rounded-lg bg-warm/40 mb-2">
+                                <StatusDot status={w.approvalPending ? "warn" : "ok"} />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium">{w.workflow}</p>
+                                  <p className="text-xs text-mid">
+                                    Step: <span className="text-charcoal">{w.currentStep ?? "starting"}</span>
+                                    {w.approvalPending && <span className="text-terracotta ml-2">· awaiting approval</span>}
+                                  </p>
+                                </div>
+                                <p className="text-[0.6rem] text-mid/50" suppressHydrationWarning>{relTimeMs(new Date(w.startedAt).getTime())}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div>
+                          <p className="label-caps text-mid/60 mb-2">Pipelines</p>
+                          <div className="space-y-1.5">
+                            {workflows.definitions.map((def) => (
+                              <div key={def.file} className="p-2.5 rounded-lg bg-warm/30">
+                                <p className="text-sm font-medium mb-1">{def.name}</p>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {def.steps.map((step, i) => (
+                                    <span key={step} className="flex items-center gap-1">
+                                      <span className="text-[0.55rem] text-mid bg-warm rounded px-1 py-0.5">{step}</span>
+                                      {i < def.steps.length - 1 && <span className="text-mid/30 text-[0.5rem]">&rarr;</span>}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {workflows.state.completed.length > 0 && (
+                          <div>
+                            <p className="label-caps text-mid/60 mb-2">Recent</p>
+                            {workflows.state.completed.slice(0, 5).map((w) => (
+                              <div key={w.runId} className="flex items-center gap-3 py-1.5">
+                                <StatusDot status={w.finalStatus === "done" ? "ok" : "error"} />
+                                <p className="text-xs text-mid flex-1">{w.workflow}</p>
+                                <p className="text-[0.6rem] text-mid/50">{w.finalStatus}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {workflows.state.active.length === 0 && workflows.state.completed.length === 0 && (
+                          <p className="text-sm text-mid/60 py-2 text-center">No pipeline activity yet</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-mid text-sm py-4 text-center">Loading...</p>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </main>
-
-      {/* ─── Footer ─────────────────────────────────────────── */}
-      <footer className="px-8 pb-6 max-w-[1440px] mx-auto flex items-center justify-between" suppressHydrationWarning>
-        <p className="label-caps text-mid/40">
-          Verto Studios · VertoOS
-        </p>
-        <p className="label-caps text-mid/40">
-          {new Date(lastUpdated).toLocaleTimeString("da-DK", { timeZone: "Europe/Copenhagen" })}
-          {" · "}refreshes every 60s
-        </p>
-      </footer>
     </div>
   );
 }
-

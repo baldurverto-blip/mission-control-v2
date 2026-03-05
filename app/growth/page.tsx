@@ -16,6 +16,7 @@ interface QueueStats {
   queued: number;
   approved: number;
   rejected: number;
+  posted?: number;
 }
 
 interface RadarStats {
@@ -111,8 +112,8 @@ const ICONS = {
     "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
   engagement:
     "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-  tiktok:
-    "M9 19c-4.286 1.35-4.286-2.55-6-3m12 5v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0019 4.77 5.07 5.07 0 0018.91 1S17.73.65 15 2.48a13.38 13.38 0 00-7 0C5.27.65 4.09 1 4.09 1A5.07 5.07 0 004 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 008 18.13V22",
+  history:
+    "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   campaigns:
     "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z",
 };
@@ -122,6 +123,78 @@ const COVERAGE_COLORS: Record<string, string> = {
   partial: "var(--amber)",
   none: "var(--warm)",
 };
+
+// ── Radial Gauge ─────────────────────────────────────────────────
+
+function RadialGauge({ value, color, label }: { value: number; color: string; label: string }) {
+  const radius = 70;
+  const strokeWidth = 10;
+  const cx = 90;
+  const cy = 85;
+  const circumference = Math.PI * radius; // half circle
+  const fillLength = (value / 100) * circumference;
+  const dashArray = `${fillLength} ${circumference}`;
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width="180" height="105" viewBox="0 0 180 105">
+        {/* Background arc */}
+        <path
+          d={describeArc(cx, cy, radius)}
+          fill="none"
+          stroke="var(--warm)"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
+        {/* Filled arc */}
+        <path
+          d={describeArc(cx, cy, radius)}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={dashArray}
+          className="gauge-arc"
+        />
+        {/* Center number */}
+        <text
+          x={cx}
+          y={cy - 8}
+          textAnchor="middle"
+          style={{
+            fontFamily: "var(--font-cormorant), Georgia, serif",
+            fontWeight: 300,
+            fontSize: "2.5rem",
+            fill: color,
+          }}
+        >
+          {value}°
+        </text>
+        {/* Label */}
+        <text
+          x={cx}
+          y={cy + 12}
+          textAnchor="middle"
+          style={{
+            fontFamily: "var(--font-dm-mono), monospace",
+            fontWeight: 400,
+            fontSize: "0.5rem",
+            fill: "var(--mid)",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase" as const,
+          }}
+        >
+          {label}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function describeArc(cx: number, cy: number, r: number): string {
+  // Half circle from left to right (180° arc)
+  return `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+}
 
 // ── Section Card ─────────────────────────────────────────────────
 
@@ -187,6 +260,98 @@ function SectionCard({
         {title} →
       </p>
     </Link>
+  );
+}
+
+// ── Pipeline Stage ──────────────────────────────────────────────
+
+function PipelineStage({ stage, coverage, isLast }: { stage: string; coverage: string; isLast: boolean }) {
+  const isFull = coverage === "full";
+  const isPartial = coverage === "partial";
+
+  return (
+    <div className="flex items-center flex-1 min-w-0">
+      <div className="flex-1 min-w-[60px]">
+        <p className="label-caps text-[0.45rem] text-mid/60 mb-1.5 capitalize truncate">
+          {stage}
+        </p>
+        <div
+          className="h-6 rounded-lg flex items-center justify-center relative overflow-hidden"
+          style={{
+            backgroundColor: isFull
+              ? "var(--olive-soft)"
+              : isPartial
+                ? "var(--amber-soft)"
+                : "transparent",
+            border: isFull
+              ? "1.5px solid var(--olive)"
+              : isPartial
+                ? "1.5px solid var(--amber)"
+                : "1.5px dashed var(--mid)",
+            borderColor: isFull
+              ? "var(--olive)"
+              : isPartial
+                ? "var(--amber)"
+                : "var(--warm)",
+          }}
+        >
+          {isFull && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--olive)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+          {isPartial && (
+            <div className="absolute inset-0 flex">
+              <div className="w-1/2 h-full" style={{ backgroundColor: "var(--amber)", opacity: 0.15 }} />
+            </div>
+          )}
+          {!isFull && !isPartial && (
+            <span className="text-[0.5rem] text-mid/30">—</span>
+          )}
+        </div>
+      </div>
+      {/* Connector arrow */}
+      {!isLast && (
+        <div className="flex items-center px-1 pt-4">
+          <svg width="16" height="8" viewBox="0 0 16 8" className="text-mid/20">
+            <line x1="0" y1="4" x2="12" y2="4" stroke="currentColor" strokeWidth="1" />
+            <polyline points="10,1 14,4 10,7" fill="none" stroke="currentColor" strokeWidth="1" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tier Bar ────────────────────────────────────────────────────
+
+function TierBar({ hot, warm, emerging }: { hot: number; warm: number; emerging: number }) {
+  const total = hot + warm + emerging;
+  if (total === 0) return null;
+  return (
+    <div className="flex gap-0.5 mt-2 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--warm)" }}>
+      {hot > 0 && (
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${(hot / total) * 100}%`, backgroundColor: "var(--terracotta)" }}
+          title={`${hot} hot`}
+        />
+      )}
+      {warm > 0 && (
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${(warm / total) * 100}%`, backgroundColor: "var(--amber)" }}
+          title={`${warm} warm`}
+        />
+      )}
+      {emerging > 0 && (
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${(emerging / total) * 100}%`, backgroundColor: "var(--olive)" }}
+          title={`${emerging} emerging`}
+        />
+      )}
+    </div>
   );
 }
 
@@ -266,6 +431,7 @@ export default function GrowthDashboard() {
   const queued = data.queueStats?.queued ?? 0;
   const approved = data.queueStats?.approved ?? 0;
   const rejected = data.queueStats?.rejected ?? 0;
+  const posted = data.queueStats?.posted ?? 0;
   const activeSignals = data.radarStats?.active_signals ?? 0;
   const newThisWeek = data.radarStats?.new_this_week ?? 0;
   const hot = data.radarStats?.hot ?? 0;
@@ -273,6 +439,7 @@ export default function GrowthDashboard() {
   const emerging = data.radarStats?.emerging ?? 0;
   const totalEngagements = data.engagementStats?.stats?.total_engagements ?? 0;
   const pendingComments = data.engagementStats?.stats?.pending_comments ?? 0;
+  const inPipeline = created - published;
 
   if (!loaded) {
     return (
@@ -296,38 +463,10 @@ export default function GrowthDashboard() {
 
   return (
     <div className="px-8 pt-6 pb-12 max-w-[1440px] mx-auto space-y-6">
-      {/* ── Temperature ──────────────────────────────────── */}
+      {/* ── Temperature — Radial Gauge ────────────────────── */}
       <div className="card fade-up" style={{ padding: "1.5rem 2rem" }}>
-        <div className="flex items-center gap-4 mb-3">
-          <p
-            className="leading-none tabular-nums"
-            style={{
-              color,
-              fontFamily: "var(--font-cormorant), Georgia, serif",
-              fontWeight: 300,
-              fontSize: "3rem",
-            }}
-          >
-            {temp}°
-          </p>
-          <div className="flex-1">
-            <div
-              className="h-1.5 rounded-full overflow-hidden"
-              style={{ backgroundColor: "var(--warm)" }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${temp}%`,
-                  backgroundColor: color,
-                  transition: "width 1s ease-out, background-color 0.5s ease",
-                }}
-              />
-            </div>
-            <p className="text-[0.55rem] text-mid/60 mt-1 label-caps">{label}</p>
-          </div>
-        </div>
-        <p className="text-sm text-mid">
+        <RadialGauge value={temp} color={color} label={label} />
+        <p className="text-sm text-mid text-center mt-2">
           <span className="tabular-nums">{discovered}</span>
           <span className="text-mid/40 mx-1.5">→</span>
           <span className="tabular-nums">{created}</span>
@@ -338,18 +477,18 @@ export default function GrowthDashboard() {
         </p>
       </div>
 
-      {/* ── KPI Strip ────────────────────────────────────── */}
+      {/* ── KPI Strip with Delta Indicators ───────────────── */}
       <div
         className="grid grid-cols-3 sm:grid-cols-6 gap-3 fade-up"
         style={{ animationDelay: "0.05s" }}
       >
         {[
-          { label: "Signals", value: discovered, color: "var(--olive)" },
-          { label: "Created", value: created, color: "var(--lilac)" },
-          { label: "Published", value: published, color: "var(--charcoal)" },
-          { label: "Queue", value: queued, color: "var(--lilac)" },
-          { label: "Hot", value: hot, color: "var(--terracotta)" },
-          { label: "Engaged", value: totalEngagements, color: "var(--amber)" },
+          { label: "Signals", value: discovered, color: "var(--olive)", delta: newThisWeek, deltaLabel: "new" },
+          { label: "Created", value: created, color: "var(--lilac)", delta: null, deltaLabel: "" },
+          { label: "Published", value: published, color: "var(--charcoal)", delta: null, deltaLabel: "" },
+          { label: "Queue", value: queued, color: "var(--lilac)", delta: approved, deltaLabel: "approved" },
+          { label: "Hot", value: hot, color: "var(--terracotta)", delta: null, deltaLabel: "" },
+          { label: "Engaged", value: totalEngagements, color: "var(--amber)", delta: pendingComments, deltaLabel: "pending" },
         ].map((kpi) => (
           <div
             key={kpi.label}
@@ -367,12 +506,21 @@ export default function GrowthDashboard() {
               {kpi.value}
             </p>
             <p className="label-caps text-[0.5rem] text-mid/60">{kpi.label}</p>
+            {kpi.delta !== null && kpi.delta > 0 && (
+              <p className="text-[0.5rem] mt-0.5 tabular-nums" style={{ color: kpi.color, opacity: 0.7 }}>
+                +{kpi.delta} {kpi.deltaLabel}
+              </p>
+            )}
+            {kpi.delta !== null && kpi.delta === 0 && (
+              <p className="text-[0.5rem] mt-0.5 text-mid/30">—</p>
+            )}
           </div>
         ))}
       </div>
 
-      {/* ── Section Cards (3×2) ──────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* ── Section Cards (2×2) ───────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Queue Card — with pulsing dot when items pending */}
         <SectionCard
           title="Queue"
           href="/growth/queue"
@@ -382,6 +530,12 @@ export default function GrowthDashboard() {
           icon={ICONS.queue}
           delay={0.1}
         >
+          {queued > 0 && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ backgroundColor: "var(--lilac)" }} />
+              <span className="text-[0.5rem] text-lilac/70">{queued} pending approval</span>
+            </div>
+          )}
           {queued + approved + rejected > 0 && (
             <div
               className="flex gap-0.5 mt-2 h-1 rounded-full overflow-hidden"
@@ -409,26 +563,18 @@ export default function GrowthDashboard() {
           )}
         </SectionCard>
 
+        {/* Signals Card — with tier bar */}
         <SectionCard
-          title="Discovery"
-          href="/growth/discovery"
+          title="Signals"
+          href="/growth/signals"
           accent="var(--olive)"
           primary={discovered}
           secondary={`${newThisWeek} this week`}
           icon={ICONS.discovery}
           delay={0.15}
-        />
-
-        <SectionCard
-          title="Radar"
-          href="/growth/radar"
-          accent="var(--terracotta)"
-          primary={activeSignals}
-          secondary="active signals"
-          icon={ICONS.radar}
-          delay={0.2}
         >
-          <div className="flex items-center gap-2 mt-2">
+          <TierBar hot={hot} warm={warm} emerging={emerging} />
+          <div className="flex items-center gap-2 mt-1.5">
             {[
               { n: hot, c: "var(--terracotta)", l: "hot" },
               { n: warm, c: "var(--amber)", l: "warm" },
@@ -449,6 +595,7 @@ export default function GrowthDashboard() {
           </div>
         </SectionCard>
 
+        {/* Engagement Card — with empty state */}
         <SectionCard
           title="Engagement"
           href="/growth/engagement"
@@ -456,50 +603,76 @@ export default function GrowthDashboard() {
           primary={totalEngagements}
           secondary={pendingComments > 0 ? `${pendingComments} pending` : "no pending"}
           icon={ICONS.engagement}
-          delay={0.25}
-        />
+          delay={0.2}
+        >
+          {totalEngagements === 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" opacity="0.3">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+              </svg>
+              <span className="text-[0.5rem] text-mid/30 italic">waiting for signals</span>
+            </div>
+          )}
+        </SectionCard>
 
+        {/* History Card — FIXED: shows published count, not TikTok data */}
         <SectionCard
-          title="TikTok"
-          href="/growth/tiktok"
+          title="History"
+          href="/growth/history"
           accent="var(--charcoal)"
-          primary={data.tiktok.pending}
-          secondary={data.tiktok.ready > 0 ? `${data.tiktok.ready} ready` : "fresh start"}
-          icon={ICONS.tiktok}
-          delay={0.3}
-        />
-
-        <SectionCard
-          title="Campaigns"
-          href="/growth/campaigns"
-          accent="var(--lilac)"
-          primary={data.campaigns.total}
-          secondary={`${data.campaigns.active} active`}
-          icon={ICONS.campaigns}
-          delay={0.35}
-        />
+          primary={published}
+          secondary={inPipeline > 0 ? `${inPipeline} in pipeline` : "all published"}
+          icon={ICONS.history}
+          delay={0.25}
+        >
+          {/* Mini bar showing pipeline breakdown */}
+          {created > 0 && (
+            <div className="flex gap-0.5 mt-2 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--warm)" }}>
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${(published / created) * 100}%`,
+                  backgroundColor: "var(--charcoal)",
+                }}
+                title={`${published} published`}
+              />
+              {inPipeline > 0 && (
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${(inPipeline / created) * 100}%`,
+                    backgroundColor: "var(--warm)",
+                    border: "1px solid var(--mid)",
+                    opacity: 0.3,
+                  }}
+                  title={`${inPipeline} in pipeline`}
+                />
+              )}
+            </div>
+          )}
+        </SectionCard>
       </div>
 
-      {/* ── Pipeline Health ──────────────────────────────── */}
+      {/* ── Pipeline Health — Segmented Gauge ─────────────── */}
       {data.processMap && (
         <div className="card fade-up" style={{ animationDelay: "0.4s" }}>
           <p className="label-caps text-[0.55rem] mb-3">Pipeline Health</p>
-          <div className="flex flex-wrap gap-3">
-            {data.processMap.stages.map((s) => (
-              <div key={s.stage} className="flex-1 min-w-[80px]">
-                <p className="label-caps text-[0.5rem] text-mid/60 mb-1 capitalize">
-                  {s.stage}
-                </p>
-                <div
-                  className="h-1.5 rounded-full"
-                  style={{ backgroundColor: COVERAGE_COLORS[s.coverage] }}
-                />
-              </div>
+          <div className="flex items-end gap-0">
+            {data.processMap.stages.map((s, i) => (
+              <PipelineStage
+                key={s.stage}
+                stage={s.stage}
+                coverage={s.coverage}
+                isLast={i === data.processMap!.stages.length - 1}
+              />
             ))}
           </div>
-          <p className="text-[0.55rem] text-mid/50 mt-2">
-            {data.processMap.summary.full} full · {data.processMap.summary.partial}{" "}
-            partial · {data.processMap.summary.none} pending
+          <p className="text-[0.55rem] text-mid/50 mt-3">
+            <span style={{ color: "var(--olive)" }}>{data.processMap.summary.full} full</span>
+            {" · "}
+            <span style={{ color: "var(--amber)" }}>{data.processMap.summary.partial} partial</span>
+            {" · "}
+            <span style={{ color: "var(--mid)", opacity: 0.5 }}>{data.processMap.summary.none} pending</span>
           </p>
         </div>
       )}

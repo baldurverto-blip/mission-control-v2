@@ -113,3 +113,87 @@ h1, h2, h3, h4, h5, h6 {
   from { transform: translateX(-100%); }
   to { transform: translateX(200%); }
 }
+
+/* Radial gauge arc animation */
+@keyframes gauge-fill {
+  from { stroke-dasharray: 0 220; }
+}
+.gauge-arc {
+  animation: gauge-fill 1.2s ease-out both;
+}
+
+/* SpaceX-inspired breathing animation — system is alive */
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.97); }
+}
+.breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+/* Health ring arc animation */
+@keyframes ring-fill {
+  from { stroke-dashoffset: var(--ring-circumference); }
+}
+.ring-arc {
+  animation: ring-fill 1s ease-out both;
+}
+
+/* Sparkline fade-in */
+@keyframes spark-in {
+  from { opacity: 0; transform: scaleY(0); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+/* Smooth value transition for metrics */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Attention pulse — more urgent than breathe */
+@keyframes attention-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.attention-pulse {
+  animation: attention-pulse 1.5s ease-in-out infinite;
+}
+
+/* Halo ring animation — agent-specific timing */
+@keyframes halo-fill {
+  from { stroke-dashoffset: var(--ring-circumference); }
+}
+.halo-ring {
+  animation: halo-fill 1.2s ease-out both;
+}
+
+/* Mission band bar fill animation */
+@keyframes band-fill-anim {
+  from { width: 0%; }
+}
+.band-fill > div {
+  animation: band-fill-anim 0.8s ease-out both;
+}
+
+/* Zone separator — subtle animated border */
+.zone-border {
+  position: relative;
+}
+.zone-border::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--warm), transparent);
+  opacity: 0.6;
+}
+
+/* Respect user motion preferences (UX guideline #9) */
+@media (prefers-reduced-motion: reduce) {
+  .breathe, .pulse-dot, .gauge-arc, .ring-arc, .attention-pulse, .fade-up, .halo-ring, .band-fill > div {
+    animation: none !important;
+  }
+}

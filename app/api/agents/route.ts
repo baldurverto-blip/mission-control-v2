@@ -12,11 +12,23 @@ export async function GET() {
       return NextResponse.json({ agents: [] });
     }
 
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
+    // Only soul files (not briefs), exclude deprecated sentinel (renamed to bastion)
+    const agentFiles = files.filter(
+      (f) => f.endsWith(".md") && !f.endsWith("-brief.md") && f !== "sentinel.md"
+    );
     const agents = await Promise.all(
-      mdFiles.map(async (f) => {
+      agentFiles.map(async (f) => {
         const content = await readFile(join(AGENTS_DIR, f), "utf-8");
-        return { name: f, content };
+        const id = f.replace(".md", "");
+        const roleMatch = content.match(/^>?\s*Role:\s*(.+)/m);
+        const modelMatch = content.match(/^>?\s*Model:\s*(.+)/m);
+        return {
+          id,
+          name: f,
+          role: roleMatch?.[1]?.trim() ?? "",
+          model: modelMatch?.[1]?.trim() ?? "",
+          content,
+        };
       })
     );
 

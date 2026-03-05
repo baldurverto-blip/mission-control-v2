@@ -55,7 +55,12 @@ async function getScoutScore(): Promise<number> {
 
 export async function GET() {
   try {
-    const [roadmapContent, inboxContent, cronResult, researchCount, failureCount, skillsCount, scoutScore] =
+    const WORKFLOW_STATE = join(
+      process.env.HOME ?? "/Users/baldurclaw",
+      "verto-workspace/ops/workflow-state.json"
+    );
+
+    const [roadmapContent, inboxContent, cronResult, researchCount, failureCount, skillsCount, scoutScore, workflowState] =
       await Promise.all([
         readFile(ROADMAP_MD, "utf-8").catch(() => ""),
         readFile(INBOX_MD, "utf-8").catch(() => ""),
@@ -67,6 +72,7 @@ export async function GET() {
         recentFailures(),
         countFiles(SKILLS_DIR),
         getScoutScore(),
+        readFile(WORKFLOW_STATE, "utf-8").catch(() => '{"stats":{}}'),
       ]);
 
     // Roadmap
@@ -116,6 +122,12 @@ export async function GET() {
       }
     }
 
+    // Workflow stats
+    const wfState = JSON.parse(workflowState);
+    const wfStats = wfState.stats ?? {};
+    const wfActive = (wfState.active ?? []).length;
+    const wfApproval = wfStats.approvalsPending ?? 0;
+
     return NextResponse.json({
       roadmap: { done: roadmap.done, total: roadmap.total },
       week: { number: weekNum, day: dayOfWeek },
@@ -124,6 +136,7 @@ export async function GET() {
       research: { count: researchCount, scoutScore },
       failures: { recent: failureCount, daysSince: daysSinceFailure },
       skills: { count: skillsCount },
+      workflows: { active: wfActive, approvalPending: wfApproval, completedToday: wfStats.completedToday ?? 0, totalRuns: wfStats.totalRuns ?? 0 },
     });
   } catch (err) {
     return NextResponse.json(
