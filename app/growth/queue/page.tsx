@@ -124,6 +124,7 @@ export default function QueuePage() {
   const [acting, setActing] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<QueueItem | null>(null);
   const [editCaption, setEditCaption] = useState("");
+  const [editSubreddit, setEditSubreddit] = useState("");
 
   const loading = qLoading || tLoading;
 
@@ -172,6 +173,15 @@ export default function QueuePage() {
   }, [refetchAll]);
 
   // TikTok actions
+  const escalateQueue = useCallback(async (id: string) => {
+    setActing(id);
+    try {
+      await fetch(`/api/growth/queue/${id}/escalate`, { method: "POST" });
+    } finally {
+      setActing(null);
+    }
+  }, []);
+
   const actTiktok = useCallback(async (id: string, action: "approve" | "reject") => {
     setActing(id);
     try {
@@ -189,14 +199,14 @@ export default function QueuePage() {
       await fetch(`/api/growth/queue/${editItem.id}/edit`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: editCaption, caption: editCaption }),
+        body: JSON.stringify({ body: editCaption, caption: editCaption, subreddit: editSubreddit }),
       });
       setEditItem(null);
       await refetchAll();
     } finally {
       setActing(null);
     }
-  }, [editItem, editCaption, refetchAll]);
+  }, [editItem, editCaption, editSubreddit, refetchAll]);
 
   if (isOffline) return <EmptyState offline title="Backend offline" message="Growth-Ops server is not reachable on :3002" />;
 
@@ -367,11 +377,23 @@ export default function QueuePage() {
                       </>
                     )}
                     <button
-                      onClick={() => { setEditItem(text); setEditCaption(text.body ?? text.caption ?? ""); }}
+                      onClick={() => {
+                        setEditItem(text);
+                        setEditCaption(text.body ?? text.caption ?? "");
+                        setEditSubreddit(text.subreddit ?? "");
+                      }}
                       className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-warm"
                       style={{ color: "var(--mid)", backgroundColor: "var(--warm)" }}
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => escalateQueue(text.id)}
+                      disabled={isActing}
+                      className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-opacity disabled:opacity-50"
+                      style={{ color: "var(--charcoal)", backgroundColor: "var(--warm)" }}
+                    >
+                      Escalate
                     </button>
                     {!isPending && (
                       <span className="text-[0.6rem] text-mid/40 ml-auto">
@@ -398,6 +420,15 @@ export default function QueuePage() {
             {editItem.title && (
               <p className="text-sm font-medium text-charcoal">{editItem.title}</p>
             )}
+            <div>
+              <label className="label-caps block mb-1">Target (subreddit)</label>
+              <input
+                value={editSubreddit}
+                onChange={(e) => setEditSubreddit(e.target.value)}
+                placeholder="e.g. r/Entrepreneur"
+                className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20"
+              />
+            </div>
             <div>
               <label className="label-caps block mb-1">Body</label>
               <textarea
