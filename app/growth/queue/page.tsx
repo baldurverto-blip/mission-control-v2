@@ -125,6 +125,8 @@ export default function QueuePage() {
   const [editItem, setEditItem] = useState<QueueItem | null>(null);
   const [editCaption, setEditCaption] = useState("");
   const [editSubreddit, setEditSubreddit] = useState("");
+  const [editProject, setEditProject] = useState<"sync" | "safebite">("sync");
+  const [flash, setFlash] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   const loading = qLoading || tLoading;
 
@@ -176,7 +178,13 @@ export default function QueuePage() {
   const escalateQueue = useCallback(async (id: string) => {
     setActing(id);
     try {
-      await fetch(`/api/growth/queue/${id}/escalate`, { method: "POST" });
+      const res = await fetch(`/api/growth/queue/${id}/escalate`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (data?.success || data?.escalated) {
+        setFlash({ type: "ok", text: "Escalated ✅" });
+      } else {
+        setFlash({ type: "error", text: `Escalation failed ❌${data?.error ? ` — ${data.error}` : ""}` });
+      }
     } finally {
       setActing(null);
     }
@@ -196,17 +204,23 @@ export default function QueuePage() {
     if (!editItem) return;
     setActing(editItem.id);
     try {
-      await fetch(`/api/growth/queue/${editItem.id}/edit`, {
+      const res = await fetch(`/api/growth/queue/${editItem.id}/edit`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: editCaption, caption: editCaption, subreddit: editSubreddit }),
+        body: JSON.stringify({ body: editCaption, caption: editCaption, subreddit: editSubreddit, project: editProject }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (data?.success) {
+        setFlash({ type: "ok", text: "Saved ✅" });
+      } else {
+        setFlash({ type: "error", text: `Save failed ❌${data?.error ? ` — ${data.error}` : ""}` });
+      }
       setEditItem(null);
       await refetchAll();
     } finally {
       setActing(null);
     }
-  }, [editItem, editCaption, editSubreddit, refetchAll]);
+  }, [editItem, editCaption, editSubreddit, editProject, refetchAll]);
 
   if (isOffline) return <EmptyState offline title="Backend offline" message="Growth-Ops server is not reachable on :3002" />;
 
@@ -246,6 +260,19 @@ export default function QueuePage() {
       </header>
 
       <main className="px-8 pb-12 max-w-[1440px] mx-auto">
+        {flash && (
+          <div className="mb-4">
+            <div
+              className="text-xs px-3 py-2 rounded-md"
+              style={{
+                color: flash.type === "ok" ? "var(--olive)" : "var(--terracotta)",
+                backgroundColor: flash.type === "ok" ? "var(--olive-soft)" : "var(--terracotta-soft)",
+              }}
+            >
+              {flash.text}
+            </div>
+          </div>
+        )}
         {/* Status tabs + type filter */}
         <div className="flex items-center justify-between mb-5 fade-up" style={{ animationDelay: "0.1s" }}>
           <TabBar tabs={tabsWithCounts} active={activeTab} onChange={setActiveTab} />
@@ -381,12 +408,27 @@ export default function QueuePage() {
                         setEditItem(text);
                         setEditCaption(text.body ?? text.caption ?? "");
                         setEditSubreddit(text.subreddit ?? "");
+                        setEditProject(((text.project ?? "sync").toLowerCase() === "safebite" ? "safebite" : "sync"));
                       }}
                       className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-warm"
                       style={{ color: "var(--mid)", backgroundColor: "var(--warm)" }}
                     >
                       Edit
                     </button>
+                    {isPending && (
+                      <button
+                        onClick={() => {
+                          setEditItem(text);
+                          setEditCaption(text.body ?? text.caption ?? "");
+                          setEditSubreddit(text.subreddit ?? "");
+                          setEditProject(((text.project ?? "sync").toLowerCase() === "safebite" ? "safebite" : "sync"));
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors"
+                        style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
+                      >
+                        Wrong mapping
+                      </button>
+                    )}
                     <button
                       onClick={() => escalateQueue(text.id)}
                       disabled={isActing}
@@ -420,6 +462,17 @@ export default function QueuePage() {
             {editItem.title && (
               <p className="text-sm font-medium text-charcoal">{editItem.title}</p>
             )}
+            <div>
+              <label className="label-caps block mb-1">Project</label>
+              <select
+                value={editProject}
+                onChange={(e) => setEditProject(e.target.value === "safebite" ? "safebite" : "sync")}
+                className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20"
+              >
+                <option value="sync">sync</option>
+                <option value="safebite">safebite</option>
+              </select>
+            </div>
             <div>
               <label className="label-caps block mb-1">Target (subreddit)</label>
               <input
