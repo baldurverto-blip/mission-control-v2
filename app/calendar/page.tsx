@@ -255,17 +255,19 @@ export default function CalendarPage() {
                     </div>
                     {weekDates.map((d) => {
                       const dayItems = chItems.filter((i) => i.date === d.iso);
+                      const visibleItems = dayItems.slice(0, 3);
+                      const hiddenCount = dayItems.length - visibleItems.length;
                       return (
                         <div
                           key={`${ch}-${d.iso}`}
-                          className="py-2 px-1 min-h-[3rem] border-l border-warm/40"
+                          className="py-2 px-1 min-h-[5.75rem] max-h-[5.75rem] border-l border-warm/40 overflow-hidden min-w-0"
                         >
-                          {dayItems.map((item, idx) => {
+                          {visibleItems.map((item, idx) => {
                             const style = STATUS_STYLES[item.status] || STATUS_STYLES.draft;
                             return (
                               <div
                                 key={idx}
-                                className="text-[0.6rem] px-1.5 py-1 rounded mb-0.5 truncate flex items-center gap-1"
+                                className="text-[0.6rem] px-1.5 py-1 rounded mb-0.5 flex items-center gap-1 min-w-0 overflow-hidden"
                                 style={{ backgroundColor: style.bg, color: style.fg }}
                                 title={`${item.title} (${style.label}${item.source === "supabase" ? " · Supabase" : ""})`}
                               >
@@ -273,10 +275,15 @@ export default function CalendarPage() {
                                   className="w-1 h-1 rounded-full flex-shrink-0"
                                   style={{ backgroundColor: CHANNEL_COLORS[ch] }}
                                 />
-                                <span className="truncate">{item.title}</span>
+                                <span className="truncate min-w-0">{item.title}</span>
                               </div>
                             );
                           })}
+                          {hiddenCount > 0 && (
+                            <div className="text-[0.55rem] px-1.5 py-1 rounded bg-warm text-mid/70">
+                              +{hiddenCount} more
+                            </div>
+                          )}
                         </div>
                       );
                     })}

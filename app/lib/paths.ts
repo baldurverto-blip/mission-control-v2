@@ -15,3 +15,5 @@ export const CONTENT_DIR = join(WORKSPACE, "company", "content");
 export const SCHEDULE_JSON = join(CONTENT_DIR, "schedule.json");
 export const PULSES_DIR = join(OPS, "pulses");
 export const BRIEFS_DIR = join(OPS, "briefs");
+export const PRODUCTS_DIR = join(WORKSPACE, "company", "products");
+export const EXPEDITIONS_DIR = join(OPS, "expeditions");

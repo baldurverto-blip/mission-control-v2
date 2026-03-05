@@ -98,6 +98,13 @@ h1, h2, h3, h4, h5, h6 {
 .pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
+.pulse-dot-subtle {
+  animation: pulse-dot 3s ease-in-out infinite;
+}
+
+/* Hide scrollbar but keep scroll */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
 /* Fade-in for cards */
 @keyframes fade-up {
@@ -176,6 +183,24 @@ h1, h2, h3, h4, h5, h6 {
   animation: band-fill-anim 0.8s ease-out both;
 }
 
+/* Lane phase fill animation */
+@keyframes lane-fill {
+  from { width: 0; opacity: 0; }
+  to { width: 100%; opacity: 1; }
+}
+.lane-fill {
+  animation: lane-fill 0.6s ease-out both;
+}
+
+/* Expedition countdown tick */
+@keyframes countdown-tick {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.countdown-tick {
+  animation: countdown-tick 1s ease-in-out infinite;
+}
+
 /* Zone separator — subtle animated border */
 .zone-border {
   position: relative;
@@ -193,7 +218,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Respect user motion preferences (UX guideline #9) */
 @media (prefers-reduced-motion: reduce) {
-  .breathe, .pulse-dot, .gauge-arc, .ring-arc, .attention-pulse, .fade-up, .halo-ring, .band-fill > div {
+  .breathe, .pulse-dot, .pulse-dot-subtle, .gauge-arc, .ring-arc, .attention-pulse, .fade-up, .halo-ring, .band-fill > div, .lane-fill, .countdown-tick {
     animation: none !important;
   }
 }
