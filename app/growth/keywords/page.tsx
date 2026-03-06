@@ -364,17 +364,28 @@ function InsightCard({ section }: { section: InsightSection }) {
 export default function KeywordsPage() {
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [date, setDate] = useState<string | null>(null);
+  const [latestDate, setLatestDate] = useState<string | null>(null);
+  const [files, setFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string>("");
+  const [fallbackUsed, setFallbackUsed] = useState(false);
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [activeProduct, setActiveProduct] = useState<string | null>(null);
 
-  const fetchSignals = useCallback(async () => {
+  const fetchSignals = useCallback(async (file?: string) => {
     try {
-      const res = await fetch("/api/keywords");
+      const qs = file ? `?file=${encodeURIComponent(file)}` : "";
+      const res = await fetch(`/api/keywords${qs}`);
       const data = await res.json();
       if (data.success) {
         setMarkdown(data.markdown);
         setDate(data.date);
+        setLatestDate(data.latest_date ?? null);
+        setFiles(Array.isArray(data.files) ? data.files : []);
+        setSelectedFile(data.selected_file ?? "");
+        setFallbackUsed(!!data.fallback_used);
+        setFallbackReason(data.fallback_reason ?? null);
       }
     } catch {
       // ignore
@@ -446,7 +457,7 @@ export default function KeywordsPage() {
   return (
     <div className="px-8 pt-6 pb-12 max-w-[1440px] mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <p className="label-caps text-[0.55rem] text-mid/60">
             Keyword Signals {date && `\u2014 ${date}`}
@@ -454,19 +465,43 @@ export default function KeywordsPage() {
           <p className="text-[0.65rem] text-mid/40 mt-0.5">
             {parsed.credits && `${parsed.credits} credits used`}
           </p>
+          {fallbackUsed && (
+            <p className="text-[0.65rem] mt-1" style={{ color: "var(--amber)" }}>
+              Showing fallback report. {fallbackReason}
+            </p>
+          )}
+          {latestDate && date && latestDate !== date && (
+            <p className="text-[0.65rem] text-mid/50 mt-1">
+              Latest file exists for {latestDate}, but it has no scored keywords yet.
+            </p>
+          )}
         </div>
-        <button
-          onClick={triggerRun}
-          disabled={running}
-          className="px-3 py-1.5 rounded-lg text-[0.65rem] font-medium transition-all border"
-          style={{
-            borderColor: running ? "var(--warm)" : "var(--charcoal)",
-            color: running ? "var(--mid)" : "var(--charcoal)",
-            backgroundColor: running ? "var(--warm)" : "transparent",
-          }}
-        >
-          {running ? "Running..." : "Refresh"}
-        </button>
+        <div className="flex items-center gap-2">
+          {files.length > 0 && (
+            <select
+              value={selectedFile}
+              onChange={(e) => fetchSignals(e.target.value)}
+              className="px-2 py-1.5 rounded-lg text-[0.65rem] border bg-transparent"
+              style={{ borderColor: "var(--warm)", color: "var(--charcoal)" }}
+            >
+              {files.map((f) => (
+                <option key={f} value={f}>{f.replace('.md', '')}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={triggerRun}
+            disabled={running}
+            className="px-3 py-1.5 rounded-lg text-[0.65rem] font-medium transition-all border"
+            style={{
+              borderColor: running ? "var(--warm)" : "var(--charcoal)",
+              color: running ? "var(--mid)" : "var(--charcoal)",
+              backgroundColor: running ? "var(--warm)" : "transparent",
+            }}
+          >
+            {running ? "Running..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {/* KPI strip */}
