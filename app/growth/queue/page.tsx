@@ -125,7 +125,7 @@ export default function QueuePage() {
   const [editItem, setEditItem] = useState<QueueItem | null>(null);
   const [editCaption, setEditCaption] = useState("");
   const [editSubreddit, setEditSubreddit] = useState("");
-  const [editProject, setEditProject] = useState<"sync" | "safebite">("sync");
+  const [editProject, setEditProject] = useState<string>("__none__");
   const [flash, setFlash] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   const loading = qLoading || tLoading;
@@ -408,7 +408,7 @@ export default function QueuePage() {
                         setEditItem(text);
                         setEditCaption(text.body ?? text.caption ?? "");
                         setEditSubreddit(text.subreddit ?? "");
-                        setEditProject(((text.project ?? "sync").toLowerCase() === "safebite" ? "safebite" : "sync"));
+                        setEditProject(text.project ?? "__none__");
                       }}
                       className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-warm"
                       style={{ color: "var(--mid)", backgroundColor: "var(--warm)" }}
@@ -421,7 +421,7 @@ export default function QueuePage() {
                           setEditItem(text);
                           setEditCaption(text.body ?? text.caption ?? "");
                           setEditSubreddit(text.subreddit ?? "");
-                          setEditProject(((text.project ?? "sync").toLowerCase() === "safebite" ? "safebite" : "sync"));
+                          setEditProject(text.project ?? "__none__");
                         }}
                         className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors"
                         style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
@@ -464,14 +464,18 @@ export default function QueuePage() {
             )}
             <div>
               <label className="label-caps block mb-1">Project</label>
-              <select
+              <input
                 value={editProject}
-                onChange={(e) => setEditProject(e.target.value === "safebite" ? "safebite" : "sync")}
+                onChange={(e) => setEditProject(e.target.value)}
+                placeholder="Type project or __none__ to unmap"
+                list="queue-project-options"
                 className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20"
-              >
-                <option value="sync">sync</option>
-                <option value="safebite">safebite</option>
-              </select>
+              />
+              <datalist id="queue-project-options">
+                <option value="sync" />
+                <option value="safebite" />
+                <option value="__none__" />
+              </datalist>
             </div>
             <div>
               <label className="label-caps block mb-1">Target (subreddit)</label>
