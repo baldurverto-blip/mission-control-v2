@@ -54,6 +54,11 @@ interface QueueStats {
   rejected: number;
 }
 
+interface ProjectsResponse {
+  success: boolean;
+  projects: Array<{ slug: string; name: string }>;
+}
+
 // ─── TikTok types ───────────────────────────────────────────
 
 interface TikTokItem {
@@ -117,6 +122,7 @@ export default function QueuePage() {
   const { data: queueData, isOffline, loading: qLoading, refetch: refetchQueue } = useGrowthOps<QueueResponse>("queue");
   const { data: tiktokData, loading: tLoading, refetch: refetchTiktok } = useGrowthOps<TikTokResponse>("tiktok");
   const { data: stats } = useGrowthOps<QueueStats>("queue/stats");
+  const { data: projectsData } = useGrowthOps<ProjectsResponse>("projects");
   const { data: health } = useGrowthOps<HealthResponse>("health", { pollInterval: 60_000 });
 
   const [activeTab, setActiveTab] = useState("pending");
@@ -125,8 +131,16 @@ export default function QueuePage() {
   const [editItem, setEditItem] = useState<QueueItem | null>(null);
   const [editCaption, setEditCaption] = useState("");
   const [editSubreddit, setEditSubreddit] = useState("");
-  const [editProject, setEditProject] = useState<string>("__none__");
+  const [editProject, setEditProject] = useState<string>("");
   const [flash, setFlash] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+
+  const projectOptions = useMemo(() => {
+    const slugs = (projectsData?.projects ?? []).map((p) => p.slug).filter(Boolean);
+    return [...new Set(slugs)].sort();
+  }, [projectsData]);
+
+  const editPlatform = (editItem?.platform ?? "").toLowerCase();
+  const isRedditEdit = editPlatform === "reddit";
 
   const loading = qLoading || tLoading;
 
@@ -207,7 +221,12 @@ export default function QueuePage() {
       const res = await fetch(`/api/growth/queue/${editItem.id}/edit`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: editCaption, caption: editCaption, subreddit: editSubreddit, project: editProject }),
+        body: JSON.stringify({
+          body: editCaption,
+          caption: editCaption,
+          subreddit: isRedditEdit ? editSubreddit : "",
+          project: editProject,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (data?.success) {
@@ -220,7 +239,7 @@ export default function QueuePage() {
     } finally {
       setActing(null);
     }
-  }, [editItem, editCaption, editSubreddit, editProject, refetchAll]);
+  }, [editItem, editCaption, editSubreddit, editProject, isRedditEdit, refetchAll]);
 
   if (isOffline) return <EmptyState offline title="Backend offline" message="Growth-Ops server is not reachable on :3002" />;
 
@@ -346,7 +365,7 @@ export default function QueuePage() {
 
               // Text queue card
               const text = item as QueueItem & { _type: "text" };
-              const project = text.project ?? text.metadata?.project ?? "—";
+              const project = text.project ?? "—";
               const displayTitle = text.title ?? text.caption ?? "Untitled";
               const displayBody = text.body ?? text.caption ?? "";
               const platform = text.platform ?? "—";
@@ -408,7 +427,7 @@ export default function QueuePage() {
                         setEditItem(text);
                         setEditCaption(text.body ?? text.caption ?? "");
                         setEditSubreddit(text.subreddit ?? "");
-                        setEditProject(text.project ?? "__none__");
+                        setEditProject(text.project ?? "");
                       }}
                       className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-warm"
                       style={{ color: "var(--mid)", backgroundColor: "var(--warm)" }}
@@ -421,7 +440,7 @@ export default function QueuePage() {
                           setEditItem(text);
                           setEditCaption(text.body ?? text.caption ?? "");
                           setEditSubreddit(text.subreddit ?? "");
-                          setEditProject(text.project ?? "__none__");
+                          setEditProject(text.project ?? "");
                         }}
                         className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors"
                         style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
@@ -464,26 +483,25 @@ export default function QueuePage() {
             )}
             <div>
               <label className="label-caps block mb-1">Project</label>
-              <input
+              <select
                 value={editProject}
                 onChange={(e) => setEditProject(e.target.value)}
-                placeholder="Type project or __none__ to unmap"
-                list="queue-project-options"
                 className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20"
-              />
-              <datalist id="queue-project-options">
-                <option value="sync" />
-                <option value="safebite" />
-                <option value="__none__" />
-              </datalist>
+              >
+                <option value="">Unmapped</option>
+                {projectOptions.map((slug) => (
+                  <option key={slug} value={slug}>{slug}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="label-caps block mb-1">Target (subreddit)</label>
+              <label className="label-caps block mb-1">Target {isRedditEdit ? "(subreddit)" : "(N/A for this platform)"}</label>
               <input
-                value={editSubreddit}
+                value={isRedditEdit ? editSubreddit : ""}
                 onChange={(e) => setEditSubreddit(e.target.value)}
-                placeholder="e.g. r/Entrepreneur"
-                className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20"
+                placeholder={isRedditEdit ? "e.g. r/Entrepreneur" : "Only Reddit uses subreddit targets"}
+                disabled={!isRedditEdit}
+                className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 disabled:opacity-50"
               />
             </div>
             <div>
