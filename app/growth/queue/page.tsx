@@ -108,6 +108,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_TABS = [
   { id: "pending", label: "Pending" },
   { id: "approved", label: "Approved" },
+  { id: "posted", label: "Posted" },
   { id: "rejected", label: "Rejected" },
   { id: "all", label: "All" },
 ];
@@ -117,6 +118,20 @@ const TYPE_PILLS = [
   { id: "text", label: "Text" },
   { id: "video", label: "Video" },
 ];
+
+function postingRoute(platformRaw: string | null | undefined): "manual" | "agent" | "auto" {
+  const p = String(platformRaw || "").toLowerCase();
+  if (p === "linkedin" || p === "tiktok") return "manual";
+  if (p === "twitter" || p === "x") return "agent";
+  if (p === "reddit") return "auto";
+  return "manual";
+}
+
+function postingRouteMeta(route: "manual" | "agent" | "auto") {
+  if (route === "manual") return { label: "MANUAL", color: "var(--amber)" };
+  if (route === "agent") return { label: "AGENT", color: "var(--lilac)" };
+  return { label: "AUTO", color: "var(--olive)" };
+}
 
 export default function QueuePage() {
   const { data: queueData, isOffline, loading: qLoading, refetch: refetchQueue } = useGrowthOps<QueueResponse>("queue");
@@ -344,6 +359,14 @@ export default function QueuePage() {
                 <p className="text-[0.7rem] text-mid/70 mt-1">
                   Approved ≠ posted. This board shows what you need to manually post vs what the system tries to auto-post.
                 </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#8b5cf620", color: "var(--lilac)" }}>AGENT</span>
+                  <span className="text-[0.55rem] text-mid/70">posted by me via agent browser</span>
+                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#22c55e20", color: "var(--olive)" }}>AUTO</span>
+                  <span className="text-[0.55rem] text-mid/70">backend API autopost</span>
+                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#f59e0b20", color: "var(--amber)" }}>MANUAL</span>
+                  <span className="text-[0.55rem] text-mid/70">you post manually</span>
+                </div>
               </div>
               <div className="text-[0.65rem] text-mid/70">
                 Manual: <b>{approvedManualItems.length}</b> · Auto pending: <b>{approvedAutoItems.length}</b>
@@ -353,13 +376,17 @@ export default function QueuePage() {
             <div className="space-y-2">
               {approvedTextItems.slice(0, 6).map((item) => {
                 const p = String(item.platform || "").toLowerCase();
-                const isManual = p === "linkedin" || p === "tiktok";
+                const route = postingRoute(item.platform);
+                const routeMeta = postingRouteMeta(route);
+                const isManual = route === "manual";
                 const isReddit = p === "reddit";
                 const needsManualFallback = isReddit && !item.post_url;
                 const note = isManual
                   ? "Manual post required"
                   : needsManualFallback
                   ? "Auto-post did not complete — use Reddit manual composer"
+                  : route === "agent"
+                  ? "Agent-browser posting path"
                   : "Auto-post handled by system (verify once posted)";
 
                 return (
@@ -367,6 +394,11 @@ export default function QueuePage() {
                     <div className="min-w-0">
                       <p className="text-xs text-charcoal truncate">{item.title ?? item.body ?? item.id}</p>
                       <p className="text-[0.6rem] text-mid/70 capitalize">{item.platform} · {note}</p>
+                      <div className="mt-1">
+                        <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${routeMeta.color}20`, color: routeMeta.color }}>
+                          {routeMeta.label}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {needsManualFallback && (
@@ -475,6 +507,8 @@ export default function QueuePage() {
               const displayTitle = text.title ?? text.caption ?? "Untitled";
               const displayBody = text.body ?? text.caption ?? "";
               const platform = text.platform ?? "—";
+              const route = postingRoute(text.platform);
+              const routeMeta = postingRouteMeta(route);
               const contentType = text.content_type ?? text.metadata?.content_type ?? null;
               const target = text.subreddit ?? null;
               return (
@@ -485,6 +519,9 @@ export default function QueuePage() {
                         <Badge color={STATUS_COLORS[text.status] ?? "var(--mid)"}>{STATUS_LABELS[text.status] ?? text.status}</Badge>
                         <Badge color="var(--olive)">{platform}</Badge>
                         <Badge color="var(--lilac)">{project}</Badge>
+                        <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${routeMeta.color}20`, color: routeMeta.color }}>
+                          {routeMeta.label}
+                        </span>
                         {contentType && (
                           <span className="text-[0.6rem] text-mid/60">{contentType}</span>
                         )}
