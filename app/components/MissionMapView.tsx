@@ -4,6 +4,7 @@ import { ProductLane } from "./ProductLane";
 import { ExpeditionCard } from "./ExpeditionCard";
 import { DecisionBox } from "./DecisionBox";
 import { FactorySummary, type FactorySummaryData } from "./FactorySummary";
+import { SignalsPanel } from "./SignalsPanel";
 
 const PHASE_LABELS = ["Discovery", "Validation", "Build", "Distribution", "Support"];
 
@@ -19,6 +20,8 @@ interface ProjectLaneData {
   staleDays: number;
   isStalled: boolean;
   phases: PhaseCheck[];
+  factoryStatus?: string;
+  isFactoryProject?: boolean;
 }
 
 interface ExpeditionData {
@@ -80,10 +83,10 @@ export function MissionMapView({
         )}
       </div>
 
-      {/* ─── Bottom: Expeditions + Factory + Decisions ───── */}
+      {/* ─── Bottom: Expeditions + Factory + Signals + Decisions ───── */}
       <div className="flex-1 grid grid-cols-12 gap-3 min-h-0">
         {/* Expeditions */}
-        <div className="col-span-4 min-h-0 overflow-y-auto custom-scroll">
+        <div className="col-span-3 min-h-0 overflow-y-auto custom-scroll">
           <div className="bg-paper border border-warm rounded-xl p-4 h-full">
             <p className="label-caps text-mid/60 mb-3">
               Expeditions
@@ -104,12 +107,17 @@ export function MissionMapView({
         </div>
 
         {/* App Factory */}
-        <div className="col-span-4 min-h-0">
+        <div className="col-span-3 min-h-0">
           <FactorySummary data={factoryData ?? null} />
         </div>
 
+        {/* Keyword Signals */}
+        <div className="col-span-3 min-h-0">
+          <SignalsPanel />
+        </div>
+
         {/* Decision Box */}
-        <div className="col-span-4 min-h-0">
+        <div className="col-span-3 min-h-0">
           <DecisionBox
             inbox={inbox}
             workflows={workflows}

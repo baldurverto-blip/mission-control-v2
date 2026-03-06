@@ -21,6 +21,8 @@ interface ProjectLane {
   staleDays: number;
   isStalled: boolean;
   phases: PhaseCheck[];
+  factoryStatus?: string;
+  isFactoryProject?: boolean;
 }
 
 export function ProductLane({ project }: { project: ProjectLane }) {
@@ -33,8 +35,14 @@ export function ProductLane({ project }: { project: ProjectLane }) {
       {/* Product name */}
       <div className="w-28 flex-shrink-0">
         <p className="text-sm font-medium text-charcoal truncate">{project.name}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <Badge color={project.isStalled ? "var(--terracotta)" : "var(--olive)"}>{project.status}</Badge>
+          {project.factoryStatus && !project.isFactoryProject && (
+            <Badge color="var(--amber)">{project.factoryStatus.replace(/-/g, " ")}</Badge>
+          )}
+          {project.isFactoryProject && (
+            <span className="text-[0.45rem] text-amber/60 uppercase tracking-wider">factory</span>
+          )}
           {project.pulseCount7d > 0 && (
             <span className="text-[0.55rem] text-mid tabular-nums">{project.pulseCount7d}p/7d</span>
           )}

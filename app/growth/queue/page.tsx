@@ -133,6 +133,7 @@ export default function QueuePage() {
   const [editSubreddit, setEditSubreddit] = useState("");
   const [editProject, setEditProject] = useState<string>("");
   const [flash, setFlash] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [openingManualId, setOpeningManualId] = useState<string | null>(null);
 
   const projectOptions = useMemo(() => {
     const slugs = (projectsData?.projects ?? []).map((p) => p.slug).filter(Boolean);
@@ -168,6 +169,16 @@ export default function QueuePage() {
     ...t,
     count: t.id === "all" ? allItems.length : allItems.filter((i) => getStatus(i) === t.id).length,
   }));
+
+  const approvedTextItems = allItems.filter((i) => i._type === "text" && i.status === "approved") as (QueueItem & { _type: "text" })[];
+  const approvedManualItems = approvedTextItems.filter((i) => {
+    const p = String(i.platform || "").toLowerCase();
+    return p === "linkedin" || p === "tiktok";
+  });
+  const approvedAutoItems = approvedTextItems.filter((i) => {
+    const p = String(i.platform || "").toLowerCase();
+    return p === "twitter" || p === "x" || p === "reddit";
+  });
 
   // TikTok video count for metrics
   const videosPending = (tiktokData?.items ?? []).filter((i) => i.status === "pending_approval").length;
@@ -209,6 +220,38 @@ export default function QueuePage() {
     try {
       await fetch(`/api/growth/tiktok/${id}/${action}`, { method: "PUT" });
       await refetchAll();
+    } finally {
+      setActing(null);
+    }
+  }, [refetchAll]);
+
+  const openRedditManual = useCallback(async (id: string) => {
+    setOpeningManualId(id);
+    try {
+      const res = await fetch(`/api/growth/queue/${id}/reddit-manual`);
+      const data = await res.json().catch(() => ({}));
+      if (data?.success && data?.compose_url) {
+        window.open(data.compose_url, "_blank", "noopener,noreferrer");
+        setFlash({ type: "ok", text: "Opened Reddit manual composer ↗" });
+      } else {
+        setFlash({ type: "error", text: `Could not open manual composer${data?.error ? ` — ${data.error}` : ""}` });
+      }
+    } finally {
+      setOpeningManualId(null);
+    }
+  }, []);
+
+  const markPosted = useCallback(async (id: string) => {
+    setActing(id);
+    try {
+      const res = await fetch(`/api/growth/queue/${id}/mark-posted`, { method: "PUT" });
+      const data = await res.json().catch(() => ({}));
+      if (data?.success) {
+        setFlash({ type: "ok", text: "Marked as posted ✅" });
+        await refetchAll();
+      } else {
+        setFlash({ type: "error", text: `Mark posted failed${data?.error ? ` — ${data.error}` : ""}` });
+      }
     } finally {
       setActing(null);
     }
@@ -292,6 +335,69 @@ export default function QueuePage() {
             </div>
           </div>
         )}
+        {/* Post-approval action board */}
+        {approvedTextItems.length > 0 && (
+          <div className="card mb-4 fade-up" style={{ animationDelay: "0.08s" }}>
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div>
+                <h2 className="text-sm font-medium text-charcoal">Post-approval action board</h2>
+                <p className="text-[0.7rem] text-mid/70 mt-1">
+                  Approved ≠ posted. This board shows what you need to manually post vs what the system tries to auto-post.
+                </p>
+              </div>
+              <div className="text-[0.65rem] text-mid/70">
+                Manual: <b>{approvedManualItems.length}</b> · Auto pending: <b>{approvedAutoItems.length}</b>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {approvedTextItems.slice(0, 6).map((item) => {
+                const p = String(item.platform || "").toLowerCase();
+                const isManual = p === "linkedin" || p === "tiktok";
+                const isReddit = p === "reddit";
+                const needsManualFallback = isReddit && !item.post_url;
+                const note = isManual
+                  ? "Manual post required"
+                  : needsManualFallback
+                  ? "Auto-post did not complete — use Reddit manual composer"
+                  : "Auto-post handled by system (verify once posted)";
+
+                return (
+                  <div key={`action-${item.id}`} className="flex items-center justify-between gap-2 bg-bg rounded-lg px-3 py-2 border border-warm/70">
+                    <div className="min-w-0">
+                      <p className="text-xs text-charcoal truncate">{item.title ?? item.body ?? item.id}</p>
+                      <p className="text-[0.6rem] text-mid/70 capitalize">{item.platform} · {note}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {needsManualFallback && (
+                        <button
+                          onClick={() => openRedditManual(item.id)}
+                          disabled={openingManualId === item.id}
+                          className="text-[0.65rem] px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-50"
+                          style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
+                        >
+                          Open manual
+                        </button>
+                      )}
+                      {isManual && (
+                        <span className="text-[0.58rem] px-2 py-1 rounded bg-warm text-mid">Post manually</span>
+                      )}
+                      <button
+                        onClick={() => markPosted(item.id)}
+                        disabled={acting === item.id}
+                        className="text-[0.65rem] px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-50 text-paper"
+                        style={{ backgroundColor: "var(--charcoal)" }}
+                      >
+                        Mark posted
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Status tabs + type filter */}
         <div className="flex items-center justify-between mb-5 fade-up" style={{ animationDelay: "0.1s" }}>
           <TabBar tabs={tabsWithCounts} active={activeTab} onChange={setActiveTab} />
@@ -456,6 +562,28 @@ export default function QueuePage() {
                     >
                       Escalate
                     </button>
+                    {!isPending && text.status === "approved" && (
+                      <>
+                        {String(text.platform || "").toLowerCase() === "reddit" && !text.post_url && (
+                          <button
+                            onClick={() => openRedditManual(text.id)}
+                            disabled={openingManualId === text.id}
+                            className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-opacity disabled:opacity-50"
+                            style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
+                          >
+                            Open Reddit manual
+                          </button>
+                        )}
+                        <button
+                          onClick={() => markPosted(text.id)}
+                          disabled={isActing}
+                          className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-opacity disabled:opacity-50 text-paper"
+                          style={{ backgroundColor: "var(--charcoal)" }}
+                        >
+                          Mark posted
+                        </button>
+                      </>
+                    )}
                     {!isPending && (
                       <span className="text-[0.6rem] text-mid/40 ml-auto">
                         {STATUS_LABELS[text.status]}

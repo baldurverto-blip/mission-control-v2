@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { readFile, readdir } from "fs/promises";
+import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
 import { PRODUCTS_DIR, PULSES_DIR } from "@/app/lib/paths";
 
+const FACTORY_DIR = join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace/ops/factory");
 const LIFECYCLE_PHASES = ["discovery", "validation", "build", "distribution", "support"] as const;
+
+// Internal systems — not customer-facing products, excluded from Product Lanes
+const INTERNAL_SLUGS = new Set(["vertoos", "growthops"]);
 
 interface PhaseCheck {
   name: string;
@@ -20,6 +24,8 @@ interface ProjectLane {
   staleDays: number;
   isStalled: boolean;
   phases: PhaseCheck[];
+  factoryStatus?: string;
+  isFactoryProject?: boolean;
 }
 
 function extractFrontmatter(content: string): Record<string, string> {
@@ -61,10 +67,32 @@ function extractPhaseChecks(content: string): PhaseCheck[] {
 function mapPulseToProduct(goal: string): string | null {
   const g = goal.toLowerCase();
   if (g.startsWith("expedition:")) return null;
+  // Factory goals: "factory:safebite", "factory:sync", etc.
+  const factoryMatch = g.match(/^factory:(\S+)/);
+  if (factoryMatch) return factoryMatch[1];
   if (g.startsWith("sync") || g.includes("sync")) return "sync";
   if (g.startsWith("growthops") || g.startsWith("content-")) return "growthops";
   if (g.startsWith("vertoos")) return "vertoos";
   return null; // unmapped = system
+}
+
+// Map factory status to product lifecycle phase
+function factoryStatusToLifecycle(status: string): string {
+  switch (status) {
+    case "research": return "discovery";
+    case "validation": return "validation";
+    case "build":
+    case "quality-gate":
+    case "quality_gate": return "build";
+    case "monetization":
+    case "packaging":
+    case "shipping":
+    case "awaiting-approval":
+    case "marketing":
+    case "promo": return "distribution";
+    case "shipped": return "support";
+    default: return "discovery";
+  }
 }
 
 async function readPulsesForDate(date: string): Promise<{ agent: string; goal: string; timestamp: string }[]> {
@@ -104,6 +132,7 @@ export async function GET() {
     const projects: ProjectLane[] = [];
 
     for (const slug of productDirs) {
+      if (INTERNAL_SLUGS.has(slug)) continue; // skip internal systems
       let content: string;
       try {
         content = await readFile(join(PRODUCTS_DIR, slug, "PRD.md"), "utf-8");
@@ -144,6 +173,63 @@ export async function GET() {
         phases,
       });
     }
+
+    // Cross-reference factory projects
+    const existingSlugs = new Set(projects.map((p) => p.slug));
+    try {
+      const factoryEntries = await readdir(FACTORY_DIR).catch(() => []);
+      for (const entry of factoryEntries) {
+        const stateFile = join(FACTORY_DIR, entry, "state.json");
+        try {
+          const info = await stat(join(FACTORY_DIR, entry));
+          if (!info.isDirectory()) continue;
+          const raw = await readFile(stateFile, "utf-8");
+          const state = JSON.parse(raw);
+          const factoryStatus = state.status as string;
+
+          if (existingSlugs.has(entry)) {
+            // Existing product has a factory pipeline — add factory status
+            const existing = projects.find((p) => p.slug === entry);
+            if (existing) {
+              existing.factoryStatus = factoryStatus;
+            }
+          } else {
+            // Factory-only project — create synthetic lane entry
+            let name = entry.charAt(0).toUpperCase() + entry.slice(1);
+            try {
+              const onePager = await readFile(join(FACTORY_DIR, entry, "one-pager.md"), "utf-8");
+              const titleMatch = onePager.match(/^#\s+(?:App One-Pager:\s*)?(.+)/m);
+              if (titleMatch) name = titleMatch[1].trim().replace(/\s*[—:].*/g, "").trim();
+            } catch { /* use slug */ }
+
+            const lifecyclePhase = factoryStatusToLifecycle(factoryStatus);
+            const productPulses = pulsesByProduct[entry] ?? [];
+            const pulseCount7d = productPulses.length;
+            const activeAgents = [...new Set(productPulses.map((p) => p.agent))];
+            const latestPulse = productPulses.length > 0
+              ? Math.max(...productPulses.map((p) => new Date(p.timestamp).getTime()))
+              : 0;
+            const staleDays = latestPulse > 0
+              ? Math.floor((Date.now() - latestPulse) / 86400000)
+              : 999;
+
+            projects.push({
+              slug: entry,
+              name,
+              status: factoryStatus,
+              lifecyclePhase,
+              pulseCount7d,
+              activeAgents,
+              staleDays: latestPulse > 0 ? staleDays : -1,
+              isStalled: false,
+              phases: [],
+              factoryStatus,
+              isFactoryProject: true,
+            });
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* factory dir not available */ }
 
     return NextResponse.json({
       projects,

@@ -244,26 +244,32 @@ export default function FactoryPage() {
         </div>
 
         {/* ═══ ACTIVITY LOG ════════════════════════════════════════════ */}
-        {activityFeed.length > 0 && (
-          <Card className="p-0 overflow-hidden">
-            <div className="px-4 py-2.5 flex items-center justify-between border-b border-warm/50" style={{ backgroundColor: "var(--charcoal)" }}>
-              <div className="flex items-center gap-2">
-                <span className="text-[0.6rem] text-white/80 font-medium tracking-wide uppercase font-[family-name:var(--font-dm-mono)]">
-                  Activity Log
-                </span>
-                {isLive && (
-                  <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ backgroundColor: "#4ADE80" }} />
-                )}
-              </div>
-              <span className="text-[0.5rem] text-white/30 tabular-nums font-[family-name:var(--font-dm-mono)]">
-                {activityFeed.length} event{activityFeed.length !== 1 ? "s" : ""} today
-                {lastPulseAt && !isLive && (
-                  <span className="ml-2 text-white/20">last: {relTime(lastPulseAt)} ago</span>
-                )}
+        <Card className="p-0 overflow-hidden">
+          <div className="px-4 py-2.5 flex items-center justify-between border-b border-warm/50" style={{ backgroundColor: "var(--charcoal)" }}>
+            <div className="flex items-center gap-2">
+              <span className="text-[0.6rem] text-white/80 font-medium tracking-wide uppercase font-[family-name:var(--font-dm-mono)]">
+                Activity Log
               </span>
+              {isLive && (
+                <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ backgroundColor: "#4ADE80" }} />
+              )}
             </div>
-            <div className="max-h-[180px] overflow-y-auto scrollbar-hide" style={{ backgroundColor: "#1C1B19" }}>
-              {activityFeed.slice(0, 10).map((event, i) => {
+            <span className="text-[0.5rem] text-white/30 tabular-nums font-[family-name:var(--font-dm-mono)]">
+              {activityFeed.length > 0 ? (
+                <>
+                  {activityFeed.length} recent event{activityFeed.length !== 1 ? "s" : ""}
+                  {lastPulseAt && !isLive && (
+                    <span className="ml-2 text-white/20">last: {relTime(lastPulseAt)} ago</span>
+                  )}
+                </>
+              ) : (
+                "no recent events"
+              )}
+            </span>
+          </div>
+          <div className="max-h-[180px] overflow-y-auto scrollbar-hide" style={{ backgroundColor: "#1C1B19" }}>
+            {activityFeed.length > 0 ? (
+              activityFeed.slice(0, 10).map((event, i) => {
                 const token = agentToken(event.agent);
                 const age = now - new Date(event.timestamp).getTime();
                 const isRecent = age < LIVE_THRESHOLD;
@@ -271,7 +277,7 @@ export default function FactoryPage() {
                   <div
                     key={`${event.timestamp}-${i}`}
                     className={`flex items-start gap-3 px-4 py-2 border-b border-white/5 transition-opacity ${
-                      isRecent ? "opacity-100" : "opacity-40"
+                      isRecent ? "opacity-100" : "opacity-60"
                     }`}
                   >
                     {/* Timestamp */}
@@ -309,10 +315,16 @@ export default function FactoryPage() {
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          </Card>
-        )}
+              })
+            ) : (
+              <div className="flex items-center justify-center py-6">
+                <p className="text-[0.6rem] text-white/25 font-[family-name:var(--font-dm-mono)]">
+                  No factory activity in the last 3 days
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* ═══ APPROVAL GATE ═════════════════════════════════════════ */}
         {awaitingApproval.map((project) => (

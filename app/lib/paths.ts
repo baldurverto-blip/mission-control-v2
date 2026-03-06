@@ -17,3 +17,4 @@ export const PULSES_DIR = join(OPS, "pulses");
 export const BRIEFS_DIR = join(OPS, "briefs");
 export const PRODUCTS_DIR = join(WORKSPACE, "company", "products");
 export const EXPEDITIONS_DIR = join(OPS, "expeditions");
+export const KEYWORD_SIGNALS_DIR = join(WORKSPACE, "research", "keyword-signals");

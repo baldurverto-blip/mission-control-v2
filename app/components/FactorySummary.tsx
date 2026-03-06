@@ -52,9 +52,6 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
   const now = Date.now();
   const LIVE_THRESHOLD = 30 * 60 * 1000;
   const isLive = loopRunning;
-  const recentEvents = activityFeed.filter(
-    (e) => now - new Date(e.timestamp).getTime() < LIVE_THRESHOLD
-  );
 
   return (
     <div className="bg-paper border border-warm rounded-xl p-4 h-full flex flex-col">
@@ -142,19 +139,20 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
       )}
 
       {/* Recent activity feed (compact) */}
-      {recentEvents.length > 0 ? (
+      {activityFeed.length > 0 ? (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide rounded-md" style={{ backgroundColor: "#1C1B19" }}>
-          {recentEvents.slice(0, 4).map((event, i) => {
+          {activityFeed.slice(0, 4).map((event, i) => {
             const token = agentToken(event.agent);
             const modelColor = MODEL_COLORS[event.model ?? ""] ?? "#374151";
             const modelLabel = MODEL_LABELS[event.model ?? ""] ?? "";
+            const isRecent = now - new Date(event.timestamp).getTime() < LIVE_THRESHOLD;
             return (
               <div
                 key={`${event.timestamp}-${i}`}
-                className="flex items-start gap-2 px-2.5 py-1.5 border-b border-white/5"
+                className={`flex items-start gap-2 px-2.5 py-1.5 border-b border-white/5 transition-opacity ${isRecent ? "opacity-100" : "opacity-60"}`}
               >
                 <span
-                  className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[0.35rem] text-white font-medium flex-shrink-0 mt-0.5 pulse-dot-subtle"
+                  className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[0.35rem] text-white font-medium flex-shrink-0 mt-0.5 ${isRecent ? "pulse-dot-subtle" : ""}`}
                   style={{ backgroundColor: token.color }}
                 >
                   {token.label}
@@ -186,7 +184,7 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[0.55rem] text-mid/30">No recent activity</p>
+          <p className="text-[0.55rem] text-mid/30">No factory activity yet</p>
         </div>
       )}
     </div>

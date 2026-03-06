@@ -142,13 +142,16 @@ export async function GET() {
     ).length;
     const queued = ideaQueue.queue.length;
 
-    // Read recent pulses for live activity
-    const today = new Date().toISOString().slice(0, 10);
+    // Read recent pulses for live activity (last 3 days for continuity)
     let allPulses: PulseEvent[] = [];
-    try {
-      const raw = await readFile(join(PULSES_DIR, `${today}.jsonl`), "utf-8");
-      allPulses = raw.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    } catch { /* no pulses today */ }
+    for (let i = 0; i < 3; i++) {
+      const date = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      try {
+        const raw = await readFile(join(PULSES_DIR, `${date}.jsonl`), "utf-8");
+        const parsed = raw.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+        allPulses.push(...parsed);
+      } catch { /* no pulses for this date */ }
+    }
 
     // Filter to factory-related pulses (goal contains "factory:" or action starts with "factory")
     const factoryPulses = allPulses
