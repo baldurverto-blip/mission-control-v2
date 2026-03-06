@@ -80,7 +80,7 @@ const PHASE_ORDER = [
 
 export async function GET() {
   try {
-    const projects: (ProjectState & { onePager?: string; kpis?: KPIData })[] = [];
+    const projects: (ProjectState & { onePager?: string; kpis?: KPIData; e2eResults?: { status: string; tests: number; passed: number; failed: number } })[] = [];
 
     // Read all project state files
     const entries = await readdir(FACTORY).catch(() => []);
@@ -106,7 +106,14 @@ export async function GET() {
           kpis = JSON.parse(kpiRaw);
         } catch { /* no kpis yet */ }
 
-        projects.push({ ...state, onePager, kpis });
+        // Try to read E2E test results
+        let e2eResults: { status: string; tests: number; passed: number; failed: number } | undefined;
+        try {
+          const e2eRaw = await readFile(join(FACTORY, entry, "e2e-results.json"), "utf-8");
+          e2eResults = JSON.parse(e2eRaw);
+        } catch { /* no e2e results yet */ }
+
+        projects.push({ ...state, onePager, kpis, e2eResults });
       } catch { /* skip non-project dirs or missing state */ }
     }
 
@@ -131,7 +138,7 @@ export async function GET() {
     const shipping = projects.filter((p) => p.status === "shipping").length;
     const shipped = projects.filter((p) => p.status === "shipped").length + ideaQueue.shipped.length;
     const attention = projects.filter((p) =>
-      p.status === "needs-review" || (p.phases.quality_gate?.attempt ?? 0) >= 2
+      p.status === "needs-review" || p.status === "awaiting-approval" || (p.phases.quality_gate?.attempt ?? 0) >= 2
     ).length;
     const queued = ideaQueue.queue.length;
 

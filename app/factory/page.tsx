@@ -23,11 +23,25 @@ interface KPISnapshot {
   churn: { active_subs: number; cancellations: number; churn_rate: number | null; refund_rate: number | null };
 }
 
+interface PhaseDetail extends PhaseState {
+  fixes_applied?: string[];
+  summary?: string;
+  prior_score?: number;
+  model?: string;
+  trial_days?: number;
+  free_trial_scans?: number;
+  pricing?: { monthly: number; annual: number };
+  changes?: string[];
+  operator_tasks?: string[];
+  metadata_verified?: Record<string, boolean>;
+  outputs?: string[];
+}
+
 interface FactoryProject {
   slug: string;
   status: string;
   phase: number;
-  phases: Record<string, PhaseState>;
+  phases: Record<string, PhaseDetail>;
   created_at: string;
   updated_at: string;
   currentPhaseIdx: number;
@@ -41,6 +55,7 @@ interface FactoryProject {
   activeSignals?: number;
   shipDate?: string | null;
   lastActivity?: ActivityEvent | null;
+  e2eResults?: { status: string; tests: number; passed: number; failed: number } | null;
 }
 
 interface ActivityEvent {
@@ -99,6 +114,7 @@ const STATUS_LABELS: Record<string, string> = {
   marketing: "Marketing",
   promo: "Promo",
   shipped: "Shipped",
+  "awaiting-approval": "Awaiting Approval",
   "needs-review": "Needs Review",
   paused: "Paused",
 };
@@ -109,6 +125,8 @@ export default function FactoryPage() {
   const [data, setData] = useState<FactoryData | null>(null);
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
   const [queueTab, setQueueTab] = useState<"queued" | "shipped" | "rejected">("queued");
+  const [approvalLoading, setApprovalLoading] = useState<string | null>(null);
+  const [approvalResult, setApprovalResult] = useState<{ slug: string; status: string; message: string } | null>(null);
 
   const fetchData = useCallback(async () => {
     const res = await fetch("/api/factory").then((r) => r.json()).catch(() => null);
@@ -132,6 +150,28 @@ export default function FactoryPage() {
   }
 
   const { projects, ideaQueue, stats, phaseLabels, config, activityFeed, loopRunning, lastPulseAt } = data;
+
+  const handleApproval = async (slug: string, action: "approve" | "reject", reason?: string) => {
+    setApprovalLoading(slug);
+    setApprovalResult(null);
+    try {
+      const res = await fetch("/api/factory/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, action, reason }),
+      });
+      const result = await res.json();
+      setApprovalResult({ slug, status: result.status ?? "error", message: result.message ?? result.error });
+      // Refresh data after approval
+      setTimeout(fetchData, 2000);
+    } catch {
+      setApprovalResult({ slug, status: "error", message: "Failed to submit approval" });
+    } finally {
+      setApprovalLoading(null);
+    }
+  };
+
+  const awaitingApproval = projects.filter((p) => p.status === "awaiting-approval");
 
   const LIVE_THRESHOLD = 30 * 60 * 1000;
   const now = Date.now();
@@ -273,6 +313,18 @@ export default function FactoryPage() {
             </div>
           </Card>
         )}
+
+        {/* ═══ APPROVAL GATE ═════════════════════════════════════════ */}
+        {awaitingApproval.map((project) => (
+          <ApprovalPanel
+            key={project.slug}
+            project={project}
+            onApprove={(slug) => handleApproval(slug, "approve")}
+            onReject={(slug, reason) => handleApproval(slug, "reject", reason)}
+            loading={approvalLoading === project.slug}
+            result={approvalResult?.slug === project.slug ? approvalResult : null}
+          />
+        ))}
 
         {/* ═══ ACTIVE PROJECTS ════════════════════════════════════════ */}
         <Card className="p-0 overflow-hidden">
@@ -487,9 +539,11 @@ function FactoryProjectRow({
   const statusColor =
     project.status === "shipped"
       ? "var(--olive)"
-      : project.status === "needs-review"
-        ? "var(--terracotta)"
-        : "var(--lilac)";
+      : project.status === "awaiting-approval"
+        ? "var(--amber)"
+        : project.status === "needs-review"
+          ? "var(--terracotta)"
+          : "var(--lilac)";
 
   const currentAgent = PHASE_AGENTS[phaseLabels[project.currentPhaseIdx]] ?? "builder";
 
@@ -925,6 +979,303 @@ function LaneArrow() {
       <svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="var(--warm)" strokeWidth="1.5" strokeLinecap="round">
         <path d="M4 0v10M1 7l3 3 3-3" />
       </svg>
+    </div>
+  );
+}
+
+// ─── Approval Panel ──────────────────────────────────────────────────
+
+function ApprovalPanel({
+  project,
+  onApprove,
+  onReject,
+  loading,
+  result,
+}: {
+  project: FactoryProject;
+  onApprove: (slug: string) => void;
+  onReject: (slug: string, reason?: string) => void;
+  loading: boolean;
+  result: { status: string; message: string } | null;
+}) {
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showFixes, setShowFixes] = useState(false);
+
+  const qg = project.phases.quality_gate;
+  const build = project.phases.build;
+  const monetization = project.phases.monetization;
+  const packaging = project.phases.packaging;
+
+  // Combine operator tasks from monetization + packaging
+  const operatorTasks = [
+    ...(monetization?.operator_tasks ?? []),
+    ...(packaging?.operator_tasks ?? []),
+  ];
+
+  // Result feedback
+  if (result) {
+    return (
+      <div
+        className="rounded-xl border-2 p-5 text-center fade-up"
+        style={{
+          borderColor: result.status === "approved" ? "var(--olive)" : result.status === "rejected" ? "var(--terracotta)" : "var(--mid)",
+          backgroundColor: result.status === "approved" ? "rgba(118, 135, 90, 0.06)" : "rgba(196, 107, 72, 0.06)",
+        }}
+      >
+        <p className="text-lg" style={{ fontFamily: "var(--font-cormorant)", color: result.status === "approved" ? "var(--olive)" : "var(--terracotta)" }}>
+          {result.status === "approved" ? "Approved — shipping started" : result.status === "rejected" ? "Rejected" : "Error"}
+        </p>
+        <p className="text-xs text-mid/60 mt-1 font-[family-name:var(--font-dm-mono)]">{result.message}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border-2 border-amber/40 bg-paper overflow-hidden fade-up" style={{ boxShadow: "0 0 30px rgba(196, 160, 72, 0.08)" }}>
+      {/* Header */}
+      <div className="px-5 py-4 flex items-center justify-between" style={{ backgroundColor: "rgba(196, 160, 72, 0.06)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--amber)" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xl text-charcoal tracking-tight" style={{ fontFamily: "var(--font-cormorant)" }}>
+              Ship {project.slug.replace(/-/g, " ")}?
+            </p>
+            <p className="text-[0.6rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+              Approval required before shipping to App Store
+            </p>
+          </div>
+        </div>
+        <Badge color="var(--amber)">awaiting approval</Badge>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {/* Quality Journey */}
+        <div className="flex gap-4">
+          <div className="flex-1 rounded-lg p-3 border border-warm/50">
+            <p className="label-caps text-[0.45rem] text-mid/50 mb-2">Quality Gate</p>
+            <div className="flex items-end gap-3">
+              {qg?.prior_score != null && (
+                <div className="text-center">
+                  <p className="text-2xl font-light tabular-nums text-terracotta/60" style={{ fontFamily: "var(--font-cormorant)" }}>
+                    {qg.prior_score}
+                  </p>
+                  <p className="text-[0.5rem] text-mid/40">before</p>
+                </div>
+              )}
+              {qg?.prior_score != null && (
+                <svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="var(--olive)" strokeWidth="1.5" strokeLinecap="round" className="mb-2">
+                  <path d="M2 7h16M14 2l4 5-4 5" />
+                </svg>
+              )}
+              <div className="text-center">
+                <p
+                  className="text-3xl font-light tabular-nums"
+                  style={{
+                    fontFamily: "var(--font-cormorant)",
+                    color: (qg?.score ?? 0) >= 80 ? "var(--olive)" : (qg?.score ?? 0) >= 60 ? "var(--amber)" : "var(--terracotta)",
+                  }}
+                >
+                  {qg?.score ?? "—"}<span className="text-lg text-mid/40">/100</span>
+                </p>
+                <p className="text-[0.5rem] text-mid/40">
+                  after &middot; attempt {qg?.attempt ?? "?"}
+                </p>
+              </div>
+            </div>
+            {qg?.summary && (
+              <p className="text-[0.55rem] text-mid/60 mt-2 leading-relaxed font-[family-name:var(--font-dm-mono)]">
+                {qg.summary}
+              </p>
+            )}
+          </div>
+
+          {/* Monetization */}
+          <div className="flex-1 rounded-lg p-3 border border-warm/50">
+            <p className="label-caps text-[0.45rem] text-mid/50 mb-2">Monetization</p>
+            {monetization?.pricing ? (
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <p className="text-2xl font-light tabular-nums text-charcoal" style={{ fontFamily: "var(--font-cormorant)" }}>
+                    ${monetization.pricing.monthly}
+                  </p>
+                  <span className="text-xs text-mid/40">/mo</span>
+                </div>
+                <p className="text-[0.55rem] text-mid/50 mt-0.5">
+                  ${monetization.pricing.annual}/yr &middot; {monetization.trial_days ?? 7}-day free trial
+                  {monetization.free_trial_scans != null && ` &middot; ${monetization.free_trial_scans} free scans`}
+                </p>
+                {monetization.changes && monetization.changes.length > 0 && (
+                  <div className="mt-2 space-y-0.5">
+                    {monetization.changes.map((c, i) => (
+                      <p key={i} className="text-[0.5rem] text-mid/40 font-[family-name:var(--font-dm-mono)]">• {c}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-mid/40">Not configured</p>
+            )}
+          </div>
+        </div>
+
+        {/* Security Fixes */}
+        {build?.fixes_applied && build.fixes_applied.length > 0 && (
+          <div className="rounded-lg border border-warm/50 overflow-hidden">
+            <button
+              onClick={() => setShowFixes(!showFixes)}
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-warm/10 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center text-[0.5rem] text-white font-medium" style={{ backgroundColor: "var(--lilac)" }}>B</span>
+                <span className="text-[0.6rem] text-charcoal font-medium">
+                  {build.fixes_applied.length} security fixes applied by Builder
+                </span>
+              </div>
+              <svg
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" strokeWidth="2" strokeLinecap="round"
+                className={`transition-transform ${showFixes ? "rotate-180" : ""}`}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {showFixes && (
+              <div className="px-3 pb-3 space-y-1 fade-up">
+                {build.fixes_applied.map((fix, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="text-olive text-[0.55rem] mt-0.5">&#10003;</span>
+                    <p className="text-[0.55rem] text-mid/70 leading-relaxed font-[family-name:var(--font-dm-mono)]">{fix}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Operator Tasks */}
+        {operatorTasks.length > 0 && (
+          <div className="rounded-lg p-3 border border-terracotta/20" style={{ backgroundColor: "rgba(196, 107, 72, 0.03)" }}>
+            <p className="label-caps text-[0.45rem] text-terracotta/60 mb-2">
+              Operator Tasks — complete before shipping
+            </p>
+            <div className="space-y-1.5">
+              {operatorTasks.map((task, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="w-3.5 h-3.5 rounded border border-mid/20 flex-shrink-0 mt-0.5" />
+                  <p className="text-[0.55rem] text-mid/70 leading-relaxed font-[family-name:var(--font-dm-mono)]">{task}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Packaging Verification */}
+        {packaging?.metadata_verified && (
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(packaging.metadata_verified).map(([key, ok]) => (
+              <span
+                key={key}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[0.5rem] font-[family-name:var(--font-dm-mono)]"
+                style={{
+                  backgroundColor: ok ? "rgba(118, 135, 90, 0.08)" : "rgba(196, 107, 72, 0.08)",
+                  color: ok ? "var(--olive)" : "var(--terracotta)",
+                }}
+              >
+                {ok ? "✓" : "✗"} {key.replace(/([A-Z])/g, " $1").toLowerCase()}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* E2E Test Results */}
+        {project.e2eResults && (
+          <div
+            className="rounded-lg p-3 border flex items-center justify-between"
+            style={{
+              borderColor: project.e2eResults.status === "pass" ? "rgba(118, 135, 90, 0.3)" : project.e2eResults.status === "fail" ? "rgba(196, 107, 72, 0.3)" : "rgba(0,0,0,0.1)",
+              backgroundColor: project.e2eResults.status === "pass" ? "rgba(118, 135, 90, 0.04)" : project.e2eResults.status === "fail" ? "rgba(196, 107, 72, 0.04)" : "rgba(0,0,0,0.02)",
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm">
+                {project.e2eResults.status === "pass" ? "✓" : project.e2eResults.status === "fail" ? "✗" : "⊘"}
+              </span>
+              <span className="text-[0.6rem] font-medium text-charcoal">E2E Tests</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[0.55rem] text-mid/60 font-[family-name:var(--font-dm-mono)] tabular-nums">
+                {project.e2eResults.passed}/{project.e2eResults.tests} passed
+              </span>
+              {project.e2eResults.failed > 0 && (
+                <span className="text-[0.55rem] text-terracotta font-[family-name:var(--font-dm-mono)] tabular-nums">
+                  {project.e2eResults.failed} failed
+                </span>
+              )}
+              {project.e2eResults.status === "skip" && (
+                <span className="text-[0.5rem] text-mid/40 font-[family-name:var(--font-dm-mono)]">
+                  skipped — no simulator
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 pt-2">
+          {!rejectMode ? (
+            <>
+              <button
+                onClick={() => onApprove(project.slug)}
+                disabled={loading}
+                className="flex-1 py-3 rounded-lg text-white font-medium text-sm tracking-wide transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                style={{ backgroundColor: "var(--olive)" }}
+              >
+                {loading ? "Approving..." : "Approve & Ship"}
+              </button>
+              <button
+                onClick={() => setRejectMode(true)}
+                disabled={loading}
+                className="px-5 py-3 rounded-lg font-medium text-sm tracking-wide transition-all hover:bg-warm/40 cursor-pointer border border-warm"
+                style={{ color: "var(--terracotta)" }}
+              >
+                Reject
+              </button>
+            </>
+          ) : (
+            <div className="flex-1 space-y-2 fade-up">
+              <input
+                type="text"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Reason for rejection..."
+                className="w-full px-3 py-2 rounded-lg border border-warm text-sm font-[family-name:var(--font-dm-mono)] placeholder:text-mid/30 focus:outline-none focus:border-terracotta/40"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { onReject(project.slug, rejectReason); setRejectMode(false); }}
+                  disabled={loading}
+                  className="flex-1 py-2 rounded-lg text-white font-medium text-sm cursor-pointer disabled:opacity-50"
+                  style={{ backgroundColor: "var(--terracotta)" }}
+                >
+                  {loading ? "Rejecting..." : "Confirm Reject"}
+                </button>
+                <button
+                  onClick={() => { setRejectMode(false); setRejectReason(""); }}
+                  className="px-4 py-2 rounded-lg text-sm text-mid hover:text-charcoal transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

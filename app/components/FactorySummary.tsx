@@ -104,6 +104,8 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
               const hasActivity = activity && (now - new Date(activity.timestamp).getTime() < LIVE_THRESHOLD);
               const activityAgent = hasActivity ? agentToken(activity!.agent) : null;
 
+              const isAwaitingApproval = p.status === "awaiting-approval";
+
               return (
                 <div key={p.slug} className="flex items-center gap-2">
                   <span className="text-[0.6rem] text-charcoal capitalize w-16 truncate">{p.slug}</span>
@@ -112,19 +114,27 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
                       className="h-full rounded-full transition-all"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: hasActivity ? activityAgent!.color : "var(--lilac)",
+                        backgroundColor: isAwaitingApproval ? "var(--amber)" : hasActivity ? activityAgent!.color : "var(--lilac)",
                       }}
                     />
                   </div>
                   <span className="text-[0.5rem] text-mid/40 tabular-nums w-6 text-right">{pct}%</span>
-                  {hasActivity && (
+                  {isAwaitingApproval ? (
+                    <a
+                      href="/factory"
+                      className="px-1.5 py-0.5 rounded text-[0.35rem] font-bold tracking-wider text-white flex-shrink-0 attention-pulse"
+                      style={{ backgroundColor: "var(--amber)" }}
+                    >
+                      APPROVE
+                    </a>
+                  ) : hasActivity && activityAgent ? (
                     <span
                       className="w-3 h-3 rounded-full flex items-center justify-center text-[0.3rem] text-white font-bold flex-shrink-0 pulse-dot-subtle"
-                      style={{ backgroundColor: activityAgent!.color }}
+                      style={{ backgroundColor: activityAgent.color }}
                     >
-                      {activityAgent!.label}
+                      {activityAgent.label}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               );
             })}

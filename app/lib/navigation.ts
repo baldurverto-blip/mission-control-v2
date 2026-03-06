@@ -27,6 +27,8 @@ export const GROWTH_TABS = [
   { label: "Overview", href: "/growth" },
   { label: "Queue", href: "/growth/queue" },
   { label: "Signals", href: "/growth/signals" },
+  { label: "Keywords", href: "/growth/keywords" },
+  { label: "Ideas", href: "/growth/ideas" },
   { label: "Engagement", href: "/growth/engagement" },
   { label: "History", href: "/growth/history" },
   { label: "Settings", href: "/growth/settings" },
