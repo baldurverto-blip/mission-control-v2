@@ -149,6 +149,7 @@ export default function QueuePage() {
   const [editProject, setEditProject] = useState<string>("");
   const [flash, setFlash] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [openingManualId, setOpeningManualId] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<QueueItem | null>(null);
 
   const projectOptions = useMemo(() => {
     const slugs = (projectsData?.projects ?? []).map((p) => p.slug).filter(Boolean);
@@ -271,6 +272,18 @@ export default function QueuePage() {
       setActing(null);
     }
   }, [refetchAll]);
+
+  const copyPreviewBody = useCallback(async () => {
+    if (!previewItem) return;
+    const text = previewItem.body ?? previewItem.caption ?? "";
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setFlash({ type: "ok", text: "Copied full post body ✅" });
+    } catch {
+      setFlash({ type: "error", text: "Could not copy to clipboard" });
+    }
+  }, [previewItem]);
 
   const saveEdit = useCallback(async () => {
     if (!editItem) return;
@@ -401,6 +414,13 @@ export default function QueuePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => setPreviewItem(item)}
+                        className="text-[0.65rem] px-2.5 py-1 rounded-md cursor-pointer"
+                        style={{ color: "var(--charcoal)", backgroundColor: "var(--warm)" }}
+                      >
+                        Open post
+                      </button>
                       {needsManualFallback && (
                         <button
                           onClick={() => openRedditManual(item.id)}
@@ -566,6 +586,13 @@ export default function QueuePage() {
                       </>
                     )}
                     <button
+                      onClick={() => setPreviewItem(text)}
+                      className="text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-warm"
+                      style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
+                    >
+                      Open post
+                    </button>
+                    <button
                       onClick={() => {
                         setEditItem(text);
                         setEditCaption(text.body ?? text.caption ?? "");
@@ -633,6 +660,42 @@ export default function QueuePage() {
           </div>
         )}
       </main>
+
+      {/* Preview Modal */}
+      <Modal open={!!previewItem} onClose={() => setPreviewItem(null)} title="Post Content">
+        {previewItem && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge color="var(--olive)">{previewItem.platform ?? "—"}</Badge>
+              <Badge color="var(--lilac)">{previewItem.project ?? "—"}</Badge>
+              {previewItem.subreddit && <span className="text-xs text-mid">r/{String(previewItem.subreddit).replace(/^r\//, "")}</span>}
+            </div>
+            {previewItem.title && <p className="text-sm font-medium text-charcoal">{previewItem.title}</p>}
+            <textarea
+              readOnly
+              value={previewItem.body ?? previewItem.caption ?? ""}
+              rows={14}
+              className="w-full bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal resize-y font-mono text-xs leading-relaxed"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={copyPreviewBody}
+                className="text-xs px-4 py-2 rounded-lg cursor-pointer text-paper"
+                style={{ backgroundColor: "var(--charcoal)" }}
+              >
+                Copy full text
+              </button>
+              <button
+                onClick={() => setPreviewItem(null)}
+                className="text-xs px-4 py-2 rounded-lg cursor-pointer"
+                style={{ color: "var(--mid)", backgroundColor: "var(--warm)" }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Edit Modal */}
       <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit Content">
