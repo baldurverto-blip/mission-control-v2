@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { StatusDot } from "../components/StatusDot";
@@ -712,7 +713,7 @@ function FactoryProjectRow({
               </p>
             )}
             {/* Phase detail strip */}
-            <div className="mt-3 pt-3 border-t border-warm/50 grid grid-cols-3 gap-3">
+            <div className="mt-3 pt-3 border-t border-warm/50 grid grid-cols-4 gap-3">
               <div>
                 <p className="label-caps text-[0.5rem] mb-1">Progress</p>
                 <p className="text-sm text-charcoal tabular-nums">
@@ -736,6 +737,19 @@ function FactoryProjectRow({
                     timeZone: "Europe/Copenhagen",
                   })}
                 </p>
+              </div>
+              <div className="flex items-end justify-end">
+                <Link
+                  href={`/factory/${project.slug}/analytics`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.65rem] font-medium transition-all hover:bg-warm border border-warm/60"
+                  style={{ color: "var(--terracotta)" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 20V10M12 20V4M6 20v-6" />
+                  </svg>
+                  Analytics
+                </Link>
               </div>
             </div>
           </div>

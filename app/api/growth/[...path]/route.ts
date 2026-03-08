@@ -18,7 +18,7 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
     const fetchOpts: RequestInit = {
       method: req.method,
       headers,
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(path.includes("reddit") ? 45_000 : 10_000),
     };
 
     if (req.method !== "GET" && req.method !== "HEAD") {
