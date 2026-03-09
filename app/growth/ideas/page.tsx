@@ -6,11 +6,47 @@ import { EmptyState } from "../../components/EmptyState";
 
 // ── Types ────────────────────────────────────────────────────────
 
+interface ScoreBreakdown {
+  pain: number;
+  monetization: number;
+  market_size: number;
+  niche_breadth: number;
+  specificity: number;
+}
+
+interface IdeaVariant {
+  angle: string;
+  target: string;
+  pain_statement: string;
+  differentiator: string;
+  score: number;
+}
+
+interface QualificationDimension {
+  score: number;
+  reasoning: string;
+}
+
+interface IdeaQualification {
+  competitive_moat: QualificationDimension;
+  strategic_fit: QualificationDimension;
+  market_timing: QualificationDimension;
+  founder_fit: QualificationDimension;
+  gut_check: QualificationDimension;
+  verdict: "QUALIFY" | "PARK" | "REJECT";
+  verdict_reasoning: string;
+  risks?: string[];
+  opportunities?: string[];
+  qualification_score: number;
+  qualified_at?: string;
+}
+
 interface IdeaEvidence {
   niche?: string;
   viability?: string;
   keyword_count?: number;
   avg_cpc?: number;
+  avg_intent?: number;
   total_volume?: number;
   top_keywords?: string[];
   signals_count?: number;
@@ -19,6 +55,11 @@ interface IdeaEvidence {
   avg_final_score?: number;
   sources?: string[];
   sample_titles?: string[];
+  score_breakdown?: ScoreBreakdown;
+  variants?: IdeaVariant[];
+  pain_threads?: { title: string; subreddit: string; upvotes: number; quote?: string }[];
+  competitors?: string[];
+  mini_one_pager?: string;
 }
 
 interface ProposedIdea {
@@ -29,7 +70,10 @@ interface ProposedIdea {
   painkiller: boolean;
   source?: string;
   evidence?: IdeaEvidence;
+  qualification?: IdeaQualification;
   status?: string;
+  refined_at?: string;
+  best_variant?: IdeaVariant;
 }
 
 interface FilteredIdea {
@@ -97,24 +141,106 @@ function filterColor(reason: string): string {
 
 // ── Components ──────────────────────────────────────────────────
 
-function IdeaCard({ idea }: { idea: ProposedIdea }) {
+const STATUS_STYLES: Record<string, { color: string; label: string }> = {
+  proposed: { color: "var(--amber)", label: "Proposed" },
+  exploring: { color: "var(--lilac)", label: "Exploring..." },
+  refined: { color: "var(--olive)", label: "Refined" },
+  qualifying: { color: "var(--lilac)", label: "Qualifying..." },
+  qualified: { color: "var(--charcoal)", label: "Qualified" },
+  parked: { color: "var(--mid)", label: "Parked" },
+  queued: { color: "var(--charcoal)", label: "Queued" },
+  approved: { color: "var(--olive)", label: "Approved" },
+  rejected: { color: "var(--terracotta)", label: "Rejected" },
+};
+
+const SCORE_LABELS: Record<string, { label: string; weight: string }> = {
+  pain: { label: "Pain/Intent", weight: "30%" },
+  monetization: { label: "Monetization", weight: "25%" },
+  market_size: { label: "Market Size", weight: "20%" },
+  niche_breadth: { label: "Niche Breadth", weight: "15%" },
+  specificity: { label: "Specificity", weight: "10%" },
+};
+
+function ScoreBar({ label, weight, value }: { label: string; weight: string; value: number }) {
+  const barColor =
+    value >= 75 ? "var(--olive)" :
+    value >= 50 ? "var(--amber)" :
+    value >= 30 ? "var(--terracotta)" : "var(--mid)";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[0.5rem] text-mid/50 w-[72px] shrink-0 text-right tabular-nums">
+        {label} <span className="text-mid/30">({weight})</span>
+      </span>
+      <div className="flex-1 h-1.5 bg-warm/60 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${value}%`, backgroundColor: barColor }}
+        />
+      </div>
+      <span className="text-[0.5rem] tabular-nums w-5 text-right" style={{ color: barColor }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+const QUAL_LABELS: Record<string, string> = {
+  competitive_moat: "Moat",
+  strategic_fit: "Fit",
+  market_timing: "Timing",
+  founder_fit: "Buildable",
+  gut_check: "Gut",
+};
+
+function IdeaCard({
+  idea,
+  onExplore,
+  onQualify,
+  exploring,
+  qualifying,
+}: {
+  idea: ProposedIdea;
+  onExplore?: (slug: string) => void;
+  onQualify?: (slug: string) => void;
+  exploring?: boolean;
+  qualifying?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const color = scoreColor(idea.score);
+  const status = STATUS_STYLES[idea.status ?? "proposed"] ?? STATUS_STYLES.proposed;
+  const breakdown = idea.evidence?.score_breakdown;
+  const hasBreakdown = breakdown && Object.keys(breakdown).length > 0;
+  const isProposed = idea.status === "proposed" || !idea.status;
+  const isRefined = idea.status === "refined";
+  const isQualified = idea.status === "qualified";
+  const isParked = idea.status === "parked";
+  const qual = idea.qualification;
+
   return (
     <div
       className="rounded-xl border p-4 transition-all hover:shadow-sm"
       style={{ borderColor: `${color}30`, backgroundColor: `${color}06` }}
     >
+      {/* Header row */}
       <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="min-w-0">
-          <h4
-            className="text-sm font-medium truncate"
-            style={{ color: "var(--charcoal)" }}
-          >
-            {idea.title}
-          </h4>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h4
+              className="text-sm font-medium truncate"
+              style={{ color: "var(--charcoal)" }}
+            >
+              {idea.title}
+            </h4>
+            <Badge color={status.color}>{status.label}</Badge>
+          </div>
           <p className="text-[0.65rem] text-mid/60 mt-0.5 line-clamp-2">
-            {idea.tagline}
+            {idea.best_variant?.pain_statement ?? idea.tagline}
           </p>
+          {idea.best_variant && (
+            <p className="text-[0.6rem] mt-1" style={{ color: "var(--olive)" }}>
+              Angle: {idea.best_variant.angle} — Target: {idea.best_variant.target}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {idea.painkiller && (
@@ -129,16 +255,35 @@ function IdeaCard({ idea }: { idea: ProposedIdea }) {
         </div>
       </div>
 
+      {/* Score breakdown bars (if available) */}
+      {hasBreakdown && (
+        <div className="mt-3 space-y-1">
+          {Object.entries(SCORE_LABELS).map(([key, meta]) => {
+            const val = (breakdown as unknown as Record<string, number>)[key];
+            if (val == null) return null;
+            return (
+              <ScoreBar key={key} label={meta.label} weight={meta.weight} value={val} />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Evidence chips */}
       {idea.evidence && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {idea.evidence.viability && (
+          {idea.evidence.avg_intent != null && (
             <span className="inline-flex px-1.5 py-0.5 rounded text-[0.55rem] bg-warm/60 text-mid/80">
-              {idea.evidence.viability} viability
+              Intent: {idea.evidence.avg_intent}/100
             </span>
           )}
-          {idea.evidence.avg_cpc != null && (
+          {(idea.evidence.avg_cpc ?? idea.evidence.max_cpc) != null && (
             <span className="inline-flex px-1.5 py-0.5 rounded text-[0.55rem] bg-warm/60 text-mid/80">
-              ${idea.evidence.avg_cpc?.toFixed(2) ?? idea.evidence.max_cpc?.toFixed(2)} CPC
+              ${(idea.evidence.avg_cpc ?? idea.evidence.max_cpc)?.toFixed(2)} CPC
+            </span>
+          )}
+          {idea.evidence.total_volume != null && (
+            <span className="inline-flex px-1.5 py-0.5 rounded text-[0.55rem] bg-warm/60 text-mid/80">
+              {idea.evidence.total_volume.toLocaleString()}/mo
             </span>
           )}
           {idea.evidence.keyword_count != null && (
@@ -151,41 +296,173 @@ function IdeaCard({ idea }: { idea: ProposedIdea }) {
               {idea.evidence.cross_source_count}x cross-validated
             </span>
           )}
-          {idea.evidence.signals_count != null && (
+          {idea.evidence.competitors && idea.evidence.competitors.length > 0 && (
             <span className="inline-flex px-1.5 py-0.5 rounded text-[0.55rem] bg-warm/60 text-mid/80">
-              {idea.evidence.signals_count} signals
+              {idea.evidence.competitors.length} competitors mapped
             </span>
           )}
-          {(idea.evidence.top_keywords ?? idea.evidence.sample_titles ?? []).slice(0, 3).map((kw, i) => (
-            <span
-              key={i}
-              className="inline-flex px-1.5 py-0.5 rounded text-[0.55rem] bg-warm/40 text-mid/60 italic"
-            >
-              {kw}
+          {idea.evidence.pain_threads && idea.evidence.pain_threads.length > 0 && (
+            <span className="inline-flex px-1.5 py-0.5 rounded text-[0.55rem] bg-warm/60 text-mid/80">
+              {idea.evidence.pain_threads.length} pain threads
             </span>
-          ))}
+          )}
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-2">
-        {idea.source && (
-          <span className="text-[0.55rem] text-mid/40">
-            via {idea.source}
-          </span>
-        )}
-        {idea.status && idea.status !== "proposed" && (
-          <Badge
-            color={
-              idea.status === "approved"
-                ? "var(--olive)"
-                : idea.status === "rejected"
-                  ? "var(--terracotta)"
-                  : "var(--mid)"
-            }
+      {/* Expandable details for refined ideas */}
+      {isRefined && idea.evidence?.variants && (
+        <div className="mt-2">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[0.55rem] font-medium transition-colors"
+            style={{ color: "var(--lilac)" }}
           >
-            {idea.status}
-          </Badge>
-        )}
+            {expanded ? "Hide details" : `Show ${idea.evidence.variants.length} variant${idea.evidence.variants.length !== 1 ? "s" : ""} + research`}
+          </button>
+          {expanded && (
+            <div className="mt-2 space-y-3">
+              {/* Variants */}
+              <div className="space-y-2">
+                {idea.evidence.variants.map((v, i) => (
+                  <div key={i} className="p-2 rounded-lg bg-warm/40 text-[0.6rem]">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium" style={{ color: "var(--charcoal)" }}>{v.angle}</span>
+                      <span className="tabular-nums" style={{ color: scoreColor(v.score) }}>{v.score}</span>
+                    </div>
+                    <p className="text-mid/60 mt-0.5">Target: {v.target}</p>
+                    <p className="text-mid/50 mt-0.5 italic">{v.pain_statement}</p>
+                    <p className="text-mid/40 mt-0.5">{v.differentiator}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Pain threads */}
+              {idea.evidence.pain_threads && idea.evidence.pain_threads.length > 0 && (
+                <div>
+                  <p className="label-caps text-[0.5rem] mb-1" style={{ color: "var(--terracotta)" }}>Pain Threads</p>
+                  {idea.evidence.pain_threads.slice(0, 5).map((t, i) => (
+                    <div key={i} className="text-[0.55rem] text-mid/60 mb-1">
+                      <span className="text-mid/40">r/{t.subreddit}</span> {t.title}
+                      {t.upvotes > 0 && <span className="text-mid/30 ml-1">({t.upvotes})</span>}
+                      {t.quote && <p className="text-mid/40 italic ml-3 mt-0.5">"{t.quote}"</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Qualification assessment (if available) */}
+      {qual && (
+        <div className="mt-3 p-3 rounded-lg border" style={{ borderColor: `${qual.verdict === "QUALIFY" ? "var(--olive)" : qual.verdict === "PARK" ? "var(--amber)" : "var(--terracotta)"}30` }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[0.55rem] font-medium" style={{ color: "var(--charcoal)" }}>
+              Agent Qualification
+            </span>
+            <Badge color={qual.verdict === "QUALIFY" ? "var(--olive)" : qual.verdict === "PARK" ? "var(--amber)" : "var(--terracotta)"}>
+              {qual.verdict}
+            </Badge>
+          </div>
+          {/* 5 dimension bars */}
+          <div className="space-y-1 mb-2">
+            {Object.entries(QUAL_LABELS).map(([key, label]) => {
+              const dim = (qual as unknown as Record<string, QualificationDimension>)[key];
+              if (!dim) return null;
+              return (
+                <div key={key} className="flex items-center gap-2 group relative">
+                  <span className="text-[0.5rem] text-mid/50 w-[52px] shrink-0 text-right">{label}</span>
+                  <div className="flex-1 h-1.5 bg-warm/60 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{
+                      width: `${dim.score}%`,
+                      backgroundColor: dim.score >= 70 ? "var(--olive)" : dim.score >= 45 ? "var(--amber)" : "var(--terracotta)",
+                    }} />
+                  </div>
+                  <span className="text-[0.5rem] tabular-nums w-5 text-right" style={{
+                    color: dim.score >= 70 ? "var(--olive)" : dim.score >= 45 ? "var(--amber)" : "var(--terracotta)",
+                  }}>{dim.score}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[0.55rem] text-mid/60 italic">{qual.verdict_reasoning}</p>
+          {qual.risks && qual.risks.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {qual.risks.map((r, i) => (
+                <span key={i} className="inline-flex px-1.5 py-0.5 rounded text-[0.5rem]" style={{ backgroundColor: "var(--terracotta)10", color: "var(--terracotta)" }}>{r}</span>
+              ))}
+            </div>
+          )}
+          {qual.opportunities && qual.opportunities.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {qual.opportunities.map((o, i) => (
+                <span key={i} className="inline-flex px-1.5 py-0.5 rounded text-[0.5rem]" style={{ backgroundColor: "var(--olive)10", color: "var(--olive)" }}>{o}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center gap-2">
+          {idea.source && (
+            <span className="text-[0.55rem] text-mid/40">via {idea.source}</span>
+          )}
+          {idea.refined_at && (
+            <span className="text-[0.55rem] text-mid/30">
+              refined {formatTimestamp(idea.refined_at)}
+            </span>
+          )}
+          {qual?.qualified_at && (
+            <span className="text-[0.55rem] text-mid/30">
+              qualified {formatTimestamp(qual.qualified_at)}
+            </span>
+          )}
+        </div>
+        {/* Action buttons */}
+        <div className="flex gap-1.5">
+          {isProposed && onExplore && (
+            <button
+              onClick={() => onExplore(idea.slug)}
+              disabled={exploring}
+              className="px-2 py-1 rounded text-[0.55rem] font-medium border transition-all"
+              style={{
+                borderColor: exploring ? "var(--warm)" : "var(--lilac)",
+                color: exploring ? "var(--mid)" : "var(--lilac)",
+                backgroundColor: exploring ? "var(--warm)" : "transparent",
+              }}
+            >
+              {exploring ? "Exploring..." : "Explore & Refine"}
+            </button>
+          )}
+          {isRefined && onQualify && (
+            <button
+              onClick={() => onQualify(idea.slug)}
+              disabled={qualifying}
+              className="px-2 py-1 rounded text-[0.55rem] font-medium border transition-all"
+              style={{
+                borderColor: qualifying ? "var(--warm)" : "var(--charcoal)",
+                color: qualifying ? "var(--mid)" : "var(--charcoal)",
+                backgroundColor: qualifying ? "var(--warm)" : "transparent",
+              }}
+            >
+              {qualifying ? "Qualifying..." : "Qualify with Agent"}
+            </button>
+          )}
+          {isQualified && idea.score >= 75 && (
+            <span className="px-2 py-1 rounded text-[0.55rem] font-medium"
+              style={{ color: "var(--olive)", backgroundColor: "var(--olive)12" }}>
+              Ready for Factory
+            </span>
+          )}
+          {isParked && (
+            <span className="px-2 py-1 rounded text-[0.55rem]"
+              style={{ color: "var(--mid)" }}>
+              Parked — re-evaluate later
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -211,9 +488,17 @@ function FilteredRow({ idea }: { idea: FilteredIdea }) {
 function RunCard({
   log,
   defaultOpen,
+  onExplore,
+  onQualify,
+  exploringSlug,
+  qualifyingSlug,
 }: {
   log: IdeaLog;
   defaultOpen: boolean;
+  onExplore?: (slug: string) => void;
+  onQualify?: (slug: string) => void;
+  exploringSlug?: string | null;
+  qualifyingSlug?: string | null;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const proposed = log.proposed ?? [];
@@ -289,7 +574,7 @@ function RunCard({
               </p>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {proposed.map((idea, i) => (
-                  <IdeaCard key={idea.slug ?? i} idea={idea} />
+                  <IdeaCard key={idea.slug ?? i} idea={idea} onExplore={onExplore} onQualify={onQualify} exploring={exploringSlug === idea.slug} qualifying={qualifyingSlug === idea.slug} />
                 ))}
               </div>
             </div>
@@ -334,6 +619,8 @@ export default function IdeasPage() {
   const [queue, setQueue] = useState<IdeaQueue | null>(null);
   const [loading, setLoading] = useState(true);
   const [proposing, setProposing] = useState(false);
+  const [exploringSlug, setExploringSlug] = useState<string | null>(null);
+  const [qualifyingSlug, setQualifyingSlug] = useState<string | null>(null);
 
   const fetchIdeas = useCallback(async () => {
     try {
@@ -367,6 +654,62 @@ export default function IdeasPage() {
       // ignore
     } finally {
       setProposing(false);
+    }
+  };
+
+  const triggerExplore = async (slug: string) => {
+    setExploringSlug(slug);
+    try {
+      await fetch("/api/factory/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      // Poll for completion (refining takes ~30-60s)
+      const poll = setInterval(async () => {
+        await fetchIdeas();
+        // Check if status changed from "proposed"
+        const updated = queue?.queue?.find((q) => q.slug === slug);
+        if (updated && updated.status !== "proposed" && updated.status !== "exploring") {
+          clearInterval(poll);
+          setExploringSlug(null);
+        }
+      }, 5000);
+      // Safety timeout: stop polling after 90s
+      setTimeout(() => {
+        clearInterval(poll);
+        setExploringSlug(null);
+        fetchIdeas();
+      }, 90_000);
+    } catch {
+      setExploringSlug(null);
+    }
+  };
+
+  const triggerQualify = async (slug: string) => {
+    setQualifyingSlug(slug);
+    try {
+      await fetch("/api/factory/qualify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      // Poll for completion (qualification takes ~30-60s via Sonnet)
+      const poll = setInterval(async () => {
+        await fetchIdeas();
+        const updated = queue?.queue?.find((q) => q.slug === slug);
+        if (updated && updated.status !== "refined" && updated.status !== "qualifying") {
+          clearInterval(poll);
+          setQualifyingSlug(null);
+        }
+      }, 5000);
+      setTimeout(() => {
+        clearInterval(poll);
+        setQualifyingSlug(null);
+        fetchIdeas();
+      }, 120_000);
+    } catch {
+      setQualifyingSlug(null);
     }
   };
 
@@ -416,10 +759,14 @@ export default function IdeasPage() {
   const painkillers = logs.flatMap((l) => l.proposed ?? []).filter(
     (p) => p.painkiller,
   );
-  const queueSize =
-    (queue?.queue?.length ?? 0) +
-    (queue?.shipped?.length ?? 0) +
-    (queue?.rejected?.length ?? 0);
+
+  // Status-based queue breakdown
+  const queueItems = queue?.queue ?? [];
+  const proposedCount = queueItems.filter((q) => q.status === "proposed" || !q.status).length;
+  const refinedCount = queueItems.filter((q) => q.status === "refined").length;
+  const qualifiedCount = queueItems.filter((q) => q.status === "qualified").length;
+  const readyCount = queueItems.filter((q) => (q.status === "qualified" || q.status === "refined") && q.score >= 75).length;
+  const parkedCount = queueItems.filter((q) => q.status === "parked").length;
 
   return (
     <div className="px-8 pt-6 pb-12 max-w-[1440px] mx-auto space-y-6">
@@ -448,17 +795,17 @@ export default function IdeasPage() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
           {
             label: "Proposed",
             value: String(totalProposed),
-            color: "var(--olive)",
+            color: "var(--amber)",
           },
           {
             label: "Filtered",
             value: String(totalFiltered),
-            color: "var(--amber)",
+            color: "var(--mid)",
           },
           {
             label: "Painkillers",
@@ -466,9 +813,14 @@ export default function IdeasPage() {
             color: "var(--terracotta)",
           },
           {
-            label: "In Queue",
-            value: String(queueSize),
-            color: "var(--charcoal)",
+            label: "Awaiting Refinement",
+            value: String(proposedCount),
+            color: "var(--lilac)",
+          },
+          {
+            label: "Factory-Ready",
+            value: String(readyCount),
+            color: "var(--olive)",
           },
         ].map((kpi) => (
           <div
@@ -498,7 +850,7 @@ export default function IdeasPage() {
         <p className="label-caps text-[0.55rem] mb-3" style={{ color: "var(--lilac)" }}>
           Discovery Pipeline — Model Routing
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {[
             {
               step: "1. Keyword Discovery",
@@ -521,8 +873,16 @@ export default function IdeasPage() {
               model: "Algorithmic (Python)",
               badge: "ALGO",
               badgeColor: "var(--terracotta)",
-              desc: "Cross-validate, score, filter, propose to queue",
+              desc: "Multi-dimensional scoring, filter, propose to queue",
               cron: "Sun 02:30 CET",
+            },
+            {
+              step: "4. Idea Refiner",
+              model: "Reddit + KWE + Algorithmic",
+              badge: "REFINE",
+              badgeColor: "var(--lilac)",
+              desc: "Niche-down, competitor analysis, variant scoring, mini one-pager",
+              cron: "On-demand or auto",
             },
           ].map((s) => (
             <div key={s.step} className="space-y-1">
@@ -544,17 +904,43 @@ export default function IdeasPage() {
           ))}
         </div>
         <p className="text-[0.5rem] text-mid/30 mt-3">
-          Cron orchestration via MiniMax-M2.5 (Scout agent). No LLM calls in scoring — pure algorithmic pipeline.
+          Steps 1-3: Cron orchestration via MiniMax-M2.5 (Scout). Step 4: On-demand refinement via Reddit+KWE. No LLM calls — pure algorithmic scoring with 5-dimension breakdown.
         </p>
       </div>
 
+      {/* Active queue ideas (from idea-queue.json) */}
+      {queueItems.length > 0 && (
+        <div>
+          <p className="label-caps text-[0.55rem] mb-3" style={{ color: "var(--charcoal)" }}>
+            Idea Queue ({queueItems.length})
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {queueItems.map((idea, i) => (
+              <IdeaCard
+                key={idea.slug ?? i}
+                idea={idea}
+                onExplore={triggerExplore}
+                onQualify={triggerQualify}
+                exploring={exploringSlug === idea.slug}
+                qualifying={qualifyingSlug === idea.slug}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Run logs (most recent first, first one expanded) */}
       <div className="space-y-4">
+        <p className="label-caps text-[0.55rem] text-mid/60">Discovery Run History</p>
         {logs.map((log, i) => (
           <RunCard
             key={log.timestamp ?? i}
             log={log}
             defaultOpen={i === 0}
+            onExplore={triggerExplore}
+            onQualify={triggerQualify}
+            exploringSlug={exploringSlug}
+            qualifyingSlug={qualifyingSlug}
           />
         ))}
       </div>

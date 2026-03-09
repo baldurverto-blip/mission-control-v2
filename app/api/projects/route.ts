@@ -4,6 +4,7 @@ import { join } from "path";
 import { PRODUCTS_DIR, PULSES_DIR } from "@/app/lib/paths";
 
 const FACTORY_DIR = join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace/ops/factory");
+const FACTORY_CONFIG = join(FACTORY_DIR, "factory-config.json");
 const LIFECYCLE_PHASES = ["discovery", "validation", "build", "distribution", "support"] as const;
 
 // Internal systems — not customer-facing products, excluded from Product Lanes
@@ -26,6 +27,28 @@ interface ProjectLane {
   phases: PhaseCheck[];
   factoryStatus?: string;
   isFactoryProject?: boolean;
+  // New fields for focus area + type
+  productType?: string;
+  focusAreas?: string[];
+  description?: string;
+  pipelineStage?: string;
+  client?: string;
+}
+
+interface FocusAreaConfig {
+  label: string;
+  mission: string;
+  kpis: string[];
+}
+
+interface ProductConfig {
+  name: string;
+  type: string;
+  focus_areas: string[];
+  status: string;
+  description?: string;
+  client?: string;
+  pipeline_stage?: string;
 }
 
 function extractFrontmatter(content: string): Record<string, string> {
@@ -52,7 +75,6 @@ function extractPhaseChecks(content: string): PhaseCheck[] {
   let match;
   while ((match = phaseRegex.exec(content)) !== null) {
     const name = match[1].trim();
-    // Look at checkboxes following this heading until the next heading
     const start = match.index + match[0].length;
     const nextHeading = content.indexOf("\n##", start);
     const section = content.slice(start, nextHeading === -1 ? undefined : nextHeading);
@@ -67,13 +89,15 @@ function extractPhaseChecks(content: string): PhaseCheck[] {
 function mapPulseToProduct(goal: string): string | null {
   const g = goal.toLowerCase();
   if (g.startsWith("expedition:")) return null;
-  // Factory goals: "factory:safebite", "factory:sync", etc.
   const factoryMatch = g.match(/^factory:(\S+)/);
   if (factoryMatch) return factoryMatch[1];
+  if (g.includes("cleansheet")) return "cleansheet";
+  if (g.includes("viborg")) return "viborg-ff";
   if (g.startsWith("sync") || g.includes("sync")) return "sync";
+  if (g.startsWith("safebite") || g.includes("safebite")) return "safebite";
   if (g.startsWith("growthops") || g.startsWith("content-")) return "growthops";
   if (g.startsWith("vertoos")) return "vertoos";
-  return null; // unmapped = system
+  return null;
 }
 
 // Map factory status to product lifecycle phase
@@ -95,6 +119,21 @@ function factoryStatusToLifecycle(status: string): string {
   }
 }
 
+// Map advisory pipeline stages to lifecycle phases
+function advisoryStageToLifecycle(stage: string): string {
+  switch (stage) {
+    case "lead":
+    case "discovery": return "discovery";
+    case "scoping":
+    case "proposal": return "validation";
+    case "pilot": return "build";
+    case "delivery":
+    case "paid": return "distribution";
+    case "ongoing": return "support";
+    default: return "discovery";
+  }
+}
+
 async function readPulsesForDate(date: string): Promise<{ agent: string; goal: string; timestamp: string }[]> {
   try {
     const content = await readFile(join(PULSES_DIR, `${date}.jsonl`), "utf-8");
@@ -107,8 +146,28 @@ async function readPulsesForDate(date: string): Promise<{ agent: string; goal: s
   }
 }
 
+async function readFactoryConfig(): Promise<{
+  focus_areas: Record<string, FocusAreaConfig>;
+  products: Record<string, ProductConfig>;
+} | null> {
+  try {
+    const raw = await readFile(FACTORY_CONFIG, "utf-8");
+    const config = JSON.parse(raw);
+    return {
+      focus_areas: config.focus_areas ?? {},
+      products: config.products ?? {},
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
+    const config = await readFactoryConfig();
+    const productConfigs = config?.products ?? {};
+    const focusAreaConfigs = config?.focus_areas ?? {};
+
     // Read product PRDs
     const dirs = await readdir(PRODUCTS_DIR, { withFileTypes: true });
     const productDirs = dirs.filter((d) => d.isDirectory()).map((d) => d.name);
@@ -130,21 +189,29 @@ export async function GET() {
     }
 
     const projects: ProjectLane[] = [];
+    const seenSlugs = new Set<string>();
 
     for (const slug of productDirs) {
-      if (INTERNAL_SLUGS.has(slug)) continue; // skip internal systems
+      if (INTERNAL_SLUGS.has(slug)) continue;
       let content: string;
       try {
         content = await readFile(join(PRODUCTS_DIR, slug, "PRD.md"), "utf-8");
       } catch {
-        continue; // skip dirs without PRD.md
+        continue;
       }
 
       const fm = extractFrontmatter(content);
       const nameMatch = content.match(/^#\s+(?:PRD:\s*)?(.+)/m);
       const name = nameMatch?.[1]?.trim()?.replace(/\s*—.*/, "") ?? slug;
       const status = fm.status ?? "Draft";
-      const lifecyclePhase = fm.lifecycle_phase ?? "discovery";
+      const pConfig = productConfigs[slug];
+
+      // Use config-driven lifecycle phase for advisory, fallback to frontmatter
+      let lifecyclePhase = fm.lifecycle_phase ?? "discovery";
+      if (pConfig?.type === "advisory" && pConfig.pipeline_stage) {
+        lifecyclePhase = advisoryStageToLifecycle(pConfig.pipeline_stage);
+      }
+
       const phases = extractPhaseChecks(content);
 
       // Pulse stats
@@ -152,7 +219,7 @@ export async function GET() {
       const pulseCount7d = productPulses.length;
       const activeAgents = [...new Set(productPulses.map((p) => p.agent))];
 
-      // Stall detection: no pulse in 48h AND not in support phase
+      // Stall detection
       const latestPulse = productPulses.length > 0
         ? Math.max(...productPulses.map((p) => new Date(p.timestamp).getTime()))
         : 0;
@@ -161,21 +228,64 @@ export async function GET() {
         : 999;
       const isStalled = staleDays >= 2 && lifecyclePhase !== "support";
 
+      seenSlugs.add(slug);
       projects.push({
         slug,
-        name,
-        status,
+        name: pConfig?.name ?? name,
+        status: pConfig?.status ?? status,
         lifecyclePhase,
         pulseCount7d,
         activeAgents,
         staleDays: latestPulse > 0 ? staleDays : -1,
         isStalled,
         phases,
+        productType: pConfig?.type,
+        focusAreas: pConfig?.focus_areas,
+        description: pConfig?.description,
+        pipelineStage: pConfig?.pipeline_stage,
+        client: pConfig?.client,
+      });
+    }
+
+    // Add config-only products (not in PRD dirs yet, e.g. advisory engagements)
+    for (const [slug, pConfig] of Object.entries(productConfigs)) {
+      if (seenSlugs.has(slug) || INTERNAL_SLUGS.has(slug)) continue;
+
+      let lifecyclePhase = "discovery";
+      if (pConfig.type === "advisory" && pConfig.pipeline_stage) {
+        lifecyclePhase = advisoryStageToLifecycle(pConfig.pipeline_stage);
+      }
+
+      const productPulses = pulsesByProduct[slug] ?? [];
+      const pulseCount7d = productPulses.length;
+      const activeAgents = [...new Set(productPulses.map((p) => p.agent))];
+      const latestPulse = productPulses.length > 0
+        ? Math.max(...productPulses.map((p) => new Date(p.timestamp).getTime()))
+        : 0;
+      const staleDays = latestPulse > 0
+        ? Math.floor((Date.now() - latestPulse) / 86400000)
+        : 999;
+
+      seenSlugs.add(slug);
+      projects.push({
+        slug,
+        name: pConfig.name,
+        status: pConfig.status,
+        lifecyclePhase,
+        pulseCount7d,
+        activeAgents,
+        staleDays: latestPulse > 0 ? staleDays : -1,
+        isStalled: false,
+        phases: [],
+        productType: pConfig.type,
+        focusAreas: pConfig.focus_areas,
+        description: pConfig.description,
+        pipelineStage: pConfig.pipeline_stage,
+        client: pConfig.client,
       });
     }
 
     // Cross-reference factory projects
-    const existingSlugs = new Set(projects.map((p) => p.slug));
     try {
       const factoryEntries = await readdir(FACTORY_DIR).catch(() => []);
       for (const entry of factoryEntries) {
@@ -187,14 +297,12 @@ export async function GET() {
           const state = JSON.parse(raw);
           const factoryStatus = state.status as string;
 
-          if (existingSlugs.has(entry)) {
-            // Existing product has a factory pipeline — add factory status
+          if (seenSlugs.has(entry)) {
             const existing = projects.find((p) => p.slug === entry);
             if (existing) {
               existing.factoryStatus = factoryStatus;
             }
           } else {
-            // Factory-only project — create synthetic lane entry
             let name = entry.charAt(0).toUpperCase() + entry.slice(1);
             try {
               const onePager = await readFile(join(FACTORY_DIR, entry, "one-pager.md"), "utf-8");
@@ -213,6 +321,7 @@ export async function GET() {
               ? Math.floor((Date.now() - latestPulse) / 86400000)
               : 999;
 
+            const pConfig = productConfigs[entry];
             projects.push({
               slug: entry,
               name,
@@ -225,14 +334,33 @@ export async function GET() {
               phases: [],
               factoryStatus,
               isFactoryProject: true,
+              productType: pConfig?.type ?? "b2c-mobile",
+              focusAreas: pConfig?.focus_areas ?? ["products"],
             });
           }
         } catch { /* skip */ }
       }
     } catch { /* factory dir not available */ }
 
+    // Group projects by focus area for the dashboard
+    const byFocusArea: Record<string, ProjectLane[]> = {
+      products: [],
+      advisory: [],
+      engine: [],
+    };
+    for (const p of projects) {
+      const areas = p.focusAreas ?? ["products"];
+      for (const area of areas) {
+        if (byFocusArea[area]) {
+          byFocusArea[area].push(p);
+        }
+      }
+    }
+
     return NextResponse.json({
       projects,
+      byFocusArea,
+      focusAreas: focusAreaConfigs,
       lifecyclePhases: [...LIFECYCLE_PHASES],
     });
   } catch (err) {

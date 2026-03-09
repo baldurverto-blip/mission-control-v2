@@ -51,6 +51,24 @@ interface ProjectLane {
   staleDays: number;
   isStalled: boolean;
   phases: PhaseCheck[];
+  productType?: string;
+  focusAreas?: string[];
+  description?: string;
+  pipelineStage?: string;
+  client?: string;
+}
+
+interface FocusAreaConfig {
+  label: string;
+  mission: string;
+  kpis: string[];
+}
+
+interface EngineStats {
+  agents: number;
+  crons: number;
+  pulsesToday: number;
+  health: "healthy" | "degraded" | "alert";
 }
 
 interface ExpeditionData {
@@ -94,6 +112,8 @@ export default function Dashboard() {
   const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
   const [workflows, setWorkflows] = useState<WorkflowData | null>(null);
   const [projects, setProjects] = useState<ProjectLane[]>([]);
+  const [byFocusArea, setByFocusArea] = useState<Record<string, ProjectLane[]>>({});
+  const [focusAreaConfigs, setFocusAreaConfigs] = useState<Record<string, FocusAreaConfig>>({});
   const [expeditions, setExpeditions] = useState<ExpeditionData[]>([]);
   const [factoryData, setFactoryData] = useState<FactorySummaryData | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -130,7 +150,11 @@ export default function Dashboard() {
     if (goalsRes && !goalsRes.error) setGoals(goalsRes.goals ?? []);
     if (briefsRes && !briefsRes.error) setBriefs({ morning: briefsRes.morning ?? null, evening: briefsRes.evening ?? null });
     if (workflowRes && !workflowRes.error) setWorkflows(workflowRes);
-    if (projectsRes && !projectsRes.error) setProjects(projectsRes.projects ?? []);
+    if (projectsRes && !projectsRes.error) {
+      setProjects(projectsRes.projects ?? []);
+      setByFocusArea(projectsRes.byFocusArea ?? {});
+      setFocusAreaConfigs(projectsRes.focusAreas ?? {});
+    }
     if (expeditionsRes && !expeditionsRes.error) setExpeditions(expeditionsRes.expeditions ?? []);
     if (factoryRes && !factoryRes.error) setFactoryData(factoryRes);
     setLoaded(true);
@@ -209,6 +233,14 @@ export default function Dashboard() {
               inbox={inbox}
               workflows={workflows?.state.active ?? []}
               factoryData={factoryData}
+              focusAreas={focusAreaConfigs}
+              byFocusArea={byFocusArea}
+              engineStats={{
+                agents: 6,
+                crons: kpis?.cron.total ?? 22,
+                pulsesToday: pulseData?.stats.totalToday ?? 0,
+                health: systemHealth === "healthy" ? "healthy" : systemHealth === "alert" ? "alert" : "degraded",
+              }}
             />
           ) : (
             <OperationsView
