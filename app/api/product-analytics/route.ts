@@ -141,6 +141,100 @@ async function fetchRevenueCatMetrics(slug: string): Promise<RevenueCatOverview 
   }
 }
 
+// ─── Vercel Web Analytics ────────────────────────────────────────────
+
+// Vercel project IDs per product landing page (add new apps here)
+const VERCEL_PROJECT_IDS: Record<string, string> = {
+  safebite: "prj_2jHxzL2tnq6sfhcNlbZZtCvuhjoc",
+};
+
+interface VercelAnalytics {
+  visitors: number;
+  pageViews: number;
+  bounceRate: number;
+  topPages: { key: string; total: number }[];
+  source: "vercel-analytics";
+}
+
+async function fetchVercelAnalytics(slug: string): Promise<VercelAnalytics | null> {
+  const token = process.env.VERCEL_TOKEN;
+  const teamId = process.env.VERCEL_TEAM_ID;
+  const projectId = VERCEL_PROJECT_IDS[slug];
+  if (!token || !projectId) return null;
+
+  const now = new Date();
+  const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const fromStr = from.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const toStr = now.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const teamParam = teamId ? `&teamId=${teamId}` : "";
+
+  try {
+    // Fetch overview and top pages in parallel
+    const [overviewRes, pagesRes] = await Promise.all([
+      fetch(
+        `https://vercel.com/api/web-analytics/overview?projectId=${projectId}&environment=production&from=${fromStr}&to=${toStr}${teamParam}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      ),
+      fetch(
+        `https://vercel.com/api/web-analytics/pages?projectId=${projectId}&environment=production&from=${fromStr}&to=${toStr}&limit=5${teamParam}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      ),
+    ]);
+
+    if (!overviewRes.ok) {
+      console.error("[Vercel] Overview error:", overviewRes.status);
+      return null;
+    }
+
+    const overview = await overviewRes.json();
+    const pages = pagesRes.ok ? await pagesRes.json() : { data: [] };
+
+    return {
+      visitors: overview.total ?? overview.visitors ?? 0,
+      pageViews: overview.pageViews ?? 0,
+      bounceRate: overview.bounceRate ?? 0,
+      topPages: (pages.data ?? []).slice(0, 5).map((p: { key: string; total: number }) => ({
+        key: p.key,
+        total: p.total,
+      })),
+      source: "vercel-analytics",
+    };
+  } catch (err) {
+    console.error("[Vercel] Analytics fetch error:", err);
+    return null;
+  }
+}
+
+// ─── SEO Learnings Reader ───────────────────────────────────────────
+
+interface SEOMetrics {
+  blogPosts: number;
+  faqEntries: number;
+  programmaticPages: number;
+  totalIndexedPages: number;
+  latestPost: { slug: string; primary_keyword: string; published_at: string } | null;
+  initializedAt: string | null;
+}
+
+async function readSEOMetrics(slug: string): Promise<SEOMetrics> {
+  try {
+    const raw = await readFile(join(FACTORY, slug, "seo-learnings.json"), "utf-8");
+    const data = JSON.parse(raw);
+    const posts = data.blog_posts ?? [];
+    const latestPost = posts.length > 0 ? posts[posts.length - 1] : null;
+    return {
+      blogPosts: posts.length,
+      faqEntries: data.faq_entries ?? 0,
+      programmaticPages: data.programmatic_pages ?? 0,
+      totalIndexedPages: data.total_indexed_pages ?? 0,
+      latestPost,
+      initializedAt: data.initialized_at ?? null,
+    };
+  } catch {
+    return { blogPosts: 0, faqEntries: 0, programmaticPages: 0, totalIndexedPages: 0, latestPost: null, initializedAt: null };
+  }
+}
+
 // ─── Factory KPI Reader ──────────────────────────────────────────────
 
 async function readFactoryKPIs(slug: string): Promise<KPIData | null> {
@@ -171,12 +265,14 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch all data sources in parallel
-    const [waitlistCount, recentSignups, kpis, state, rcMetrics] = await Promise.all([
+    const [waitlistCount, recentSignups, kpis, state, rcMetrics, seoMetrics, vercelAnalytics] = await Promise.all([
       fetchWaitlistCount(slug),
       fetchRecentSignups(slug),
       readFactoryKPIs(slug),
       readFactoryState(slug),
       fetchRevenueCatMetrics(slug),
+      readSEOMetrics(slug),
+      fetchVercelAnalytics(slug),
     ]);
 
     // Aggregate waitlist sources
@@ -219,6 +315,15 @@ export async function GET(request: NextRequest) {
           source: "factory-kpi" as const,
         };
 
+    // Landing page traffic: prefer Vercel Analytics (live), fall back to factory KPI snapshots
+    const landingTraffic = {
+      visitors: vercelAnalytics?.visitors ?? 0,
+      pageViews: vercelAnalytics?.pageViews ?? latestKPI?.traffic?.page_views ?? 0,
+      bounceRate: vercelAnalytics?.bounceRate ?? 0,
+      topPages: vercelAnalytics?.topPages ?? [],
+      source: vercelAnalytics ? "vercel-analytics" as const : "factory-kpi" as const,
+    };
+
     // TODO: Wire ASC API when review approved
     const appStore = {
       impressions: latestKPI?.traffic?.impressions ?? 0,
@@ -244,11 +349,13 @@ export async function GET(request: NextRequest) {
       kpis: {
         snapshots: kpis?.snapshots ?? [],
         latest: latestKPI,
-        shipDate: kpis?.ship_date ?? null,
+        shipDate: kpis?.ship_date ?? (kpis as unknown as Record<string, string>)?.shipped_at ?? null,
         signals: kpis?.signals ?? [],
       },
       revenueCat,
       appStore,
+      landingTraffic,
+      seo: seoMetrics,
       factoryState: state,
     });
   } catch (err) {

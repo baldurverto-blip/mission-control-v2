@@ -23,12 +23,16 @@ const ICONS = {
 };
 
 // Growth sub-page tabs are defined separately for the growth layout tab bar
+// Growth tabs organized by pipeline stage:
+// Overview → Discovery (signals+keywords) → Ideation → Content (queue) → Distribution → Engagement → History → Settings
 export const GROWTH_TABS = [
   { label: "Overview", href: "/growth" },
-  { label: "Queue", href: "/growth/queue" },
-  { label: "Signals", href: "/growth/signals" },
+  { label: "Discovery", href: "/growth/signals" },
   { label: "Keywords", href: "/growth/keywords" },
   { label: "Ideas", href: "/growth/ideas" },
+  { label: "Content", href: "/growth/queue" },
+  { label: "Calendar", href: "/growth/calendar" },
+  { label: "Distribution", href: "/growth/distribution" },
   { label: "Engagement", href: "/growth/engagement" },
   { label: "History", href: "/growth/history" },
   { label: "Settings", href: "/growth/settings" },
@@ -41,7 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Dashboard", href: "/", icon: ICONS.dashboard },
       { label: "Organisation", href: "/org", icon: ICONS.org },
       { label: "Proposals", href: "/proposals", icon: ICONS.proposals },
-      { label: "Calendar", href: "/calendar", icon: ICONS.calendar },
+      // Calendar moved to Growth Ops tabs
     ],
   },
   {

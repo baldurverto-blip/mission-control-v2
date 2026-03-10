@@ -52,6 +52,21 @@ interface AnalyticsData {
     downloads: number;
     conversionRate: number | null;
   };
+  landingTraffic: {
+    visitors: number;
+    pageViews: number;
+    bounceRate: number;
+    topPages: { key: string; total: number }[];
+    source: "vercel-analytics" | "factory-kpi";
+  };
+  seo: {
+    blogPosts: number;
+    faqEntries: number;
+    programmaticPages: number;
+    totalIndexedPages: number;
+    latestPost: { slug: string; primary_keyword: string; published_at: string } | null;
+    initializedAt: string | null;
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -172,22 +187,22 @@ export default function ProductAnalyticsPage() {
 
   // ─── Derived Metrics ─────────────────────────────────────────────
 
-  const { waitlist, revenueCat, appStore, kpis } = data;
+  const { waitlist, revenueCat, appStore, kpis, seo, landingTraffic } = data;
   const latest = kpis.latest;
 
-  // Funnel numbers
-  const funnelLanding = latest?.traffic?.page_views ?? 0;
+  // Funnel numbers — prefer Vercel Analytics (live landing page traffic)
+  const funnelLanding = landingTraffic?.visitors || landingTraffic?.pageViews || latest?.traffic?.page_views || 0;
   const funnelWaitlist = waitlist.count;
   const funnelDownloads = appStore.downloads;
   const funnelTrials = revenueCat.trialsStarted;
   const funnelPaid = revenueCat.activeSubscriptions;
 
   const funnelStages = [
-    { label: "Landing", value: funnelLanding },
-    { label: "Waitlist", value: funnelWaitlist },
-    { label: "Download", value: funnelDownloads },
-    { label: "Trial", value: funnelTrials },
-    { label: "Paid", value: funnelPaid },
+    { label: "Landing", value: funnelLanding, color: "#6B8F71" },   // forest green
+    { label: "Waitlist", value: funnelWaitlist, color: "#D4915E" },  // amber/copper
+    { label: "Download", value: funnelDownloads, color: "#C0534F" }, // brick red
+    { label: "Trial", value: funnelTrials, color: "#7B6FA6" },      // deep lilac
+    { label: "Paid", value: funnelPaid, color: "#2D7D5F" },         // emerald
   ];
 
   // Compute conversion rates between stages
@@ -243,11 +258,18 @@ export default function ProductAnalyticsPage() {
           >
             {funnelLanding > 0 ? fmtNum(funnelLanding) : "--"}
           </p>
-          {latest?.traffic?.impressions ? (
+          {landingTraffic?.pageViews > 0 ? (
+            <p className="text-[0.6rem] text-mid/50 mt-1 tabular-nums">
+              {fmtNum(landingTraffic.pageViews)} views · {landingTraffic.bounceRate > 0 ? `${Math.round(landingTraffic.bounceRate)}% bounce` : ""}
+            </p>
+          ) : latest?.traffic?.impressions ? (
             <p className="text-[0.6rem] text-mid/50 mt-1 tabular-nums">
               {fmtNum(latest.traffic.impressions)} impressions
             </p>
           ) : null}
+          <p className="text-[0.45rem] text-mid/25 mt-1">
+            {landingTraffic?.source === "vercel-analytics" ? "7d · Vercel Analytics" : "factory KPI"}
+          </p>
         </Card>
 
         {/* Downloads */}
@@ -340,8 +362,8 @@ export default function ProductAnalyticsPage() {
                     height: `${barHeight}px`,
                     minHeight: "4px",
                     maxHeight: "80px",
-                    backgroundColor: hasValue ? "var(--terracotta)" : "var(--warm)",
-                    opacity: hasValue ? 1 - i * 0.12 : 0.3,
+                    backgroundColor: stage.color,
+                    opacity: hasValue ? 1 : 0.15,
                   }}
                 />
 
@@ -389,6 +411,40 @@ export default function ProductAnalyticsPage() {
           </p>
         </Card>
 
+        {/* Top Pages (from Vercel Analytics) */}
+        <Card>
+          <p className="label-caps text-[0.55rem] mb-4">Top Pages</p>
+          {landingTraffic?.topPages?.length > 0 ? (
+            <div className="space-y-2.5">
+              {landingTraffic.topPages.map((page) => {
+                const maxViews = landingTraffic.topPages[0]?.total || 1;
+                const pct = Math.round((page.total / maxViews) * 100);
+                return (
+                  <div key={page.key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-charcoal truncate max-w-[70%]">{page.key}</span>
+                      <span className="text-[0.6rem] text-mid tabular-nums">{page.total}</span>
+                    </div>
+                    <div className="w-full h-1 rounded-full bg-warm overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700 ease-out"
+                        style={{ width: `${pct}%`, backgroundColor: "var(--olive)" }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-xs text-mid/40">No page view data yet</p>
+            </div>
+          )}
+          <p className="text-[0.5rem] text-mid/30 mt-4 pt-3 border-t border-warm/50">
+            7d · Vercel Web Analytics
+          </p>
+        </Card>
+
         {/* Traffic Sources Card */}
         <Card>
           <p className="label-caps text-[0.55rem] mb-4">Traffic Sources</p>
@@ -425,6 +481,63 @@ export default function ProductAnalyticsPage() {
           </p>
         </Card>
       </div>
+
+      {/* ═══ SEO CONTENT ══════════════════════════════════════════════ */}
+      {seo?.initializedAt && (
+        <Card className="mb-6">
+          <p className="label-caps text-[0.55rem] mb-4">SEO Content</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <p className="text-[0.6rem] text-mid/60 mb-1">Blog Posts</p>
+              <p
+                className="text-xl tabular-nums"
+                style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
+              >
+                {seo.blogPosts}
+              </p>
+            </div>
+            <div>
+              <p className="text-[0.6rem] text-mid/60 mb-1">FAQ Entries</p>
+              <p
+                className="text-xl tabular-nums"
+                style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
+              >
+                {seo.faqEntries}
+              </p>
+            </div>
+            <div>
+              <p className="text-[0.6rem] text-mid/60 mb-1">Programmatic</p>
+              <p
+                className="text-xl tabular-nums"
+                style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
+              >
+                {seo.programmaticPages}
+              </p>
+            </div>
+            <div>
+              <p className="text-[0.6rem] text-mid/60 mb-1">Total Indexed</p>
+              <p
+                className="text-xl tabular-nums"
+                style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
+              >
+                {seo.totalIndexedPages || seo.blogPosts + seo.faqEntries + seo.programmaticPages + 1}
+              </p>
+            </div>
+          </div>
+          {seo.latestPost && (
+            <div className="pt-3 border-t border-warm/50">
+              <p className="text-[0.6rem] text-mid/50 mb-1">Latest Post</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-charcoal">{seo.latestPost.primary_keyword}</span>
+                <span className="text-[0.55rem] text-mid/40 tabular-nums">{timeAgo(seo.latestPost.published_at)}</span>
+              </div>
+            </div>
+          )}
+          <p className="text-[0.5rem] text-mid/30 mt-3 pt-3 border-t border-warm/50">
+            Source: seo-learnings.json — generated twice weekly by Vibe
+          </p>
+        </Card>
+      )}
 
       {/* ═══ RECENT SIGNUPS ═══════════════════════════════════════════ */}
       <Card>
