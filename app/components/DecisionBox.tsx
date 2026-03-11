@@ -87,9 +87,9 @@ export function DecisionBox({
 
   return (
     <Card className="p-4 h-full">
-      <p className="label-caps text-mid/60 mb-3">Decisions</p>
+      <p className="label-caps text-mid/80 mb-3">Decisions</p>
       {items.length === 0 ? (
-        <p className="text-sm text-mid/50 text-center py-4">
+        <p className="text-sm text-mid/70 text-center py-4">
           No decisions pending. Agents operating within guardrails.
         </p>
       ) : (

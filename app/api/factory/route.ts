@@ -136,7 +136,7 @@ export async function GET() {
       ["research", "validation", "build", "quality-gate", "monetization", "packaging"].includes(p.status)
     ).length;
     const shipping = projects.filter((p) => p.status === "shipping").length;
-    const shipped = projects.filter((p) => p.status === "shipped").length + ideaQueue.shipped.length;
+    const shipped = projects.filter((p) => p.status === "shipped" || p.status === "submitted").length + ideaQueue.shipped.length;
     const attention = projects.filter((p) =>
       p.status === "needs-review" || p.status === "awaiting-approval" || (p.phases.quality_gate?.attempt ?? 0) >= 2
     ).length;
@@ -167,14 +167,21 @@ export async function GET() {
       }
     }
 
+    // Statuses where the project is fully done (no "current" dot)
+    const TERMINAL_STATUSES = ["shipped", "rejected", "paused"];
+
     // Enrich projects with computed phase index + KPI summary
     const enriched = projects.map((p) => {
-      const currentPhaseIdx = PHASE_ORDER.indexOf(
-        p.status.replace("-", "_")
-      );
       const completedPhases = PHASE_ORDER.filter(
         (ph) => p.phases[ph]?.status === "complete"
       ).length;
+      // Derive current phase from actual phase data, not top-level status
+      // "submitted" means app is in review but distribution phases (marketing/promo) may still be active
+      const isTerminal = TERMINAL_STATUSES.includes(p.status);
+      const nextIncompleteIdx = PHASE_ORDER.findIndex((ph) => p.phases[ph]?.status !== "complete");
+      const currentPhaseIdx = isTerminal
+        ? -1  // fully done
+        : nextIncompleteIdx === -1 ? -1 : nextIncompleteIdx;
 
       // Extract latest KPI snapshot for dashboard display
       const latestKPI = p.kpis?.snapshots?.length
@@ -189,7 +196,7 @@ export async function GET() {
 
       return {
         ...p,
-        currentPhaseIdx: currentPhaseIdx >= 0 ? currentPhaseIdx : 0,
+        currentPhaseIdx,  // -1 = terminal (no active phase), 0+ = active phase index
         completedPhases,
         totalPhases: PHASE_ORDER.length,
         qualityScore: p.phases.quality_gate?.score ?? null,
@@ -224,7 +231,7 @@ export async function GET() {
     }));
 
     return NextResponse.json({
-      projects: enriched,
+      projects: enriched.filter((p) => p.status !== "rejected"),
       ideaQueue,
       config,
       stats: { building, shipping, shipped, queued, attention },

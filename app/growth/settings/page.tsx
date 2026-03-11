@@ -177,13 +177,13 @@ export default function SettingsPage() {
 
                   {project.keywords.length > 0 && (
                     <div className="mb-3">
-                      <p className="label-caps text-[0.5rem] text-mid/50 mb-1">Keywords</p>
+                      <p className="label-caps text-[0.7rem] text-mid/70 mb-1">Keywords</p>
                       <div className="flex gap-1 flex-wrap">
                         {project.keywords.slice(0, 8).map((kw) => (
-                          <span key={kw} className="text-[0.55rem] px-1.5 py-0.5 rounded bg-warm text-mid">{kw}</span>
+                          <span key={kw} className="text-[0.75rem] px-1.5 py-0.5 rounded bg-warm text-mid">{kw}</span>
                         ))}
                         {project.keywords.length > 8 && (
-                          <span className="text-[0.55rem] text-mid/40">+{project.keywords.length - 8}</span>
+                          <span className="text-[0.75rem] text-mid/60">+{project.keywords.length - 8}</span>
                         )}
                       </div>
                     </div>
@@ -191,13 +191,13 @@ export default function SettingsPage() {
 
                   {project.subreddits.length > 0 && (
                     <div>
-                      <p className="label-caps text-[0.5rem] text-mid/50 mb-1">Subreddits</p>
+                      <p className="label-caps text-[0.7rem] text-mid/70 mb-1">Subreddits</p>
                       <div className="flex gap-1 flex-wrap">
                         {project.subreddits.slice(0, 6).map((sub) => (
-                          <span key={sub} className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>{sub}</span>
+                          <span key={sub} className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>{sub}</span>
                         ))}
                         {project.subreddits.length > 6 && (
-                          <span className="text-[0.55rem] text-mid/40">+{project.subreddits.length - 6}</span>
+                          <span className="text-[0.75rem] text-mid/60">+{project.subreddits.length - 6}</span>
                         )}
                       </div>
                     </div>
@@ -238,7 +238,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     {c.description && <p className="text-xs text-mid mb-2">{c.description}</p>}
-                    <div className="flex items-center gap-3 text-[0.55rem] text-mid/50">
+                    <div className="flex items-center gap-3 text-[0.75rem] text-mid/70">
                       <span>Strategy: {c.engagement_strategy?.replace(/_/g, " ")}</span>
                       <span>{new Date(c.created_at).toLocaleDateString("en-GB")}</span>
                     </div>
@@ -276,7 +276,7 @@ export default function SettingsPage() {
                   <div key={project}>
                     <div className="flex items-center gap-2 mb-3">
                       <Badge color="var(--lilac)">{project}</Badge>
-                      <span className="text-[0.6rem] text-mid/50">{projectTemplates.length} templates</span>
+                      <span className="text-[0.8rem] text-mid/70">{projectTemplates.length} templates</span>
                     </div>
                     <div className="space-y-2">
                       {projectTemplates.map((tmpl, idx) => (
@@ -292,13 +292,13 @@ export default function SettingsPage() {
                               <Badge color="var(--mid)">{tmpl.engagement_type}</Badge>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[0.55rem] text-mid/50 tabular-nums">used: {tmpl.usage_count}</span>
-                              {tmpl.cta_included && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-olive-soft text-olive">CTA</span>}
+                              <span className="text-[0.75rem] text-mid/70 tabular-nums">used: {tmpl.usage_count}</span>
+                              {tmpl.cta_included && <span className="text-[0.75rem] px-1.5 py-0.5 rounded bg-olive-soft text-olive">CTA</span>}
                             </div>
                           </div>
                           <div className="flex gap-1 flex-wrap">
                             {tmpl.trigger_patterns.map((p) => (
-                              <span key={p} className="text-[0.55rem] px-1.5 py-0.5 rounded bg-warm text-mid">{p}</span>
+                              <span key={p} className="text-[0.75rem] px-1.5 py-0.5 rounded bg-warm text-mid">{p}</span>
                             ))}
                           </div>
                           {expandedTmpl === tmpl.id && (

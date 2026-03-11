@@ -172,7 +172,7 @@ export default function ProductAnalyticsPage() {
   if (error || !data) {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <Link href="/factory" className="label-caps text-mid/60 hover:text-charcoal transition-colors">
+        <Link href="/factory" className="label-caps text-mid/80 hover:text-charcoal transition-colors">
           &larr; Factory
         </Link>
         <h1 className="text-3xl mt-3 mb-6">{productName} Analytics</h1>
@@ -231,7 +231,7 @@ export default function ProductAnalyticsPage() {
       <div className="mb-8">
         <Link
           href="/factory"
-          className="label-caps text-mid/60 hover:text-charcoal transition-colors inline-flex items-center gap-1"
+          className="label-caps text-mid/80 hover:text-charcoal transition-colors inline-flex items-center gap-1"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -244,14 +244,14 @@ export default function ProductAnalyticsPage() {
             {data.status.replace(/-/g, " ")}
           </Badge>
         </div>
-        <p className="label-caps text-mid/50 mt-1">Product Analytics</p>
+        <p className="label-caps text-mid/70 mt-1">Product Analytics</p>
       </div>
 
       {/* ═══ KPI CARDS ════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Landing Visitors */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-2">Landing Visitors</p>
+          <p className="label-caps text-[0.75rem] mb-2">Landing Visitors</p>
           <p
             className="text-2xl tabular-nums"
             style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--terracotta)" }}
@@ -259,22 +259,22 @@ export default function ProductAnalyticsPage() {
             {funnelLanding > 0 ? fmtNum(funnelLanding) : "--"}
           </p>
           {landingTraffic?.pageViews > 0 ? (
-            <p className="text-[0.6rem] text-mid/50 mt-1 tabular-nums">
+            <p className="text-[0.8rem] text-mid/70 mt-1 tabular-nums">
               {fmtNum(landingTraffic.pageViews)} views · {landingTraffic.bounceRate > 0 ? `${Math.round(landingTraffic.bounceRate)}% bounce` : ""}
             </p>
           ) : latest?.traffic?.impressions ? (
-            <p className="text-[0.6rem] text-mid/50 mt-1 tabular-nums">
+            <p className="text-[0.8rem] text-mid/70 mt-1 tabular-nums">
               {fmtNum(latest.traffic.impressions)} impressions
             </p>
           ) : null}
-          <p className="text-[0.45rem] text-mid/25 mt-1">
+          <p className="text-[0.65rem] text-mid/50 mt-1">
             {landingTraffic?.source === "vercel-analytics" ? "7d · Vercel Analytics" : "factory KPI"}
           </p>
         </Card>
 
         {/* Downloads */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-2">Downloads</p>
+          <p className="label-caps text-[0.75rem] mb-2">Downloads</p>
           <p
             className="text-2xl tabular-nums"
             style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--terracotta)" }}
@@ -282,7 +282,7 @@ export default function ProductAnalyticsPage() {
             {funnelDownloads > 0 ? fmtNum(funnelDownloads) : "--"}
           </p>
           {appStore.conversionRate !== null ? (
-            <p className="text-[0.6rem] text-mid/50 mt-1 tabular-nums">
+            <p className="text-[0.8rem] text-mid/70 mt-1 tabular-nums">
               {appStore.conversionRate}% conversion
             </p>
           ) : null}
@@ -290,7 +290,7 @@ export default function ProductAnalyticsPage() {
 
         {/* MRR */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-2">MRR</p>
+          <p className="label-caps text-[0.75rem] mb-2">MRR</p>
           <p
             className="text-2xl tabular-nums"
             style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--terracotta)" }}
@@ -298,7 +298,7 @@ export default function ProductAnalyticsPage() {
             {revenueCat.mrr > 0 ? fmtCurrency(revenueCat.mrr) : "--"}
           </p>
           {revenueCat.activeSubscriptions > 0 ? (
-            <p className="text-[0.6rem] text-mid/50 mt-1 tabular-nums">
+            <p className="text-[0.8rem] text-mid/70 mt-1 tabular-nums">
               {revenueCat.activeSubscriptions} active sub{revenueCat.activeSubscriptions !== 1 ? "s" : ""}
             </p>
           ) : null}
@@ -306,7 +306,7 @@ export default function ProductAnalyticsPage() {
 
         {/* Waitlist */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-2">Waitlist</p>
+          <p className="label-caps text-[0.75rem] mb-2">Waitlist</p>
           <div className="flex items-baseline gap-1.5">
             <p
               className="text-2xl tabular-nums"
@@ -314,7 +314,7 @@ export default function ProductAnalyticsPage() {
             >
               {waitlist.count}
             </p>
-            <span className="text-[0.6rem] text-mid/40 tabular-nums">
+            <span className="text-[0.8rem] text-mid/60 tabular-nums">
               / {waitlist.target}
             </span>
           </div>
@@ -326,7 +326,7 @@ export default function ProductAnalyticsPage() {
 
       {/* ═══ FUNNEL ═══════════════════════════════════════════════════ */}
       <Card className="mb-6">
-        <p className="label-caps text-[0.55rem] mb-5">Conversion Funnel</p>
+        <p className="label-caps text-[0.75rem] mb-5">Conversion Funnel</p>
         <div className="flex items-end gap-1">
           {funnelStages.map((stage, i) => {
             const barHeight = maxFunnel > 0 ? Math.max((stage.value / maxFunnel) * 100, 4) : 4;
@@ -339,11 +339,11 @@ export default function ProductAnalyticsPage() {
                   <div className="w-full flex items-center justify-center mb-2">
                     <div className="flex flex-col items-center">
                       {funnelRates[i - 1] !== null ? (
-                        <span className="text-[0.55rem] tabular-nums text-olive font-medium">
+                        <span className="text-[0.75rem] tabular-nums text-olive font-medium">
                           {funnelRates[i - 1]}%
                         </span>
                       ) : (
-                        <span className="text-[0.55rem] text-mid/30">--</span>
+                        <span className="text-[0.75rem] text-mid/55">--</span>
                       )}
                     </div>
                   </div>
@@ -368,7 +368,7 @@ export default function ProductAnalyticsPage() {
                 />
 
                 {/* Label */}
-                <p className="label-caps text-[0.5rem] mt-2 text-center">{stage.label}</p>
+                <p className="label-caps text-[0.7rem] mt-2 text-center">{stage.label}</p>
               </div>
             );
           })}
@@ -390,7 +390,7 @@ export default function ProductAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Revenue Card */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-4">Revenue</p>
+          <p className="label-caps text-[0.75rem] mb-4">Revenue</p>
           <div className="space-y-3">
             <MetricRow label="MRR" value={fmtCurrency(revenueCat.mrr)} />
             <MetricRow label="Active Subscriptions" value={revenueCat.activeSubscriptions.toString()} />
@@ -406,14 +406,14 @@ export default function ProductAnalyticsPage() {
               color={revenueCat.churnRate !== null && revenueCat.churnRate > 5 ? "var(--terracotta)" : undefined}
             />
           </div>
-          <p className="text-[0.5rem] text-mid/30 mt-4 pt-3 border-t border-warm/50">
+          <p className="text-[0.7rem] text-mid/55 mt-4 pt-3 border-t border-warm/50">
             Source: RevenueCat (placeholder until API wired)
           </p>
         </Card>
 
         {/* Top Pages (from Vercel Analytics) */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-4">Top Pages</p>
+          <p className="label-caps text-[0.75rem] mb-4">Top Pages</p>
           {landingTraffic?.topPages?.length > 0 ? (
             <div className="space-y-2.5">
               {landingTraffic.topPages.map((page) => {
@@ -423,7 +423,7 @@ export default function ProductAnalyticsPage() {
                   <div key={page.key}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-charcoal truncate max-w-[70%]">{page.key}</span>
-                      <span className="text-[0.6rem] text-mid tabular-nums">{page.total}</span>
+                      <span className="text-[0.8rem] text-mid tabular-nums">{page.total}</span>
                     </div>
                     <div className="w-full h-1 rounded-full bg-warm overflow-hidden">
                       <div
@@ -437,17 +437,17 @@ export default function ProductAnalyticsPage() {
             </div>
           ) : (
             <div className="flex items-center justify-center py-8">
-              <p className="text-xs text-mid/40">No page view data yet</p>
+              <p className="text-xs text-mid/60">No page view data yet</p>
             </div>
           )}
-          <p className="text-[0.5rem] text-mid/30 mt-4 pt-3 border-t border-warm/50">
+          <p className="text-[0.7rem] text-mid/55 mt-4 pt-3 border-t border-warm/50">
             7d · Vercel Web Analytics
           </p>
         </Card>
 
         {/* Traffic Sources Card */}
         <Card>
-          <p className="label-caps text-[0.55rem] mb-4">Traffic Sources</p>
+          <p className="label-caps text-[0.75rem] mb-4">Traffic Sources</p>
           {sourceEntries.length > 0 ? (
             <div className="space-y-2.5">
               {sourceEntries.map(([source, count]) => {
@@ -456,7 +456,7 @@ export default function ProductAnalyticsPage() {
                   <div key={source}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-charcoal capitalize">{source}</span>
-                      <span className="text-[0.6rem] text-mid tabular-nums">{count} ({pct}%)</span>
+                      <span className="text-[0.8rem] text-mid tabular-nums">{count} ({pct}%)</span>
                     </div>
                     <div className="w-full h-1 rounded-full bg-warm overflow-hidden">
                       <div
@@ -473,10 +473,10 @@ export default function ProductAnalyticsPage() {
             </div>
           ) : (
             <div className="flex items-center justify-center py-8">
-              <p className="text-xs text-mid/40">No source data yet</p>
+              <p className="text-xs text-mid/60">No source data yet</p>
             </div>
           )}
-          <p className="text-[0.5rem] text-mid/30 mt-4 pt-3 border-t border-warm/50">
+          <p className="text-[0.7rem] text-mid/55 mt-4 pt-3 border-t border-warm/50">
             Based on recent waitlist signups
           </p>
         </Card>
@@ -485,10 +485,10 @@ export default function ProductAnalyticsPage() {
       {/* ═══ SEO CONTENT ══════════════════════════════════════════════ */}
       {seo?.initializedAt && (
         <Card className="mb-6">
-          <p className="label-caps text-[0.55rem] mb-4">SEO Content</p>
+          <p className="label-caps text-[0.75rem] mb-4">SEO Content</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <p className="text-[0.6rem] text-mid/60 mb-1">Blog Posts</p>
+              <p className="text-[0.8rem] text-mid/80 mb-1">Blog Posts</p>
               <p
                 className="text-xl tabular-nums"
                 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
@@ -497,7 +497,7 @@ export default function ProductAnalyticsPage() {
               </p>
             </div>
             <div>
-              <p className="text-[0.6rem] text-mid/60 mb-1">FAQ Entries</p>
+              <p className="text-[0.8rem] text-mid/80 mb-1">FAQ Entries</p>
               <p
                 className="text-xl tabular-nums"
                 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
@@ -506,7 +506,7 @@ export default function ProductAnalyticsPage() {
               </p>
             </div>
             <div>
-              <p className="text-[0.6rem] text-mid/60 mb-1">Programmatic</p>
+              <p className="text-[0.8rem] text-mid/80 mb-1">Programmatic</p>
               <p
                 className="text-xl tabular-nums"
                 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
@@ -515,7 +515,7 @@ export default function ProductAnalyticsPage() {
               </p>
             </div>
             <div>
-              <p className="text-[0.6rem] text-mid/60 mb-1">Total Indexed</p>
+              <p className="text-[0.8rem] text-mid/80 mb-1">Total Indexed</p>
               <p
                 className="text-xl tabular-nums"
                 style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 300, color: "var(--olive)" }}
@@ -526,14 +526,14 @@ export default function ProductAnalyticsPage() {
           </div>
           {seo.latestPost && (
             <div className="pt-3 border-t border-warm/50">
-              <p className="text-[0.6rem] text-mid/50 mb-1">Latest Post</p>
+              <p className="text-[0.8rem] text-mid/70 mb-1">Latest Post</p>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-charcoal">{seo.latestPost.primary_keyword}</span>
-                <span className="text-[0.55rem] text-mid/40 tabular-nums">{timeAgo(seo.latestPost.published_at)}</span>
+                <span className="text-[0.75rem] text-mid/60 tabular-nums">{timeAgo(seo.latestPost.published_at)}</span>
               </div>
             </div>
           )}
-          <p className="text-[0.5rem] text-mid/30 mt-3 pt-3 border-t border-warm/50">
+          <p className="text-[0.7rem] text-mid/55 mt-3 pt-3 border-t border-warm/50">
             Source: seo-learnings.json — generated twice weekly by Vibe
           </p>
         </Card>
@@ -541,15 +541,15 @@ export default function ProductAnalyticsPage() {
 
       {/* ═══ RECENT SIGNUPS ═══════════════════════════════════════════ */}
       <Card>
-        <p className="label-caps text-[0.55rem] mb-4">Recent Signups</p>
+        <p className="label-caps text-[0.75rem] mb-4">Recent Signups</p>
         {waitlist.recentSignups.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-warm">
-                  <th className="text-left label-caps text-[0.5rem] pb-2 pr-4">Email</th>
-                  <th className="text-left label-caps text-[0.5rem] pb-2 pr-4">Source</th>
-                  <th className="text-right label-caps text-[0.5rem] pb-2">When</th>
+                  <th className="text-left label-caps text-[0.7rem] pb-2 pr-4">Email</th>
+                  <th className="text-left label-caps text-[0.7rem] pb-2 pr-4">Source</th>
+                  <th className="text-right label-caps text-[0.7rem] pb-2">When</th>
                 </tr>
               </thead>
               <tbody>
@@ -561,7 +561,7 @@ export default function ProductAnalyticsPage() {
                     <td className="py-2.5 pr-4">
                       <Badge color="var(--lilac)">{signup.source || "direct"}</Badge>
                     </td>
-                    <td className="py-2.5 text-right text-mid/60 tabular-nums">
+                    <td className="py-2.5 text-right text-mid/80 tabular-nums">
                       {timeAgo(signup.created_at)}
                     </td>
                   </tr>
@@ -571,7 +571,7 @@ export default function ProductAnalyticsPage() {
           </div>
         ) : (
           <div className="flex items-center justify-center py-8">
-            <p className="text-xs text-mid/40">No signups yet</p>
+            <p className="text-xs text-mid/60">No signups yet</p>
           </div>
         )}
       </Card>
@@ -579,7 +579,7 @@ export default function ProductAnalyticsPage() {
       {/* ═══ KPI SIGNALS ══════════════════════════════════════════════ */}
       {kpis.signals.length > 0 && (
         <Card className="mt-6">
-          <p className="label-caps text-[0.55rem] mb-3">Active Signals</p>
+          <p className="label-caps text-[0.75rem] mb-3">Active Signals</p>
           <div className="flex flex-wrap gap-2">
             {kpis.signals.map((signal, i) => (
               <Badge key={i} color="var(--amber)">{signal}</Badge>
@@ -589,7 +589,7 @@ export default function ProductAnalyticsPage() {
       )}
 
       {/* Footer */}
-      <p className="text-[0.5rem] text-mid/25 text-center mt-8 mb-4">
+      <p className="text-[0.7rem] text-mid/50 text-center mt-8 mb-4">
         Auto-refreshes every 60s
       </p>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useGrowthOps } from "../../lib/useGrowthOps";
 import { MetricsBar } from "../../components/MetricsBar";
 import { TabBar } from "../../components/TabBar";
@@ -36,6 +36,7 @@ interface Signal {
   pipeline_tags: string[];
   radar_tier?: string;
   country?: string | null;
+  segment?: string;
 }
 
 interface DiscoveryResponse {
@@ -44,9 +45,10 @@ interface DiscoveryResponse {
   total?: number;
 }
 
-interface RadarResponse {
-  success: boolean;
-  signals: Signal[];
+interface LinkedIdea {
+  slug: string;
+  title: string;
+  status: string;
 }
 
 interface Source {
@@ -98,6 +100,11 @@ const SOURCE_COLORS: Record<string, string> = {
   keywords_everywhere: "#F4B400",
   g2_reviews: "#FF492C",
   nordic_jobs: "#0A66C2",
+  jobad_jtbd: "#7C6BC4",
+  saas_review_miner: "#BC6143",
+  adzuna_us: "#0A66C2",
+  adzuna_gb: "#0A66C2",
+  adzuna_de: "#0A66C2",
   jtbd_miner: "var(--lilac)",
   product_hunt: "#DA552F",
 };
@@ -111,7 +118,6 @@ const TIER_CONFIG: Record<string, { color: string; label: string; icon: string }
 
 const VIEW_TABS = [
   { id: "featured", label: "Research" },
-  { id: "tiles", label: "Radar" },
   { id: "table", label: "Database" },
   { id: "themes", label: "Themes" },
   { id: "sources", label: "Sources" },
@@ -123,11 +129,11 @@ function ScoreBar({ label, value, max = 100, color }: { label: string; value: nu
   const pct = Math.min((value / max) * 100, 100);
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[0.5rem] text-mid/50 w-12 text-right">{label}</span>
+      <span className="text-[0.7rem] text-mid/70 w-12 text-right">{label}</span>
       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--warm)" }}>
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
-      <span className="text-[0.55rem] tabular-nums text-mid/60 w-6">{Math.round(value)}</span>
+      <span className="text-[0.75rem] tabular-nums text-mid/80 w-6">{Math.round(value)}</span>
     </div>
   );
 }
@@ -184,14 +190,14 @@ function FeaturedSignalCard({ signal, onGenerate }: { signal: Signal; onGenerate
     <div className="card fade-up relative overflow-hidden" style={{ borderLeft: `3px solid ${tierCfg.color}` }}>
       <div className="absolute top-3 right-3">
         <span
-          className="text-[0.55rem] px-2 py-1 rounded-full font-medium uppercase tracking-wider"
+          className="text-[0.75rem] px-2 py-1 rounded-full font-medium uppercase tracking-wider"
           style={{ backgroundColor: `${tierCfg.color}18`, color: tierCfg.color }}
         >
           {tierCfg.label}
         </span>
       </div>
 
-      <p className="label-caps text-[0.5rem] text-mid/40 mb-2">Top Signal</p>
+      <p className="label-caps text-[0.7rem] text-mid/60 mb-2">Top Signal</p>
 
       <div className="flex gap-6">
         {/* Left — Score ring */}
@@ -220,11 +226,11 @@ function FeaturedSignalCard({ signal, onGenerate }: { signal: Signal; onGenerate
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <Badge color={SOURCE_COLORS[signal.source] ?? "var(--mid)"}>{signal.source.replace(/_/g, " ")}</Badge>
             <Badge color="var(--lilac)">{signal.project}</Badge>
-            {raw.subreddit && <span className="text-[0.55rem] text-mid/50">{raw.subreddit}</span>}
-            {raw.upvotes && <span className="text-[0.55rem] text-mid/40">{raw.upvotes} upvotes</span>}
-            <span className="text-[0.55rem] text-mid/40">{daysAgo(signal.discovered_at)}</span>
+            {raw.subreddit && <span className="text-[0.75rem] text-mid/70">{raw.subreddit}</span>}
+            {raw.upvotes && <span className="text-[0.75rem] text-mid/60">{raw.upvotes} upvotes</span>}
+            <span className="text-[0.75rem] text-mid/60">{daysAgo(signal.discovered_at)}</span>
             {signal.cross_source_count > 1 && (
-              <span className="text-[0.55rem] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>
+              <span className="text-[0.75rem] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>
                 {signal.cross_source_count}x validated
               </span>
             )}
@@ -238,7 +244,7 @@ function FeaturedSignalCard({ signal, onGenerate }: { signal: Signal; onGenerate
         <div className="flex flex-col gap-2 flex-shrink-0 pt-1">
           <button
             onClick={() => onGenerate(signal)}
-            className="text-[0.6rem] px-3 py-2 rounded-lg font-medium tracking-wide transition-all hover:scale-105"
+            className="text-[0.8rem] px-3 py-2 rounded-lg font-medium tracking-wide transition-all hover:scale-105"
             style={{ backgroundColor: "var(--olive-soft)", color: "var(--olive)" }}
           >
             Generate Content
@@ -248,7 +254,7 @@ function FeaturedSignalCard({ signal, onGenerate }: { signal: Signal; onGenerate
               href={raw.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[0.6rem] px-3 py-1.5 rounded-lg text-center transition-all hover:bg-warm"
+              className="text-[0.8rem] px-3 py-1.5 rounded-lg text-center transition-all hover:bg-warm"
               style={{ color: "var(--mid)", border: "1px solid var(--warm)" }}
             >
               View Source
@@ -260,9 +266,9 @@ function FeaturedSignalCard({ signal, onGenerate }: { signal: Signal; onGenerate
       {/* Pipeline tags */}
       {signal.pipeline_tags?.length > 0 && (
         <div className="flex gap-1.5 mt-3 pt-2 border-t border-warm/60">
-          <span className="text-[0.5rem] text-mid/40">Content angles:</span>
+          <span className="text-[0.7rem] text-mid/60">Content angles:</span>
           {signal.pipeline_tags.map((tag) => (
-            <span key={tag} className="text-[0.5rem] px-1.5 py-0.5 rounded bg-warm/80 text-mid capitalize">{tag.replace(/_/g, " ")}</span>
+            <span key={tag} className="text-[0.7rem] px-1.5 py-0.5 rounded bg-warm/80 text-mid capitalize">{tag.replace(/_/g, " ")}</span>
           ))}
         </div>
       )}
@@ -272,12 +278,42 @@ function FeaturedSignalCard({ signal, onGenerate }: { signal: Signal; onGenerate
 
 // ── Signal Row (Research view) ───────────────────────────────────
 
-function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
+function IdeaLineageBadge({ ideas }: { ideas?: LinkedIdea[] }) {
+  if (!ideas || ideas.length === 0) return null;
+  const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
+    qualified: { bg: "var(--olive-soft)", fg: "var(--olive)" },
+    refined: { bg: "var(--amber-soft)", fg: "var(--amber)" },
+    proposed: { bg: "var(--warm)", fg: "var(--mid)" },
+    rejected: { bg: "var(--terracotta-soft)", fg: "var(--terracotta)" },
+    shipped: { bg: "var(--olive-soft)", fg: "var(--olive)" },
+  };
+  return (
+    <>
+      {ideas.map((idea) => {
+        const s = STATUS_STYLE[idea.status] ?? STATUS_STYLE.proposed;
+        return (
+          <a
+            key={idea.slug}
+            href="/growth/ideas"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.7rem] font-medium no-underline hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: s.bg, color: s.fg }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            &rarr; {idea.title} &middot; {idea.status}
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
+function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank, linkedIdeas }: {
   signal: Signal;
   isExpanded: boolean;
   onToggle: () => void;
   onGenerate: (s: Signal) => void;
   rank: number;
+  linkedIdeas?: LinkedIdea[];
 }) {
   const raw = parseRawData(signal.raw_data);
   const tier = signal.radar_tier ?? "emerging";
@@ -293,7 +329,7 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
         onClick={onToggle}
       >
         {/* Rank */}
-        <span className="text-[0.6rem] text-mid/30 w-4 text-right tabular-nums">#{rank}</span>
+        <span className="text-[0.8rem] text-mid/55 w-4 text-right tabular-nums">#{rank}</span>
 
         {/* Score circle */}
         <div className="relative w-9 h-9 flex-shrink-0">
@@ -306,7 +342,7 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[0.6rem] tabular-nums font-medium" style={{ color: tierCfg.color }}>
+            <span className="text-[0.8rem] tabular-nums font-medium" style={{ color: tierCfg.color }}>
               {Math.round(signal.final_score)}
             </span>
           </div>
@@ -316,9 +352,13 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
         <div className="flex-1 min-w-0">
           <p className="text-sm leading-snug truncate">{signal.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
+            {(signal.segment === "b2b" || ["jobad_jtbd", "saas_review_miner", "alternative_seeker", "nordic_jobs"].includes(signal.source)) && (
+              <span className="text-[0.8rem] px-1.5 py-0.5 rounded-full font-medium tracking-wide" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>B2B</span>
+            )}
             <Badge color={SOURCE_COLORS[signal.source] ?? "var(--mid)"}>{signal.source.replace(/_/g, " ")}</Badge>
             <Badge color="var(--lilac)">{signal.project}</Badge>
-            <span className="text-[0.5rem] text-mid/40">{daysAgo(signal.discovered_at)}</span>
+            <span className="text-[0.7rem] text-mid/60">{daysAgo(signal.discovered_at)}</span>
+            <IdeaLineageBadge ideas={linkedIdeas} />
           </div>
         </div>
 
@@ -335,24 +375,24 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
               />
             ))}
           </div>
-          <span className="text-[0.45rem] text-mid/40">PAIN</span>
+          <span className="text-[0.8rem] text-mid/60">PAIN</span>
         </div>
 
         {/* Cross-source */}
         <div className="flex-shrink-0 w-8 text-center">
           {signal.cross_source_count > 1 ? (
-            <span className="text-[0.6rem] font-medium" style={{ color: "var(--lilac)" }}>
+            <span className="text-[0.8rem] font-medium" style={{ color: "var(--lilac)" }}>
               {signal.cross_source_count}x
             </span>
           ) : (
-            <span className="text-[0.6rem] text-mid/20">1x</span>
+            <span className="text-[0.8rem] text-mid/20">1x</span>
           )}
         </div>
 
         {/* Tier badge */}
         <div className="flex-shrink-0">
           <span
-            className="text-[0.5rem] px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+            className="text-[0.7rem] px-1.5 py-0.5 rounded-full uppercase tracking-wider"
             style={{ backgroundColor: `${tierCfg.color}18`, color: tierCfg.color }}
           >
             {tierCfg.label}
@@ -374,14 +414,14 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Score breakdown */}
             <div>
-              <p className="label-caps text-[0.45rem] text-mid/40 mb-2">Score Breakdown</p>
+              <p className="label-caps text-[0.8rem] text-mid/60 mb-2">Score Breakdown</p>
               <ScoreBreakdown signal={signal} />
             </div>
 
             {/* Metadata */}
             <div>
-              <p className="label-caps text-[0.45rem] text-mid/40 mb-2">Details</p>
-              <div className="space-y-1 text-[0.6rem] text-mid">
+              <p className="label-caps text-[0.8rem] text-mid/60 mb-2">Details</p>
+              <div className="space-y-1 text-[0.8rem] text-mid">
                 {raw.subreddit && <p>Source: <span className="text-charcoal">{raw.subreddit}</span></p>}
                 {raw.upvotes !== undefined && <p>Upvotes: <span className="text-charcoal">{raw.upvotes}</span></p>}
                 {raw.keyword && <p>Keyword: <span className="text-charcoal">{raw.keyword}</span></p>}
@@ -390,7 +430,7 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
                 {signal.pipeline_tags?.length > 0 && (
                   <div className="flex gap-1 flex-wrap mt-1">
                     {signal.pipeline_tags.map((tag) => (
-                      <span key={tag} className="px-1.5 py-0.5 rounded bg-warm text-mid text-[0.5rem] capitalize">{tag.replace(/_/g, " ")}</span>
+                      <span key={tag} className="px-1.5 py-0.5 rounded bg-warm text-mid text-[0.7rem] capitalize">{tag.replace(/_/g, " ")}</span>
                     ))}
                   </div>
                 )}
@@ -399,11 +439,11 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
 
             {/* Actions */}
             <div>
-              <p className="label-caps text-[0.45rem] text-mid/40 mb-2">Actions</p>
+              <p className="label-caps text-[0.8rem] text-mid/60 mb-2">Actions</p>
               <div className="flex flex-col gap-2">
                 <button
                   onClick={(e) => { e.stopPropagation(); onGenerate(signal); }}
-                  className="text-[0.6rem] px-3 py-2 rounded-lg font-medium tracking-wide transition-all hover:scale-[1.02]"
+                  className="text-[0.8rem] px-3 py-2 rounded-lg font-medium tracking-wide transition-all hover:scale-[1.02]"
                   style={{ backgroundColor: "var(--olive-soft)", color: "var(--olive)" }}
                 >
                   Generate Content from Signal
@@ -414,7 +454,7 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank }: {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-[0.6rem] px-3 py-1.5 rounded-lg text-center transition-all hover:bg-warm"
+                    className="text-[0.8rem] px-3 py-1.5 rounded-lg text-center transition-all hover:bg-warm"
                     style={{ color: "var(--mid)", border: "1px solid var(--warm)" }}
                   >
                     View Original Source
@@ -462,7 +502,7 @@ function TierDistribution({ signals }: { signals: Signal[] }) {
       </div>
       <div className="flex gap-3 mt-1.5">
         {(["hot", "warm", "emerging", "monitoring"] as const).map((tier) => (
-          <span key={tier} className="flex items-center gap-1 text-[0.5rem]" style={{ color: TIER_COLORS[tier] }}>
+          <span key={tier} className="flex items-center gap-1 text-[0.7rem]" style={{ color: TIER_COLORS[tier] }}>
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: TIER_COLORS[tier] }} />
             {counts[tier]} {tier}
           </span>
@@ -476,20 +516,40 @@ function TierDistribution({ signals }: { signals: Signal[] }) {
 
 export default function SignalsPage() {
   const { data: discData, isOffline, loading, refetch } = useGrowthOps<DiscoveryResponse>("discovery");
-  const { data: radarData } = useGrowthOps<RadarResponse>("radar");
   const { data: sourcesData } = useGrowthOps<SourcesResponse>("discovery/sources");
   const { data: themesData } = useGrowthOps<ThemesResponse>("themes");
 
   const [view, setView] = useState("featured");
   const [projectFilter, setProjectFilter] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
+  const [segmentFilter, setSegmentFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [acting, setActing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
 
+  // Signal → Idea lineage map
+  const [signalIdeaMap, setSignalIdeaMap] = useState<Map<string, LinkedIdea[]>>(new Map());
+  useEffect(() => {
+    fetch("/api/growth/ideas")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.success || !data.queue) return;
+        const q = data.queue;
+        const all = [...(q.queue ?? []), ...(q.shipped ?? []), ...(q.rejected ?? []), ...(q.parked ?? [])];
+        const map = new Map<string, LinkedIdea[]>();
+        for (const idea of all) {
+          for (const sid of idea.signal_ids ?? []) {
+            if (!map.has(sid)) map.set(sid, []);
+            map.get(sid)!.push({ slug: idea.slug, title: idea.title, status: idea.status ?? "proposed" });
+          }
+        }
+        setSignalIdeaMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
   const signals = discData?.signals ?? [];
-  const radarSignals = radarData?.signals ?? [];
   const sources = sourcesData?.sources ?? [];
   const themes = themesData?.themes ?? [];
 
@@ -502,16 +562,20 @@ export default function SignalsPage() {
 
   const projects = [...new Set(signals.map((s) => s.project))];
 
+  // Detect segment from source
+  const B2B_SOURCES = new Set(["jobad_jtbd", "saas_review_miner", "alternative_seeker", "nordic_jobs"]);
+  const getSegment = (s: Signal) => s.segment ?? (B2B_SOURCES.has(s.source) ? "b2b" : "b2c");
+
   // Sorted by final_score, filtered
   const filtered = signals
     .filter((s) => projectFilter === "all" || s.project === projectFilter)
     .filter((s) => tierFilter === "all" || (s.radar_tier ?? "monitoring") === tierFilter)
+    .filter((s) => segmentFilter === "all" || getSegment(s) === segmentFilter)
     .filter((s) => !search || s.title.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => b.final_score - a.final_score);
 
-  // Group radar signals by tier
-  const tiers = ["hot", "warm", "emerging"] as const;
-  const grouped = Object.fromEntries(tiers.map((t) => [t, radarSignals.filter((s) => s.radar_tier === t)]));
+  const b2cCount = signals.filter((s) => getSegment(s) === "b2c").length;
+  const b2bCount = signals.filter((s) => getSegment(s) === "b2b").length;
 
   // Featured signal = highest scoring unused signal
   const featuredSignal = signals
@@ -617,8 +681,7 @@ export default function SignalsPage() {
           <TabBar
             tabs={VIEW_TABS.map((t) => ({
               ...t,
-              count: t.id === "tiles" ? radarSignals.length
-                : t.id === "table" ? totalSignals
+              count: t.id === "table" ? totalSignals
                 : t.id === "themes" ? themes.length
                 : t.id === "sources" ? sources.length
                 : undefined,
@@ -649,7 +712,7 @@ export default function SignalsPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--terracotta)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d={TIER_CONFIG.hot.icon} />
                     </svg>
-                    <p className="label-caps text-[0.55rem]" style={{ color: "var(--terracotta)" }}>Highest Pain</p>
+                    <p className="label-caps text-[0.75rem]" style={{ color: "var(--terracotta)" }}>Highest Pain</p>
                   </div>
                   <div className="space-y-2">
                     {topPain.map((s, i) => (
@@ -659,8 +722,8 @@ export default function SignalsPage() {
                             <div key={j} className="w-1 h-2.5 rounded-sm" style={{ backgroundColor: j < Math.ceil(s.pain_score / 20) ? "var(--terracotta)" : "var(--warm)" }} />
                           ))}
                         </div>
-                        <p className="text-[0.65rem] truncate flex-1">{s.title}</p>
-                        <span className="text-[0.55rem] tabular-nums text-mid/50">{Math.round(s.pain_score)}</span>
+                        <p className="text-[0.8rem] truncate flex-1">{s.title}</p>
+                        <span className="text-[0.75rem] tabular-nums text-mid/70">{Math.round(s.pain_score)}</span>
                       </div>
                     ))}
                   </div>
@@ -672,7 +735,7 @@ export default function SignalsPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--lilac)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                     </svg>
-                    <p className="label-caps text-[0.55rem]" style={{ color: "var(--lilac)" }}>Highest Volume</p>
+                    <p className="label-caps text-[0.75rem]" style={{ color: "var(--lilac)" }}>Highest Volume</p>
                   </div>
                   <div className="space-y-2">
                     {topVolume.map((s) => (
@@ -680,8 +743,8 @@ export default function SignalsPage() {
                         <div className="w-12 h-1.5 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: "var(--warm)" }}>
                           <div className="h-full rounded-full" style={{ width: `${s.volume_score}%`, backgroundColor: "var(--lilac)" }} />
                         </div>
-                        <p className="text-[0.65rem] truncate flex-1">{s.title}</p>
-                        <span className="text-[0.55rem] tabular-nums text-mid/50">{Math.round(s.volume_score)}</span>
+                        <p className="text-[0.8rem] truncate flex-1">{s.title}</p>
+                        <span className="text-[0.75rem] tabular-nums text-mid/70">{Math.round(s.volume_score)}</span>
                       </div>
                     ))}
                   </div>
@@ -693,13 +756,13 @@ export default function SignalsPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--olive)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="label-caps text-[0.55rem]" style={{ color: "var(--olive)" }}>Most Recent</p>
+                    <p className="label-caps text-[0.75rem]" style={{ color: "var(--olive)" }}>Most Recent</p>
                   </div>
                   <div className="space-y-2">
                     {recentSignals.map((s) => (
                       <div key={s.id} className="flex items-center gap-2 py-1.5 border-b border-warm/30 last:border-0">
-                        <span className="text-[0.5rem] text-mid/40 w-10 flex-shrink-0">{daysAgo(s.discovered_at)}</span>
-                        <p className="text-[0.65rem] truncate flex-1">{s.title}</p>
+                        <span className="text-[0.7rem] text-mid/60 w-10 flex-shrink-0">{daysAgo(s.discovered_at)}</span>
+                        <p className="text-[0.8rem] truncate flex-1">{s.title}</p>
                         <Badge color={SOURCE_COLORS[s.source] ?? "var(--mid)"}>{s.source.replace(/_/g, " ").slice(0, 8)}</Badge>
                       </div>
                     ))}
@@ -710,8 +773,18 @@ export default function SignalsPage() {
               {/* Full ranked list with filters */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="label-caps text-[0.55rem] text-mid/50">All Signals · Ranked by Score</p>
+                  <p className="label-caps text-[0.75rem] text-mid/70">All Signals · Ranked by Score</p>
                   <FilterBar>
+                    <FilterSelect
+                      label="Segment"
+                      value={segmentFilter}
+                      options={[
+                        { value: "all", label: `All (${signals.length})` },
+                        { value: "b2c", label: `B2C (${b2cCount})` },
+                        { value: "b2b", label: `B2B (${b2bCount})` },
+                      ]}
+                      onChange={setSegmentFilter}
+                    />
                     <FilterSelect
                       label="Project"
                       value={projectFilter}
@@ -742,10 +815,11 @@ export default function SignalsPage() {
                       isExpanded={expandedId === signal.id}
                       onToggle={() => setExpandedId(expandedId === signal.id ? null : signal.id)}
                       onGenerate={handleGenerate}
+                      linkedIdeas={signalIdeaMap.get(signal.id)}
                     />
                   ))}
                   {filtered.length > 30 && (
-                    <p className="text-xs text-mid/40 text-center py-2">Showing 30 of {filtered.length} signals</p>
+                    <p className="text-xs text-mid/60 text-center py-2">Showing 30 of {filtered.length} signals</p>
                   )}
                 </div>
               </div>
@@ -753,98 +827,22 @@ export default function SignalsPage() {
           )
         )}
 
-        {/* ─── Radar View (Tiles by Tier) ─── */}
-        {view === "tiles" && (
-          loading ? (
-            <p className="text-mid text-sm text-center py-8">Loading...</p>
-          ) : radarSignals.length === 0 ? (
-            <EmptyState title="Radar empty" message="No radar signals — run Cross-Validate + Rank to populate tiers" />
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              {tiers.map((tier) => (
-                <div key={tier}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={TIER_CONFIG[tier].color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d={TIER_CONFIG[tier].icon} />
-                    </svg>
-                    <span className="label-caps text-[0.6rem]" style={{ color: TIER_CONFIG[tier].color }}>{TIER_CONFIG[tier].label}</span>
-                    <span className="text-[0.6rem] text-mid/50">{grouped[tier].length}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {grouped[tier].map((signal, idx) => {
-                      const raw = parseRawData(signal.raw_data);
-                      return (
-                        <div
-                          key={signal.id}
-                          className="card !p-3 fade-up cursor-pointer"
-                          style={{ animationDelay: `${idx * 0.03}s` }}
-                          onClick={() => setExpandedId(expandedId === signal.id ? null : signal.id)}
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-sm leading-snug line-clamp-2">{signal.title}</p>
-                            <span className="text-sm tabular-nums flex-shrink-0 font-medium" style={{ color: TIER_CONFIG[tier].color }}>
-                              {Math.round(signal.final_score)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mb-1">
-                            {signal.project && <Badge color="var(--lilac)">{signal.project}</Badge>}
-                            <span className="text-[0.55rem] text-mid/50">{signal.source.replace(/_/g, " ")}</span>
-                            {signal.cross_source_count > 1 && (
-                              <span className="text-[0.5rem]" style={{ color: "var(--lilac)" }}>{signal.cross_source_count}x</span>
-                            )}
-                          </div>
-                          {/* Mini score bars */}
-                          <div className="flex gap-1 mt-1.5">
-                            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "var(--warm)" }} title={`Pain: ${signal.pain_score}`}>
-                              <div className="h-full rounded-full" style={{ width: `${signal.pain_score}%`, backgroundColor: "var(--terracotta)" }} />
-                            </div>
-                            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "var(--warm)" }} title={`Volume: ${signal.volume_score}`}>
-                              <div className="h-full rounded-full" style={{ width: `${signal.volume_score}%`, backgroundColor: "var(--lilac)" }} />
-                            </div>
-                          </div>
-                          {expandedId === signal.id && (
-                            <div className="mt-2 pt-2 border-t border-warm">
-                              <p className="text-xs text-mid leading-relaxed mb-2">{signal.description}</p>
-                              <ScoreBreakdown signal={signal} />
-                              <div className="flex gap-2 mt-2">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleGenerate(signal); }}
-                                  className="text-[0.55rem] px-2.5 py-1.5 rounded-lg"
-                                  style={{ backgroundColor: "var(--olive-soft)", color: "var(--olive)" }}
-                                >
-                                  {generating === signal.id ? "Queuing..." : "Generate Content"}
-                                </button>
-                                {raw.url && (
-                                  <a href={raw.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                                    className="text-[0.55rem] px-2.5 py-1.5 rounded-lg" style={{ color: "var(--mid)", border: "1px solid var(--warm)" }}
-                                  >Source</a>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {grouped[tier].length === 0 && (
-                      <div className="text-center py-6 rounded-lg" style={{ border: "1px dashed var(--warm)" }}>
-                        <p className="text-xs text-mid/40">No {tier} signals</p>
-                        <p className="text-[0.5rem] text-mid/25 mt-1">
-                          {tier === "hot" ? "Needs score ≥80 + 3+ sources" : tier === "warm" ? "Needs score ≥50 + 2+ sources" : "Needs score ≥30"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
 
         {/* ─── Database View (Table) ─── */}
         {view === "table" && (
           <>
             <div className="mb-4 fade-up" style={{ animationDelay: "0.1s" }}>
               <FilterBar>
+                <FilterSelect
+                  label="Segment"
+                  value={segmentFilter}
+                  options={[
+                    { value: "all", label: `All (${signals.length})` },
+                    { value: "b2c", label: `B2C (${b2cCount})` },
+                    { value: "b2b", label: `B2B (${b2bCount})` },
+                  ]}
+                  onChange={setSegmentFilter}
+                />
                 <FilterSelect
                   label="Project"
                   value={projectFilter}
@@ -872,7 +870,7 @@ export default function SignalsPage() {
               <EmptyState title="No signals" message="Adjust filters or run a discovery cycle" />
             ) : (
               <div className="space-y-2">
-                <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[0.6rem] label-caps text-mid/60">
+                <div className="grid grid-cols-12 gap-3 px-4 py-2 text-[0.8rem] label-caps text-mid/80">
                   <span className="col-span-4">Signal</span>
                   <span className="col-span-1 text-right">Score</span>
                   <span className="col-span-1 text-right">Pain</span>
@@ -893,7 +891,10 @@ export default function SignalsPage() {
                     >
                       <div className="col-span-4 min-w-0">
                         <p className="text-sm truncate">{signal.title}</p>
-                        <span className="text-[0.6rem] text-mid/50">{daysAgo(signal.discovered_at)}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[0.8rem] text-mid/70">{daysAgo(signal.discovered_at)}</span>
+                          <IdeaLineageBadge ideas={signalIdeaMap.get(signal.id)} />
+                        </div>
                       </div>
                       <div className="col-span-1 text-right">
                         <span className="text-sm tabular-nums font-medium" style={{ color: TIER_COLORS[tier] }}>
@@ -901,20 +902,20 @@ export default function SignalsPage() {
                         </span>
                       </div>
                       <div className="col-span-1 text-right">
-                        <span className="text-[0.65rem] tabular-nums" style={{ color: signal.pain_score >= 80 ? "var(--terracotta)" : "var(--mid)" }}>
+                        <span className="text-[0.8rem] tabular-nums" style={{ color: signal.pain_score >= 80 ? "var(--terracotta)" : "var(--mid)" }}>
                           {Math.round(signal.pain_score)}
                         </span>
                       </div>
                       <div className="col-span-1 text-right">
-                        <span className="text-[0.65rem] tabular-nums" style={{ color: signal.volume_score >= 50 ? "var(--lilac)" : "var(--mid)" }}>
+                        <span className="text-[0.8rem] tabular-nums" style={{ color: signal.volume_score >= 50 ? "var(--lilac)" : "var(--mid)" }}>
                           {Math.round(signal.volume_score)}
                         </span>
                       </div>
                       <div className="col-span-1 text-center">
                         {signal.cross_source_count > 1 ? (
-                          <span className="text-[0.65rem] font-medium" style={{ color: "var(--lilac)" }}>{signal.cross_source_count}x</span>
+                          <span className="text-[0.8rem] font-medium" style={{ color: "var(--lilac)" }}>{signal.cross_source_count}x</span>
                         ) : (
-                          <span className="text-[0.65rem] text-mid/25">—</span>
+                          <span className="text-[0.8rem] text-mid/50">—</span>
                         )}
                       </div>
                       <div className="col-span-1">
@@ -951,25 +952,25 @@ export default function SignalsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge color={TIER_COLORS[theme.tier] ?? "var(--mid)"}>{theme.tier}</Badge>
-                        <span className="text-[0.6rem] text-mid/50">{theme.total_signals} signal{theme.total_signals !== 1 ? "s" : ""}</span>
+                        <span className="text-[0.8rem] text-mid/70">{theme.total_signals} signal{theme.total_signals !== 1 ? "s" : ""}</span>
                         {theme.momentum_7d?.direction === "up" && <span className="text-olive text-xs">&#9650; trending</span>}
                         {theme.momentum_7d?.direction === "down" && <span className="text-terracotta text-xs">&#9660; declining</span>}
                         {theme.theme_confidence < 1 && (
-                          <span className="text-[0.5rem] text-mid/30">{Math.round(theme.theme_confidence * 100)}% confidence</span>
+                          <span className="text-[0.7rem] text-mid/55">{Math.round(theme.theme_confidence * 100)}% confidence</span>
                         )}
                       </div>
                       <p className="text-sm font-medium">{theme.theme_title}</p>
                       {theme.theme_examples && theme.theme_examples.length > 0 && (
-                        <p className="text-[0.6rem] text-mid/50 mt-1 italic truncate">&ldquo;{theme.theme_examples[0]}&rdquo;</p>
+                        <p className="text-[0.8rem] text-mid/70 mt-1 italic truncate">&ldquo;{theme.theme_examples[0]}&rdquo;</p>
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-lg tabular-nums" style={{ color: TIER_COLORS[theme.tier], fontFamily: "var(--font-cormorant), Georgia, serif" }}>
                         {Math.round(theme.avg_score)}
                       </p>
-                      <p className="text-[0.55rem] text-mid/50">avg score</p>
+                      <p className="text-[0.75rem] text-mid/70">avg score</p>
                       {(theme.cross_source_count_avg ?? 0) > 1 && (
-                        <p className="text-[0.5rem] mt-0.5" style={{ color: "var(--lilac)" }}>
+                        <p className="text-[0.7rem] mt-0.5" style={{ color: "var(--lilac)" }}>
                           {(theme.cross_source_count_avg ?? 0).toFixed(1)}x avg
                         </p>
                       )}
@@ -977,7 +978,7 @@ export default function SignalsPage() {
                   </div>
                   <div className="flex gap-1.5 mt-2">
                     {theme.sources.map((src) => (
-                      <span key={src} className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${SOURCE_COLORS[src] ?? "var(--mid)"}15`, color: SOURCE_COLORS[src] ?? "var(--mid)" }}>
+                      <span key={src} className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${SOURCE_COLORS[src] ?? "var(--mid)"}15`, color: SOURCE_COLORS[src] ?? "var(--mid)" }}>
                         {src.replace(/_/g, " ")}
                       </span>
                     ))}
@@ -1010,11 +1011,11 @@ export default function SignalsPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <p className="text-[0.55rem] text-mid/50 label-caps">Total</p>
+                      <p className="text-[0.75rem] text-mid/70 label-caps">Total</p>
                       <p className="text-lg tabular-nums" style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}>{src.total_signals}</p>
                     </div>
                     <div>
-                      <p className="text-[0.55rem] text-mid/50 label-caps">Active</p>
+                      <p className="text-[0.75rem] text-mid/70 label-caps">Active</p>
                       <p className="text-lg tabular-nums" style={{ fontFamily: "var(--font-cormorant), Georgia, serif", color: "var(--olive)" }}>{src.active_signals}</p>
                     </div>
                   </div>
@@ -1026,7 +1027,7 @@ export default function SignalsPage() {
                     }} />
                   </div>
                   {src.last_signal && (
-                    <p className="text-[0.55rem] text-mid/40 mt-2">
+                    <p className="text-[0.75rem] text-mid/60 mt-2">
                       Last signal: {daysAgo(src.last_signal)}
                     </p>
                   )}

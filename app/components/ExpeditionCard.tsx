@@ -57,7 +57,7 @@ export function ExpeditionCard({ expedition }: { expedition: Expedition }) {
           {expedition.team.map((a) => (
             <span
               key={a}
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[0.5rem] text-white font-medium"
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[0.7rem] text-white font-medium"
               style={{ backgroundColor: agentToken(a).color }}
               title={agentToken(a).name}
             >
@@ -67,7 +67,7 @@ export function ExpeditionCard({ expedition }: { expedition: Expedition }) {
         </div>
         {expedition.timeRemaining !== null && (
           <span
-            className={`text-[0.6rem] font-medium tabular-nums ${expedition.isOverdue ? "text-terracotta countdown-tick" : "text-mid"}`}
+            className={`text-[0.8rem] font-medium tabular-nums ${expedition.isOverdue ? "text-terracotta countdown-tick" : "text-mid"}`}
           >
             {formatTimeRemaining(expedition.timeRemaining)}
           </span>
@@ -78,7 +78,7 @@ export function ExpeditionCard({ expedition }: { expedition: Expedition }) {
       <p className="text-xs text-mid leading-relaxed line-clamp-2 mb-2">{expedition.scope.slice(0, 120)}</p>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-[0.55rem] text-mid/50">
+      <div className="flex items-center justify-between text-[0.75rem] text-mid/70">
         <span>{expedition.guardrails.time_box} time box</span>
         <span>{expedition.pulseCount} pulses</span>
       </div>

@@ -4,9 +4,9 @@ export function KpiChip({ label, value, sub, color }: { label: string; value: st
       <p className="text-lg font-medium leading-none mb-0.5 tabular-nums" style={{ color, fontFamily: "var(--font-cormorant), Georgia, serif", fontWeight: 400, fontSize: "1.5rem" }}>
         {value}
       </p>
-      <p className="label-caps text-[0.5rem] leading-none">
-        <span className="text-mid/60">{label}</span>
-        {sub && <span className="text-mid/35 ml-0.5">· {sub}</span>}
+      <p className="label-caps text-[0.7rem] leading-none">
+        <span className="text-mid/80">{label}</span>
+        {sub && <span className="text-mid/60 ml-0.5">· {sub}</span>}
       </p>
     </div>
   );

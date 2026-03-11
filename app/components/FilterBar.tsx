@@ -41,7 +41,7 @@ export function FilterSearch({ value, onChange, placeholder = "Search..." }: {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="bg-bg border border-warm rounded-lg px-3 py-1.5 text-xs text-charcoal placeholder:text-mid/50 focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"
+      className="bg-bg border border-warm rounded-lg px-3 py-1.5 text-xs text-charcoal placeholder:text-mid/70 focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"
     />
   );
 }

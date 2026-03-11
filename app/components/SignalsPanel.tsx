@@ -53,12 +53,12 @@ const PRODUCT_COLORS: Record<string, string> = {
 
 function TrendArrow({ delta, trend }: { delta: number; trend: string }) {
   if (trend === "rising" || delta > 5) {
-    return <span className="text-[0.65rem]" style={{ color: "var(--olive)" }}>&#9650;</span>;
+    return <span className="text-[0.8rem]" style={{ color: "var(--olive)" }}>&#9650;</span>;
   }
   if (trend === "declining" || delta < -5) {
-    return <span className="text-[0.65rem]" style={{ color: "var(--terracotta)" }}>&#9660;</span>;
+    return <span className="text-[0.8rem]" style={{ color: "var(--terracotta)" }}>&#9660;</span>;
   }
-  return <span className="text-[0.65rem] text-mid/40">&mdash;</span>;
+  return <span className="text-[0.8rem] text-mid/80">&mdash;</span>;
 }
 
 function MiniSparkline({ days }: { days: TrendDay[] }) {
@@ -151,8 +151,8 @@ export function SignalsPanel() {
   if (!data) {
     return (
       <Card className="p-4 h-full">
-        <p className="label-caps text-mid/60 mb-3">Signals</p>
-        <p className="text-xs text-mid/40 text-center py-4">Loading...</p>
+        <p className="label-caps text-mid/80 mb-3">Signals</p>
+        <p className="text-xs text-mid/80 text-center py-4">Loading...</p>
       </Card>
     );
   }
@@ -171,10 +171,10 @@ export function SignalsPanel() {
     <Card className="p-4 h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <p className="label-caps text-mid/60">Keyword Signals</p>
+        <p className="label-caps text-mid/80">Keyword Signals</p>
         <div className="flex items-center gap-2">
           <CreditSparkline history={creditHistory} />
-          <span className="text-[0.55rem] text-mid/40 tabular-nums">
+          <span className="text-[0.75rem] text-mid/80 tabular-nums">
             {totalCreditsRecent.toLocaleString()} cr
           </span>
         </div>
@@ -182,7 +182,7 @@ export function SignalsPanel() {
 
       {/* Day summary */}
       {latestDay && (
-        <div className="flex items-center gap-3 mb-2 text-[0.6rem] text-mid/50">
+        <div className="flex items-center gap-3 mb-2 text-[0.8rem] text-mid/70">
           <span>Latest: {latestDay.date}</span>
           <span>{latestDay.keywordCount} keywords</span>
           <span>{trends.filter((t) => t.dayCount >= 2).length} persistent</span>
@@ -200,7 +200,7 @@ export function SignalsPanel() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className="px-2 py-0.5 rounded-full text-[0.55rem] tracking-wide transition-colors"
+              className="px-2 py-0.5 rounded-full text-[0.75rem] tracking-wide transition-colors"
               style={{
                 backgroundColor: filter === f ? "var(--charcoal)" : "var(--warm)",
                 color: filter === f ? "var(--paper)" : "var(--mid)",
@@ -215,7 +215,7 @@ export function SignalsPanel() {
       {/* Keyword list */}
       <div className="flex-1 overflow-y-auto custom-scroll min-h-0 space-y-1">
         {filtered.length === 0 ? (
-          <p className="text-xs text-mid/40 text-center py-4">
+          <p className="text-xs text-mid/80 text-center py-4">
             {filter === "watched" ? "No watched signals. Click the eye icon to watch." : "No signals match this filter."}
           </p>
         ) : (
@@ -227,7 +227,7 @@ export function SignalsPanel() {
               {/* Watch toggle */}
               <button
                 onClick={() => toggleWatch(kw.keyword, kw.isWatched)}
-                className="text-[0.65rem] opacity-30 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                className="text-[0.8rem] opacity-30 group-hover:opacity-100 transition-opacity flex-shrink-0"
                 title={kw.isWatched ? "Unwatch" : "Watch"}
               >
                 {kw.isWatched ? "\u25C9" : "\u25CB"}
@@ -244,17 +244,17 @@ export function SignalsPanel() {
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Badge color={PRODUCT_COLORS[kw.product] || "var(--mid)"}>{kw.product === "_pain" ? "pain" : kw.product}</Badge>
                   {kw.dayCount >= 2 && (
-                    <span className="text-[0.5rem] text-mid/40">{kw.dayCount}d</span>
+                    <span className="text-[0.7rem] text-mid/80">{kw.dayCount}d</span>
                   )}
                 </div>
               </div>
 
               {/* Metrics */}
-              <div className="flex items-center gap-2 flex-shrink-0 text-[0.6rem] tabular-nums text-mid">
+              <div className="flex items-center gap-2 flex-shrink-0 text-[0.8rem] tabular-nums text-mid">
                 <TrendArrow delta={kw.intentDelta} trend={kw.latestTrend} />
                 <span title="Intent score">{kw.latestIntent}</span>
-                <span title="CPC" className="text-mid/50">${kw.latestCpc.toFixed(2)}</span>
-                <span title="Volume" className="text-mid/40">{kw.latestVolume.toLocaleString()}</span>
+                <span title="CPC" className="text-mid/70">${kw.latestCpc.toFixed(2)}</span>
+                <span title="Volume" className="text-mid/80">{kw.latestVolume.toLocaleString()}</span>
               </div>
             </div>
           ))

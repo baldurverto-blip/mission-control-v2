@@ -114,6 +114,33 @@ interface IdeaQueue {
   parked?: ProposedIdea[];
 }
 
+// ── Signal Router types ──────────────────────────────────────────
+
+interface WatchlistSignal {
+  slug: string;
+  title: string;
+  tagline: string;
+  target_audience?: string;
+  score: number;
+  segment: string;
+  source: string;
+  evidence?: { complaint_count?: number; score_breakdown?: Record<string, number>; sample_titles?: string[] };
+  watchlisted_at?: string;
+}
+
+interface RouterStats {
+  total: number;
+  b2c: number;
+  b2b: number;
+  prosumer: number;
+  irrelevant: number;
+  by_source: Record<string, { total: number; b2c: number; b2b: number; prosumer: number; irrelevant: number }>;
+  by_method: { rule: number; llm: number; fallback: number };
+  last_updated: string | null;
+  recent_drops: number;
+  drop_rate: number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 function scoreColor(score: number): string {
@@ -189,7 +216,7 @@ function EvidenceChip({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-warm/50 rounded-lg px-2.5 py-1.5 text-center">
       <p className="text-[0.7rem] font-medium text-charcoal tabular-nums">{value}</p>
-      <p className="text-[0.45rem] text-mid/40 mt-0.5">{label}</p>
+      <p className="text-[0.8rem] text-mid/60 mt-0.5">{label}</p>
     </div>
   );
 }
@@ -222,7 +249,7 @@ function KanbanCard({
         <ScoreRing score={idea.score} size={32} />
         <div className="min-w-0 flex-1">
           <h4 className="text-[0.75rem] font-medium leading-tight text-charcoal line-clamp-1">{idea.title}</h4>
-          <p className="text-[0.55rem] text-mid/50 mt-0.5 line-clamp-2 leading-relaxed">
+          <p className="text-[0.75rem] text-mid/70 mt-0.5 line-clamp-2 leading-relaxed">
             {idea.best_variant?.pain_statement ?? idea.tagline}
           </p>
         </div>
@@ -231,16 +258,16 @@ function KanbanCard({
       {/* Compact chips */}
       <div className="mt-2 flex flex-wrap gap-1">
         {idea.painkiller && (
-          <span className="px-1.5 py-0.5 rounded text-[0.5rem] font-medium" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>Painkiller</span>
+          <span className="px-1.5 py-0.5 rounded text-[0.7rem] font-medium" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>Painkiller</span>
         )}
         {idea.best_variant && (
-          <span className="px-1.5 py-0.5 rounded text-[0.5rem]" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>{idea.best_variant.angle}</span>
+          <span className="px-1.5 py-0.5 rounded text-[0.7rem]" style={{ backgroundColor: "var(--lilac-soft)", color: "var(--lilac)" }}>{idea.best_variant.angle}</span>
         )}
         {idea.evidence?.keyword_count != null && idea.evidence.keyword_count > 0 && (
-          <span className="px-1.5 py-0.5 rounded text-[0.5rem] bg-warm/80 text-mid/60">{idea.evidence.keyword_count} kw</span>
+          <span className="px-1.5 py-0.5 rounded text-[0.7rem] bg-warm/80 text-mid/80">{idea.evidence.keyword_count} kw</span>
         )}
         {qual && (
-          <span className="px-1.5 py-0.5 rounded text-[0.5rem] font-medium" style={{
+          <span className="px-1.5 py-0.5 rounded text-[0.7rem] font-medium" style={{
             backgroundColor: qual.verdict === "QUALIFY" ? "var(--olive-soft)" : qual.verdict === "PARK" ? "var(--amber-soft)" : "var(--terracotta-soft)",
             color: qual.verdict === "QUALIFY" ? "var(--olive)" : qual.verdict === "PARK" ? "var(--amber)" : "var(--terracotta)",
           }}>{qual.verdict}</span>
@@ -249,7 +276,7 @@ function KanbanCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-warm/30">
-        <span className="text-[0.5rem] text-mid/35">
+        <span className="text-[0.7rem] text-mid/60">
           {idea.source && `${idea.source}`}
           {idea.refined_at && ` · ${relTime(idea.refined_at)}`}
         </span>
@@ -257,7 +284,7 @@ function KanbanCard({
           <button
             onClick={(e) => { e.stopPropagation(); onAction(); }}
             disabled={actionLoading}
-            className="px-2 py-0.5 rounded text-[0.5rem] font-medium transition-all opacity-70 group-hover:opacity-100"
+            className="px-2 py-0.5 rounded text-[0.7rem] font-medium transition-all opacity-70 group-hover:opacity-100"
             style={{ backgroundColor: actionLoading ? "var(--warm)" : `${color}12`, color: actionLoading ? "var(--mid)" : color }}
           >
             {actionLoading ? "..." : actionLabel}
@@ -316,7 +343,7 @@ function PhaseGateChecklist({ idea }: { idea: ProposedIdea }) {
 
   return (
     <div className="p-3 rounded-lg bg-warm/30 border border-warm/50">
-      <p className="label-caps text-[0.55rem] text-mid/50 mb-3">Phase Gate Checklist</p>
+      <p className="label-caps text-[0.75rem] text-mid/70 mb-3">Phase Gate Checklist</p>
       <div className="space-y-3">
         {stages.map((stage) => {
           const passed = stage.gates.filter((g) => g.met).length;
@@ -328,22 +355,22 @@ function PhaseGateChecklist({ idea }: { idea: ProposedIdea }) {
             <div key={stage.id}>
               {/* Stage header */}
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[0.5rem]"
+                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[0.7rem]"
                   style={{
                     backgroundColor: stage.reached ? (allPassed ? `${stage.color}20` : "var(--amber-soft)") : "var(--warm)",
                     color: stage.reached ? (allPassed ? stage.color : "var(--amber)") : "var(--mid)",
                   }}>
                   {stage.reached ? (allPassed ? "\u2713" : "!") : "\u2022"}
                 </span>
-                <span className="text-[0.6rem] font-medium" style={{ color: stage.reached ? stage.color : "var(--mid)" }}>{stage.label}</span>
+                <span className="text-[0.8rem] font-medium" style={{ color: stage.reached ? stage.color : "var(--mid)" }}>{stage.label}</span>
                 {stage.reached && total > 0 && (
-                  <span className="text-[0.5rem] tabular-nums" style={{ color: allPassed ? "var(--olive)" : "var(--amber)" }}>{passed}/{total}</span>
+                  <span className="text-[0.7rem] tabular-nums" style={{ color: allPassed ? "var(--olive)" : "var(--amber)" }}>{passed}/{total}</span>
                 )}
                 {stage.timestamp && (
-                  <span className="text-[0.45rem] text-mid/30 ml-auto">{relTime(stage.timestamp)}</span>
+                  <span className="text-[0.8rem] text-mid/55 ml-auto">{relTime(stage.timestamp)}</span>
                 )}
                 {!stage.reached && (
-                  <span className="text-[0.45rem] text-mid/25 ml-auto">pending</span>
+                  <span className="text-[0.8rem] text-mid/50 ml-auto">pending</span>
                 )}
               </div>
 
@@ -352,14 +379,14 @@ function PhaseGateChecklist({ idea }: { idea: ProposedIdea }) {
                 <div className="ml-6 space-y-0.5">
                   {stage.gates.map((gate, i) => (
                     <div key={i} className="flex items-center gap-1.5">
-                      <span className="text-[0.5rem]" style={{ color: gate.met ? "var(--olive)" : "var(--terracotta)" }}>
+                      <span className="text-[0.7rem]" style={{ color: gate.met ? "var(--olive)" : "var(--terracotta)" }}>
                         {gate.met ? "\u2713" : "\u2717"}
                       </span>
-                      <span className="text-[0.5rem]" style={{ color: gate.met ? "var(--mid)" : "var(--terracotta)" }}>
+                      <span className="text-[0.7rem]" style={{ color: gate.met ? "var(--mid)" : "var(--terracotta)" }}>
                         {gate.label}
                       </span>
                       {gate.value != null && typeof gate.value === "number" && (
-                        <span className="text-[0.45rem] text-mid/30 tabular-nums ml-auto">{gate.value}</span>
+                        <span className="text-[0.8rem] text-mid/55 tabular-nums ml-auto">{gate.value}</span>
                       )}
                     </div>
                   ))}
@@ -408,11 +435,11 @@ function IdeaDrawer({
                 {idea.painkiller && <Badge color="var(--terracotta)">Painkiller</Badge>}
               </div>
               <h3 className="text-2xl text-charcoal leading-tight">{idea.title}</h3>
-              <p className="text-xs text-mid/60 mt-1 leading-relaxed">{idea.tagline}</p>
+              <p className="text-xs text-mid/80 mt-1 leading-relaxed">{idea.tagline}</p>
             </div>
             <div className="flex items-center gap-3">
               <ScoreRing score={idea.score} size={52} />
-              <button onClick={onClose} className="text-mid/40 hover:text-charcoal transition-colors text-lg">&times;</button>
+              <button onClick={onClose} className="text-mid/60 hover:text-charcoal transition-colors text-lg">&times;</button>
             </div>
           </div>
 
@@ -422,18 +449,18 @@ function IdeaDrawer({
           {/* Best variant */}
           {idea.best_variant && (
             <div className="p-3 rounded-lg" style={{ backgroundColor: `${color}08`, borderLeft: `3px solid ${color}` }}>
-              <p className="text-[0.55rem] font-medium text-mid/50 mb-1">BEST ANGLE</p>
+              <p className="text-[0.75rem] font-medium text-mid/70 mb-1">BEST ANGLE</p>
               <p className="text-sm font-medium text-charcoal">{idea.best_variant.angle}</p>
-              <p className="text-xs text-mid/60 mt-0.5">Target: {idea.best_variant.target}</p>
-              <p className="text-xs text-mid/50 mt-1 italic">{idea.best_variant.pain_statement}</p>
-              <p className="text-[0.65rem] text-mid/40 mt-1">{idea.best_variant.differentiator}</p>
+              <p className="text-xs text-mid/80 mt-0.5">Target: {idea.best_variant.target}</p>
+              <p className="text-xs text-mid/70 mt-1 italic">{idea.best_variant.pain_statement}</p>
+              <p className="text-[0.8rem] text-mid/60 mt-1">{idea.best_variant.differentiator}</p>
             </div>
           )}
 
           {/* Score breakdown */}
           {breakdown && Object.keys(breakdown).length > 0 && (
             <div>
-              <p className="label-caps text-[0.55rem] text-mid/50 mb-2">Score Breakdown</p>
+              <p className="label-caps text-[0.75rem] text-mid/70 mb-2">Score Breakdown</p>
               <div className="space-y-1.5">
                 {Object.entries(SCORE_LABELS).map(([key, meta]) => {
                   const val = (breakdown as unknown as Record<string, number>)[key];
@@ -441,9 +468,9 @@ function IdeaDrawer({
                   const barColor = val >= 70 ? "var(--olive)" : val >= 45 ? "var(--amber)" : "var(--terracotta)";
                   return (
                     <div key={key} className="flex items-center gap-2">
-                      <span className="text-[0.55rem] text-mid/50 w-16 shrink-0 text-right">{meta.label}</span>
+                      <span className="text-[0.75rem] text-mid/70 w-16 shrink-0 text-right">{meta.label}</span>
                       <MiniBar value={val} color={barColor} />
-                      <span className="text-[0.55rem] tabular-nums w-6 text-right" style={{ color: barColor }}>{val}</span>
+                      <span className="text-[0.75rem] tabular-nums w-6 text-right" style={{ color: barColor }}>{val}</span>
                     </div>
                   );
                 })}
@@ -455,7 +482,7 @@ function IdeaDrawer({
           {qual && (
             <div className="p-3 rounded-lg border" style={{ borderColor: `${qual.verdict === "QUALIFY" ? "var(--olive)" : qual.verdict === "PARK" ? "var(--amber)" : "var(--terracotta)"}30` }}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[0.6rem] font-medium text-charcoal">Agent Qualification</span>
+                <span className="text-[0.8rem] font-medium text-charcoal">Agent Qualification</span>
                 <Badge color={qual.verdict === "QUALIFY" ? "var(--olive)" : qual.verdict === "PARK" ? "var(--amber)" : "var(--terracotta)"}>{qual.verdict}</Badge>
               </div>
               <div className="space-y-1.5 mb-2">
@@ -466,29 +493,29 @@ function IdeaDrawer({
                   return (
                     <div key={key}>
                       <div className="flex items-center gap-2">
-                        <span className="text-[0.55rem] text-mid/50 w-16 shrink-0 text-right">{label}</span>
+                        <span className="text-[0.75rem] text-mid/70 w-16 shrink-0 text-right">{label}</span>
                         <MiniBar value={dim.score} color={barColor} />
-                        <span className="text-[0.55rem] tabular-nums w-6 text-right" style={{ color: barColor }}>{dim.score}</span>
+                        <span className="text-[0.75rem] tabular-nums w-6 text-right" style={{ color: barColor }}>{dim.score}</span>
                       </div>
-                      <p className="text-[0.5rem] text-mid/40 ml-[4.5rem] mt-0.5">{dim.reasoning}</p>
+                      <p className="text-[0.7rem] text-mid/60 ml-[4.5rem] mt-0.5">{dim.reasoning}</p>
                     </div>
                   );
                 })}
               </div>
-              <p className="text-xs text-mid/60 italic mt-2">{qual.verdict_reasoning}</p>
+              <p className="text-xs text-mid/80 italic mt-2">{qual.verdict_reasoning}</p>
               {qual.risks && qual.risks.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
-                  <span className="text-[0.5rem] text-mid/40 mr-1">Risks:</span>
+                  <span className="text-[0.7rem] text-mid/60 mr-1">Risks:</span>
                   {qual.risks.map((r, i) => (
-                    <span key={i} className="px-1.5 py-0.5 rounded text-[0.5rem]" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>{r}</span>
+                    <span key={i} className="px-1.5 py-0.5 rounded text-[0.7rem]" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>{r}</span>
                   ))}
                 </div>
               )}
               {qual.opportunities && qual.opportunities.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
-                  <span className="text-[0.5rem] text-mid/40 mr-1">Upside:</span>
+                  <span className="text-[0.7rem] text-mid/60 mr-1">Upside:</span>
                   {qual.opportunities.map((o, i) => (
-                    <span key={i} className="px-1.5 py-0.5 rounded text-[0.5rem]" style={{ backgroundColor: "var(--olive-soft)", color: "var(--olive)" }}>{o}</span>
+                    <span key={i} className="px-1.5 py-0.5 rounded text-[0.7rem]" style={{ backgroundColor: "var(--olive-soft)", color: "var(--olive)" }}>{o}</span>
                   ))}
                 </div>
               )}
@@ -498,7 +525,7 @@ function IdeaDrawer({
           {/* Market evidence */}
           {idea.evidence && (
             <div>
-              <p className="label-caps text-[0.55rem] text-mid/50 mb-2">Market Evidence</p>
+              <p className="label-caps text-[0.75rem] text-mid/70 mb-2">Market Evidence</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {idea.evidence.total_volume != null && <EvidenceChip label="Volume" value={`${(idea.evidence.total_volume / 1000).toFixed(1)}k/mo`} />}
                 {(idea.evidence.avg_cpc ?? idea.evidence.max_cpc) != null && <EvidenceChip label="CPC" value={`$${(idea.evidence.avg_cpc ?? idea.evidence.max_cpc)?.toFixed(2)}`} />}
@@ -511,14 +538,14 @@ function IdeaDrawer({
           {/* Variants */}
           {idea.evidence?.variants && idea.evidence.variants.length > 0 && (
             <div>
-              <p className="label-caps text-[0.55rem] text-mid/50 mb-2">Variants ({idea.evidence.variants.length})</p>
+              <p className="label-caps text-[0.75rem] text-mid/70 mb-2">Variants ({idea.evidence.variants.length})</p>
               <div className="space-y-2">
                 {idea.evidence.variants.map((v, i) => (
                   <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-warm/40">
                     <ScoreRing score={v.score} size={28} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[0.7rem] font-medium text-charcoal truncate">{v.angle}</p>
-                      <p className="text-[0.55rem] text-mid/50">{v.target}</p>
+                      <p className="text-[0.75rem] text-mid/70">{v.target}</p>
                     </div>
                   </div>
                 ))}
@@ -529,16 +556,16 @@ function IdeaDrawer({
           {/* Pain threads */}
           {idea.evidence?.pain_threads && idea.evidence.pain_threads.length > 0 && (
             <div>
-              <p className="label-caps text-[0.55rem] text-mid/50 mb-2">Pain Threads ({idea.evidence.pain_threads.length})</p>
+              <p className="label-caps text-[0.75rem] text-mid/70 mb-2">Pain Threads ({idea.evidence.pain_threads.length})</p>
               <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scroll">
                 {idea.evidence.pain_threads.map((t, i) => (
-                  <div key={i} className="text-[0.6rem] text-mid/60 p-2 rounded-lg bg-warm/30">
+                  <div key={i} className="text-[0.8rem] text-mid/80 p-2 rounded-lg bg-warm/30">
                     <div className="flex items-center gap-2">
-                      <span className="text-[0.5rem] text-mid/40">r/{t.subreddit}</span>
-                      {t.upvotes > 0 && <span className="text-mid/30">{t.upvotes} pts</span>}
+                      <span className="text-[0.7rem] text-mid/60">r/{t.subreddit}</span>
+                      {t.upvotes > 0 && <span className="text-mid/55">{t.upvotes} pts</span>}
                     </div>
                     <p className="text-charcoal/80 mt-0.5">{t.title}</p>
-                    {t.quote && <p className="text-mid/40 italic mt-0.5 pl-2 border-l-2 border-warm">&ldquo;{t.quote}&rdquo;</p>}
+                    {t.quote && <p className="text-mid/60 italic mt-0.5 pl-2 border-l-2 border-warm">&ldquo;{t.quote}&rdquo;</p>}
                   </div>
                 ))}
               </div>
@@ -548,10 +575,10 @@ function IdeaDrawer({
           {/* Competitors */}
           {idea.evidence?.competitors && idea.evidence.competitors.length > 0 && (
             <div>
-              <p className="label-caps text-[0.55rem] text-mid/50 mb-2">Competitors</p>
+              <p className="label-caps text-[0.75rem] text-mid/70 mb-2">Competitors</p>
               <div className="flex flex-wrap gap-1.5">
                 {idea.evidence.competitors.map((c, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded text-[0.6rem] bg-warm/60 text-mid/70">{c}</span>
+                  <span key={i} className="px-2 py-0.5 rounded text-[0.8rem] bg-warm/60 text-mid/70">{c}</span>
                 ))}
               </div>
             </div>
@@ -560,11 +587,11 @@ function IdeaDrawer({
           {/* One-pager */}
           {idea.evidence?.mini_one_pager && (
             <div>
-              <button onClick={() => setShowOnePager(!showOnePager)} className="text-[0.6rem] font-medium" style={{ color: "var(--lilac)" }}>
+              <button onClick={() => setShowOnePager(!showOnePager)} className="text-[0.8rem] font-medium" style={{ color: "var(--lilac)" }}>
                 {showOnePager ? "Hide One-Pager" : "Show Mini One-Pager"}
               </button>
               {showOnePager && (
-                <pre className="mt-2 p-3 rounded-lg bg-warm/40 text-[0.55rem] text-mid/70 whitespace-pre-wrap overflow-auto max-h-[300px] custom-scroll leading-relaxed">
+                <pre className="mt-2 p-3 rounded-lg bg-warm/40 text-[0.75rem] text-mid/70 whitespace-pre-wrap overflow-auto max-h-[300px] custom-scroll leading-relaxed">
                   {idea.evidence.mini_one_pager}
                 </pre>
               )}
@@ -600,6 +627,9 @@ export default function IdeasPage() {
   const [proposing, setProposing] = useState(false);
   const [exploringSlug, setExploringSlug] = useState<string | null>(null);
   const [qualifyingSlug, setQualifyingSlug] = useState<string | null>(null);
+  const [watchlist, setWatchlist] = useState<WatchlistSignal[]>([]);
+  const [routerStats, setRouterStats] = useState<RouterStats | null>(null);
+  const [pullingSlug, setPullingSlug] = useState<string | null>(null);
 
   const fetchIdeas = useCallback(async () => {
     try {
@@ -616,6 +646,38 @@ export default function IdeasPage() {
   }, []);
 
   useEffect(() => { fetchIdeas(); }, [fetchIdeas]);
+
+  // Fetch B2B watchlist + router stats
+  const fetchWatchlist = useCallback(async () => {
+    try {
+      const [wlRes, statsRes] = await Promise.all([
+        fetch("/api/growth/b2b-watchlist"),
+        fetch("/api/growth/signal-router-stats"),
+      ]);
+      const wlData = await wlRes.json();
+      const statsData = await statsRes.json();
+      if (wlData.success) setWatchlist(wlData.signals ?? []);
+      if (statsData.success) setRouterStats(statsData);
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchWatchlist(); }, [fetchWatchlist]);
+
+  const pullToFactory = async (slug: string) => {
+    setPullingSlug(slug);
+    try {
+      const res = await fetch("/api/growth/b2b-watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchWatchlist();
+        setTimeout(fetchIdeas, 1000);
+      }
+    } catch {} finally { setPullingSlug(null); }
+  };
 
   const triggerPropose = async () => {
     setProposing(true);
@@ -682,14 +744,14 @@ export default function IdeasPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-3">
-              <p className="label-caps text-[0.55rem] text-mid/50">Idea Pipeline</p>
-              <span className="text-[0.5rem] text-mid/30">
+              <p className="label-caps text-[0.75rem] text-mid/70">Idea Pipeline</p>
+              <span className="text-[0.7rem] text-mid/55">
                 {totalActive} active · {parkedItems.length} parked · {(queue?.shipped ?? []).length} shipped
               </span>
             </div>
           </div>
           <button onClick={triggerPropose} disabled={proposing}
-            className="px-3 py-1.5 rounded-lg text-[0.65rem] font-medium transition-all"
+            className="px-3 py-1.5 rounded-lg text-[0.8rem] font-medium transition-all"
             style={{ backgroundColor: proposing ? "var(--warm)" : "var(--charcoal)", color: proposing ? "var(--mid)" : "var(--paper)" }}>
             {proposing ? "Discovering..." : "Run Proposer"}
           </button>
@@ -704,16 +766,16 @@ export default function IdeasPage() {
                 <div className="flex-shrink-0">
                   <div className="flex items-center gap-1.5 mb-2">
                     <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ backgroundColor: "var(--terracotta)" }} />
-                    <span className="text-[0.5rem] font-medium" style={{ color: "var(--terracotta)" }}>HOT SIGNALS</span>
+                    <span className="text-[0.7rem] font-medium" style={{ color: "var(--terracotta)" }}>HOT SIGNALS</span>
                   </div>
                   <div className="flex gap-2">
                     {hotSignals.slice(0, 4).map((s) => (
                       <div key={s.id} className="w-[180px] flex-shrink-0 p-2 rounded-lg bg-warm/40 border border-warm/60">
                         <div className="flex items-center justify-between">
-                          <span className="text-[0.55rem] font-medium tabular-nums" style={{ color: "var(--terracotta)" }}>{s.score.toFixed(0)}</span>
-                          <span className="text-[0.45rem] text-mid/35">{s.source}</span>
+                          <span className="text-[0.75rem] font-medium tabular-nums" style={{ color: "var(--terracotta)" }}>{s.score.toFixed(0)}</span>
+                          <span className="text-[0.8rem] text-mid/60">{s.source}</span>
                         </div>
-                        <p className="text-[0.55rem] text-charcoal mt-1 line-clamp-2 leading-relaxed">{s.title}</p>
+                        <p className="text-[0.75rem] text-charcoal mt-1 line-clamp-2 leading-relaxed">{s.title}</p>
                       </div>
                     ))}
                   </div>
@@ -728,24 +790,24 @@ export default function IdeasPage() {
                 <div className="flex-shrink-0">
                   <div className="flex items-center gap-1.5 mb-2">
                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--olive)" }} />
-                    <span className="text-[0.5rem] font-medium" style={{ color: "var(--olive)" }}>KEYWORD NICHES</span>
-                    {keywordDate && <span className="text-[0.45rem] text-mid/30">{keywordDate}</span>}
+                    <span className="text-[0.7rem] font-medium" style={{ color: "var(--olive)" }}>KEYWORD NICHES</span>
+                    {keywordDate && <span className="text-[0.8rem] text-mid/55">{keywordDate}</span>}
                   </div>
                   <div className="flex gap-2">
                     {keywordNiches.filter((n) => n.avgIntent >= 30).slice(0, 4).map((n, i) => (
                       <div key={i} className="w-[160px] flex-shrink-0 p-2 rounded-lg bg-warm/40 border border-warm/60">
                         <div className="flex items-center justify-between">
-                          <span className="text-[0.55rem] font-medium text-charcoal truncate">{n.niche}</span>
-                          <span className="text-[0.5rem] tabular-nums" style={{ color: n.avgIntent >= 50 ? "var(--olive)" : "var(--amber)" }}>{n.avgIntent}</span>
+                          <span className="text-[0.75rem] font-medium text-charcoal truncate">{n.niche}</span>
+                          <span className="text-[0.7rem] tabular-nums" style={{ color: n.avgIntent >= 50 ? "var(--olive)" : "var(--amber)" }}>{n.avgIntent}</span>
                         </div>
-                        <p className="text-[0.45rem] text-mid/40 mt-1">{n.totalVolume.toLocaleString()}/mo · ${n.avgCpc.toFixed(2)}</p>
+                        <p className="text-[0.8rem] text-mid/60 mt-1">{n.totalVolume.toLocaleString()}/mo · ${n.avgCpc.toFixed(2)}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-            <p className="text-[0.45rem] text-mid/30 mt-2">
+            <p className="text-[0.8rem] text-mid/55 mt-2">
               Discovery signals + keyword data feeding the idea pipeline. Triage runs every 2h — proposed ideas are auto-refined, refined ideas are auto-qualified.
             </p>
           </div>
@@ -761,10 +823,10 @@ export default function IdeasPage() {
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
                   <span className="text-sm font-medium" style={{ color: col.color }}>{col.label}</span>
                   {col.ideas.length > 0 && (
-                    <span className="text-[0.6rem] tabular-nums px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${col.color}12`, color: col.color }}>{col.ideas.length}</span>
+                    <span className="text-[0.8rem] tabular-nums px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${col.color}12`, color: col.color }}>{col.ideas.length}</span>
                   )}
                 </div>
-                <span className="text-[0.45rem] text-mid/30">{col.desc}</span>
+                <span className="text-[0.8rem] text-mid/55">{col.desc}</span>
               </div>
 
               {/* Cards */}
@@ -784,14 +846,14 @@ export default function IdeasPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-10 h-10 rounded-full bg-warm/60 flex items-center justify-center mb-2">
-                    <span className="text-mid/30 text-lg">{col.id === "proposed" ? "?" : col.id === "refined" ? "\u2192" : "\u2713"}</span>
+                    <span className="text-mid/55 text-lg">{col.id === "proposed" ? "?" : col.id === "refined" ? "\u2192" : "\u2713"}</span>
                   </div>
-                  <p className="text-[0.6rem] text-mid/40">
+                  <p className="text-[0.8rem] text-mid/60">
                     {col.id === "proposed" && "Discovery signals will appear here when the proposer runs."}
                     {col.id === "refined" && "Proposed ideas move here after Reddit + keyword deep-dive."}
                     {col.id === "qualified" && "Refined ideas move here after AI agent evaluation."}
                   </p>
-                  <p className="text-[0.5rem] text-mid/25 mt-1">
+                  <p className="text-[0.7rem] text-mid/50 mt-1">
                     {col.id === "proposed" && "Weekly cron or manual trigger"}
                     {col.id === "refined" && "Auto-triage every 2h"}
                     {col.id === "qualified" && "Auto-triage every 2h"}
@@ -808,9 +870,9 @@ export default function IdeasPage() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-charcoal">Factory Ready</span>
-                <span className="text-[0.6rem] tabular-nums px-1.5 py-0.5 rounded-full bg-charcoal text-paper">{factoryReady.length}</span>
+                <span className="text-[0.8rem] tabular-nums px-1.5 py-0.5 rounded-full bg-charcoal text-paper">{factoryReady.length}</span>
               </div>
-              <span className="text-[0.5rem] text-mid/40">Qualified ideas with score 75+ — factory-tick auto-promotes every 10min</span>
+              <span className="text-[0.7rem] text-mid/60">Qualified ideas with score 75+ — factory-tick auto-promotes every 10min</span>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
               {factoryReady.map((idea) => (
@@ -825,24 +887,194 @@ export default function IdeasPage() {
           <ParkedSection ideas={parkedItems} onSelect={setSelectedIdea} />
         )}
 
+        {/* ── Signal Router + B2B Watchlist ──────────────── */}
+        {(routerStats || watchlist.length > 0) && (
+          <div className="mt-6 space-y-4 fade-up" style={{ animationDelay: "0.12s" }}>
+            {/* Router Stats Bar */}
+            {routerStats && routerStats.total > 0 && (
+              <div className="card" style={{ padding: "0.75rem 1rem" }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--lilac)" }} />
+                  <span className="label-caps text-[0.75rem]" style={{ color: "var(--lilac)" }}>Signal Router</span>
+                  {routerStats.last_updated && (
+                    <span className="text-[0.8rem] text-mid/55">updated {relTime(routerStats.last_updated)}</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                  {/* Segment breakdown */}
+                  <div className="p-2.5 rounded-lg bg-warm/30">
+                    <p className="text-[0.7rem] text-mid/60 mb-1.5">CLASSIFIED</p>
+                    <p className="text-xl tabular-nums text-charcoal" style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}>{routerStats.total}</p>
+                    <div className="flex gap-1 mt-2">
+                      {routerStats.b2c > 0 && (
+                        <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: "var(--olive)", flex: routerStats.b2c }} />
+                      )}
+                      {routerStats.b2b > 0 && (
+                        <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: "var(--amber)", flex: routerStats.b2b }} />
+                      )}
+                      {routerStats.prosumer > 0 && (
+                        <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: "var(--lilac)", flex: routerStats.prosumer }} />
+                      )}
+                      {routerStats.irrelevant > 0 && (
+                        <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: "var(--terracotta)", flex: routerStats.irrelevant }} />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Segment counts */}
+                  <div className="p-2.5 rounded-lg bg-warm/30">
+                    <p className="text-[0.7rem] text-mid/60 mb-1.5">SEGMENTS</p>
+                    <div className="space-y-1">
+                      {[
+                        { label: "B2C", value: routerStats.b2c, color: "var(--olive)" },
+                        { label: "B2B", value: routerStats.b2b, color: "var(--amber)" },
+                        { label: "Prosumer", value: routerStats.prosumer, color: "var(--lilac)" },
+                      ].filter(s => s.value > 0).map(s => (
+                        <div key={s.label} className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                            <span className="text-[0.75rem] text-mid/80">{s.label}</span>
+                          </div>
+                          <span className="text-[0.8rem] tabular-nums font-medium" style={{ color: s.color }}>{s.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Drop rate */}
+                  <div className="p-2.5 rounded-lg bg-warm/30">
+                    <p className="text-[0.7rem] text-mid/60 mb-1.5">QUALITY GATE</p>
+                    <div className="flex items-baseline gap-1">
+                      <p className="text-xl tabular-nums" style={{ fontFamily: "var(--font-cormorant), Georgia, serif", color: routerStats.drop_rate > 20 ? "var(--terracotta)" : "var(--olive)" }}>
+                        {routerStats.drop_rate}%
+                      </p>
+                      <span className="text-[0.7rem] text-mid/60">dropped</span>
+                    </div>
+                    <p className="text-[0.7rem] text-mid/60 mt-1">{routerStats.irrelevant} irrelevant of {routerStats.total}</p>
+                  </div>
+
+                  {/* Method breakdown */}
+                  <div className="p-2.5 rounded-lg bg-warm/30">
+                    <p className="text-[0.7rem] text-mid/60 mb-1.5">METHOD</p>
+                    <div className="space-y-1">
+                      {[
+                        { label: "Rule-based", value: routerStats.by_method.rule, color: "var(--olive)" },
+                        { label: "LLM (Haiku)", value: routerStats.by_method.llm, color: "var(--lilac)" },
+                        { label: "Fallback", value: routerStats.by_method.fallback, color: "var(--mid)" },
+                      ].filter(m => m.value > 0).map(m => (
+                        <div key={m.label} className="flex items-center justify-between">
+                          <span className="text-[0.75rem] text-mid/80">{m.label}</span>
+                          <span className="text-[0.8rem] tabular-nums font-medium" style={{ color: m.color }}>{m.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per-source breakdown (compact) */}
+                {Object.keys(routerStats.by_source).length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-warm/40">
+                    {Object.entries(routerStats.by_source).map(([source, data]) => (
+                      <div key={source} className="flex items-center gap-1.5 px-2 py-1 rounded bg-warm/40">
+                        <span className="text-[0.7rem] text-mid/70">{source.replace(/_/g, " ")}</span>
+                        <span className="text-[0.7rem] tabular-nums font-medium text-charcoal">{data.total}</span>
+                        {data.irrelevant > 0 && (
+                          <span className="text-[0.8rem] tabular-nums" style={{ color: "var(--terracotta)" }}>-{data.irrelevant}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* B2B Watchlist */}
+            {watchlist.length > 0 && (
+              <div className="card">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--amber)" }} />
+                    <span className="label-caps text-[0.75rem]" style={{ color: "var(--amber)" }}>B2B Watchlist</span>
+                    <span className="text-[0.75rem] tabular-nums px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "var(--amber-soft)", color: "var(--amber)" }}>{watchlist.length}</span>
+                  </div>
+                  <span className="text-[0.8rem] text-mid/55">B2B signals parked for founder review — pull into factory when ready</span>
+                </div>
+
+                <div className="space-y-2">
+                  {watchlist.map((sig) => {
+                    const complaints = sig.evidence?.complaint_count ?? 0;
+                    return (
+                      <div key={sig.slug} className="flex items-center gap-3 p-3 rounded-xl border border-warm/60 bg-warm/20 transition-all hover:bg-warm/40 group">
+                        {/* Score ring */}
+                        <ScoreRing score={sig.score} size={32} />
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[0.75rem] font-medium text-charcoal truncate">{sig.title}</h4>
+                            <span className="px-1.5 py-0.5 rounded text-[0.8rem] font-medium shrink-0" style={{ backgroundColor: "var(--amber-soft)", color: "var(--amber)" }}>B2B</span>
+                          </div>
+                          <p className="text-[0.75rem] text-mid/70 mt-0.5 line-clamp-1">{sig.tagline}</p>
+                          {sig.target_audience && (
+                            <p className="text-[0.7rem] text-mid/60 mt-0.5">{sig.target_audience}</p>
+                          )}
+                        </div>
+
+                        {/* Meta chips */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {complaints > 0 && (
+                            <div className="text-center">
+                              <p className="text-[0.8rem] tabular-nums font-medium text-charcoal">{complaints}</p>
+                              <p className="text-[0.8rem] text-mid/55">complaints</p>
+                            </div>
+                          )}
+                          <div className="text-center">
+                            <p className="text-[0.75rem] text-mid/60">{sig.source.replace(/_/g, " ")}</p>
+                          </div>
+                        </div>
+
+                        {/* Pull button */}
+                        <button
+                          onClick={() => pullToFactory(sig.slug)}
+                          disabled={pullingSlug === sig.slug}
+                          className="px-3 py-1.5 rounded-lg text-[0.75rem] font-medium transition-all opacity-60 group-hover:opacity-100 shrink-0"
+                          style={{
+                            backgroundColor: pullingSlug === sig.slug ? "var(--warm)" : "var(--charcoal)",
+                            color: pullingSlug === sig.slug ? "var(--mid)" : "var(--paper)",
+                          }}
+                        >
+                          {pullingSlug === sig.slug ? "Pulling..." : "Pull to Factory"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Automation + Sources Footer ─────────────────── */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-4 fade-up" style={{ animationDelay: "0.15s" }}>
           {/* Automation flow */}
           <div className="card">
-            <p className="label-caps text-[0.55rem] text-mid/40 mb-3">Pipeline Automation</p>
+            <p className="label-caps text-[0.75rem] text-mid/60 mb-3">Pipeline Automation</p>
             <div className="space-y-2">
               {[
-                { step: "1. Discovery", desc: "KWE + Reddit pain scan", cron: "Sun 01:45 CET", auto: true },
-                { step: "2. Propose", desc: "Score signals, create ideas", cron: "Sun 02:30 CET", auto: true },
-                { step: "3. Refine", desc: "Reddit deep-dive + variants", cron: "Every 2h (triage)", auto: true },
-                { step: "4. Qualify", desc: "Claude Sonnet agent evaluation", cron: "Every 2h (triage)", auto: true },
-                { step: "5. Promote", desc: "Score 75+ → App Factory", cron: "Every 10min (factory-tick)", auto: true },
+                { step: "1. Discovery", desc: "KWE + Reddit + TikTok + App Store", cron: "Various (see sources)", auto: true },
+                { step: "2. Classify", desc: "Signal Router: segment + quality gate", cron: "At discovery time", auto: true },
+                { step: "3. Synthesize", desc: "Scout nightly research → BUILD verdicts", cron: "Daily 02:00 CET", auto: true },
+                { step: "4. Propose", desc: "Synthesis bridge + signal-to-idea", cron: "Daily 02:15 CET", auto: true },
+                { step: "5. Refine", desc: "Reddit deep-dive + keyword + variants", cron: "Every 30min (triage)", auto: true },
+                { step: "6. Qualify", desc: "Claude Sonnet agent evaluation", cron: "Every 30min (triage)", auto: true },
+                { step: "7. Promote", desc: "Score 75+ → App Factory", cron: "Every 10min (factory-tick)", auto: true },
               ].map((s) => (
                 <div key={s.step} className="flex items-center gap-3">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.auto ? "var(--olive)" : "var(--amber)" }} />
-                  <span className="text-[0.65rem] font-medium text-charcoal w-24">{s.step}</span>
-                  <span className="text-[0.55rem] text-mid/50 flex-1">{s.desc}</span>
-                  <span className="text-[0.5rem] text-mid/30">{s.cron}</span>
+                  <span className="text-[0.8rem] font-medium text-charcoal w-24">{s.step}</span>
+                  <span className="text-[0.75rem] text-mid/70 flex-1">{s.desc}</span>
+                  <span className="text-[0.7rem] text-mid/55">{s.cron}</span>
                 </div>
               ))}
             </div>
@@ -850,22 +1082,29 @@ export default function IdeasPage() {
 
           {/* Discovery sources */}
           <div className="card">
-            <p className="label-caps text-[0.55rem] text-mid/40 mb-3">Discovery Sources</p>
+            <p className="label-caps text-[0.75rem] text-mid/60 mb-3">Discovery Sources</p>
             <div className="space-y-2">
               {[
-                { label: "Keywords Everywhere", active: true, color: "var(--olive)", desc: "Weekly keyword expansion" },
-                { label: "Reddit Pain Scanner", active: true, color: "var(--terracotta)", desc: "Complaint signal mining" },
-                { label: "GrowthOps Radar", active: hotSignals.length > 0, color: "var(--amber)", desc: "Cross-source signal scoring" },
-                { label: "App Store", active: false, color: "var(--mid)", desc: "Category + review mining" },
-                { label: "Indie Hackers", active: false, color: "var(--mid)", desc: "Builder community signals" },
-                { label: "Competitor Scan", active: false, color: "var(--mid)", desc: "Feature gap analysis" },
-                { label: "Sensor Tower", active: false, color: "var(--mid)", desc: "Download + revenue estimates" },
+                { label: "Keywords Everywhere", status: "live", color: "var(--olive)", desc: "Weekly keyword expansion", cron: "Sun 01:45" },
+                { label: "Reddit Pain Scanner", status: "live", color: "var(--terracotta)", desc: "Complaint signal mining", cron: "Daily 02:00" },
+                { label: "Nightly Synthesis", status: "live", color: "var(--olive)", desc: "Scout BUILD verdicts → auto-propose", cron: "Daily 02:15" },
+                { label: "TikTok Trend Scout", status: "live", color: "var(--olive)", desc: "Trending niche scoring + LarryBrain fit", cron: "Tue 03:00" },
+                { label: "App Store Reviews", status: "idle", color: "var(--amber)", desc: "1-3\u2605 review pain mining (6 categories)", cron: "Wed 03:30" },
+                { label: "Reddit App Seeker", status: "idle", color: "var(--amber)", desc: "Explicit app requests", cron: "Mon/Thu 03:00" },
+                { label: "SaaS Review Miner", status: "live", color: "var(--olive)", desc: "G2/Capterra complaint gaps → B2B watchlist", cron: "Tue/Sat 03:00" },
+                { label: "Job Ad JTBD", status: "live", color: "var(--olive)", desc: "Job posting JTBD extraction → B2B watchlist", cron: "Tue/Sat 03:00" },
+                { label: "Google Trends", status: "ready", color: "var(--mid)", desc: "Breakout topic detection (no cron yet)", cron: "" },
+                { label: "Product Hunt", status: "ready", color: "var(--mid)", desc: "Competitor signal scraper (no cron yet)", cron: "" },
               ].map((src) => (
                 <div key={src.label} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: src.active ? src.color : "var(--warm)" }} />
-                  <span className="text-[0.6rem] text-charcoal">{src.label}</span>
-                  {!src.active && <span className="text-[0.45rem] text-mid/25">planned</span>}
-                  <span className="text-[0.5rem] text-mid/35 ml-auto">{src.desc}</span>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{
+                    backgroundColor: src.status === "live" ? src.color : src.status === "idle" ? "var(--amber)" : "var(--warm)",
+                  }} />
+                  <span className="text-[0.8rem] text-charcoal">{src.label}</span>
+                  {src.status === "idle" && <span className="text-[0.8rem] px-1 py-0.5 rounded" style={{ backgroundColor: "var(--amber-soft)", color: "var(--amber)" }}>idle</span>}
+                  {src.status === "ready" && <span className="text-[0.8rem] text-mid/50">code ready</span>}
+                  <span className="text-[0.7rem] text-mid/60 ml-auto">{src.desc}</span>
+                  {src.cron && <span className="text-[0.8rem] text-mid/50 shrink-0">{src.cron}</span>}
                 </div>
               ))}
             </div>
@@ -907,8 +1146,8 @@ function ParkedSection({ ideas, onSelect }: { ideas: ProposedIdea[]; onSelect: (
     <div className="mt-5 fade-up" style={{ animationDelay: "0.1s" }}>
       <button onClick={() => setOpen(!open)} className="flex items-center gap-2 mb-2 group">
         <span className="w-1.5 h-1.5 rounded-full bg-mid/30" />
-        <span className="label-caps text-[0.55rem] text-mid/40">Parked</span>
-        <span className="text-[0.55rem] text-mid/25">({ideas.length})</span>
+        <span className="label-caps text-[0.75rem] text-mid/60">Parked</span>
+        <span className="text-[0.75rem] text-mid/50">({ideas.length})</span>
         <span className="text-mid/20 text-xs transition-transform" style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}>&#x25B6;</span>
       </button>
       {open && (

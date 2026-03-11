@@ -73,8 +73,10 @@ interface IdeaEntry {
   slug: string;
   title: string;
   tagline: string;
+  target_audience?: string;
   score: number;
   painkiller: boolean;
+  segment?: string;
   source: string;
   queued_at: string;
 }
@@ -115,6 +117,7 @@ const STATUS_LABELS: Record<string, string> = {
   marketing: "Marketing",
   promo: "Promo",
   shipped: "Shipped",
+  submitted: "Submitted",
   "awaiting-approval": "Awaiting Approval",
   "needs-review": "Needs Review",
   paused: "Paused",
@@ -144,7 +147,7 @@ export default function FactoryPage() {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="breathe">
-          <p className="label-caps text-mid/50">Loading factory...</p>
+          <p className="label-caps text-mid/70">Loading factory...</p>
         </div>
       </div>
     );
@@ -193,24 +196,24 @@ export default function FactoryPage() {
             {isLive ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ backgroundColor: "#16A34A" }}>
                 <span className="w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: "#4ADE80" }} />
-                <span className="text-[0.6rem] text-white font-semibold tracking-wide uppercase">Live</span>
+                <span className="text-[0.8rem] text-white font-semibold tracking-wide uppercase">Live</span>
               </span>
             ) : hasRecentActivity ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm border border-amber/30">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--amber)" }} />
-                <span className="text-[0.6rem] text-mid/60 tracking-wide uppercase">
+                <span className="text-[0.8rem] text-mid/80 tracking-wide uppercase">
                   Last active {lastPulseAt ? relTime(lastPulseAt) : ""} ago
                 </span>
               </span>
             ) : (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm border border-warm">
                 <span className="w-2 h-2 rounded-full bg-mid/30" />
-                <span className="text-[0.6rem] text-mid/50 tracking-wide uppercase">Idle</span>
+                <span className="text-[0.8rem] text-mid/70 tracking-wide uppercase">Idle</span>
               </span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="label-caps text-mid/40">Capacity</span>
+            <span className="label-caps text-mid/60">Capacity</span>
             <div className="flex gap-0.5">
               {Array.from({ length: config.max_active_projects }).map((_, i) => (
                 <div
@@ -224,7 +227,7 @@ export default function FactoryPage() {
                 />
               ))}
             </div>
-            <span className="text-[0.6rem] text-mid tabular-nums">
+            <span className="text-[0.8rem] text-mid tabular-nums">
               {stats.building}/{config.max_active_projects}
             </span>
           </div>
@@ -248,19 +251,19 @@ export default function FactoryPage() {
         <Card className="p-0 overflow-hidden">
           <div className="px-4 py-2.5 flex items-center justify-between border-b border-warm/50" style={{ backgroundColor: "var(--charcoal)" }}>
             <div className="flex items-center gap-2">
-              <span className="text-[0.6rem] text-white/80 font-medium tracking-wide uppercase font-[family-name:var(--font-dm-mono)]">
+              <span className="text-[0.8rem] text-white/80 font-medium tracking-wide uppercase font-[family-name:var(--font-dm-mono)]">
                 Activity Log
               </span>
               {isLive && (
                 <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ backgroundColor: "#4ADE80" }} />
               )}
             </div>
-            <span className="text-[0.5rem] text-white/30 tabular-nums font-[family-name:var(--font-dm-mono)]">
+            <span className="text-[0.7rem] text-white/50 tabular-nums font-[family-name:var(--font-dm-mono)]">
               {activityFeed.length > 0 ? (
                 <>
                   {activityFeed.length} recent event{activityFeed.length !== 1 ? "s" : ""}
                   {lastPulseAt && !isLive && (
-                    <span className="ml-2 text-white/20">last: {relTime(lastPulseAt)} ago</span>
+                    <span className="ml-2 text-white/40">last: {relTime(lastPulseAt)} ago</span>
                   )}
                 </>
               ) : (
@@ -282,12 +285,12 @@ export default function FactoryPage() {
                     }`}
                   >
                     {/* Timestamp */}
-                    <span className="text-[0.6rem] text-white/25 tabular-nums flex-shrink-0 pt-0.5 font-[family-name:var(--font-dm-mono)]">
+                    <span className="text-[0.8rem] text-white/25 tabular-nums flex-shrink-0 pt-0.5 font-[family-name:var(--font-dm-mono)]">
                       {clockTime(event.timestamp)}
                     </span>
                     {/* Agent pip */}
                     <span
-                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[0.4rem] text-white font-medium flex-shrink-0 mt-0.5 ${
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[0.65rem] text-white font-medium flex-shrink-0 mt-0.5 ${
                         isRecent ? "pulse-dot-subtle" : ""
                       }`}
                       style={{ backgroundColor: token.color }}
@@ -297,20 +300,20 @@ export default function FactoryPage() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[0.65rem] font-medium font-[family-name:var(--font-dm-mono)]" style={{ color: token.color }}>
+                        <span className="text-[0.8rem] font-medium font-[family-name:var(--font-dm-mono)]" style={{ color: token.color }}>
                           {token.name}
                         </span>
-                        <span className="text-[0.55rem] text-white/30 font-[family-name:var(--font-dm-mono)]">
+                        <span className="text-[0.75rem] text-white/50 font-[family-name:var(--font-dm-mono)]">
                           {event.action.replace(/-/g, " ")}
                         </span>
                         {event.model && event.model !== "unknown" && (
                           <ModelBadge model={event.model} />
                         )}
-                        <span className="text-[0.5rem] text-white/15 tabular-nums font-[family-name:var(--font-dm-mono)]">
+                        <span className="text-[0.7rem] text-white/15 tabular-nums font-[family-name:var(--font-dm-mono)]">
                           {relTime(event.timestamp)}
                         </span>
                       </div>
-                      <p className="text-[0.6rem] text-white/50 mt-0.5 leading-relaxed font-[family-name:var(--font-dm-mono)]">
+                      <p className="text-[0.8rem] text-white/50 mt-0.5 leading-relaxed font-[family-name:var(--font-dm-mono)]">
                         {event.outcome}
                       </p>
                     </div>
@@ -319,7 +322,7 @@ export default function FactoryPage() {
               })
             ) : (
               <div className="flex items-center justify-center py-6">
-                <p className="text-[0.6rem] text-white/25 font-[family-name:var(--font-dm-mono)]">
+                <p className="text-[0.8rem] text-white/25 font-[family-name:var(--font-dm-mono)]">
                   No factory activity in the last 3 days
                 </p>
               </div>
@@ -342,9 +345,9 @@ export default function FactoryPage() {
         {/* ═══ ACTIVE PROJECTS ════════════════════════════════════════ */}
         <Card className="p-0 overflow-hidden">
           <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-            <p className="label-caps text-mid/60">Active Projects</p>
+            <p className="label-caps text-mid/80">Active Projects</p>
             {projects.length > 0 && (
-              <span className="text-[0.6rem] text-mid/40 tabular-nums">
+              <span className="text-[0.8rem] text-mid/60 tabular-nums">
                 {projects.length} project{projects.length !== 1 ? "s" : ""}
               </span>
             )}
@@ -357,7 +360,7 @@ export default function FactoryPage() {
               {phaseLabels.map((label) => (
                 <p
                   key={label}
-                  className="text-center text-[0.5rem] text-mid/35 uppercase tracking-[0.15em] truncate"
+                  className="text-center text-[0.7rem] text-mid/60 uppercase tracking-[0.15em] truncate"
                 >
                   {label.replace("quality gate", "QG")}
                 </p>
@@ -383,8 +386,8 @@ export default function FactoryPage() {
             </div>
           ) : (
             <div className="px-5 py-8 text-center">
-              <p className="text-sm text-mid/50">No active projects</p>
-              <p className="text-xs text-mid/30 mt-1">
+              <p className="text-sm text-mid/70">No active projects</p>
+              <p className="text-xs text-mid/55 mt-1">
                 Add ideas to the queue and the factory will start building
               </p>
             </div>
@@ -400,8 +403,8 @@ export default function FactoryPage() {
           return (
             <Card className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="label-caps text-mid/60">Post-Ship Performance</p>
-                <span className="text-[0.6rem] text-mid/40 tabular-nums">
+                <p className="label-caps text-mid/80">Post-Ship Performance</p>
+                <span className="text-[0.8rem] text-mid/60 tabular-nums">
                   {shippedProjects.length} app{shippedProjects.length !== 1 ? "s" : ""} tracking
                 </span>
               </div>
@@ -417,7 +420,7 @@ export default function FactoryPage() {
         {/* ═══ IDEA QUEUE ═════════════════════════════════════════════ */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
-            <p className="label-caps text-mid/60">Idea Queue</p>
+            <p className="label-caps text-mid/80">Idea Queue</p>
             <div className="flex gap-1 bg-warm/50 p-0.5 rounded-md">
               {(["queued", "shipped", "rejected"] as const).map((tab) => {
                 const count =
@@ -430,7 +433,7 @@ export default function FactoryPage() {
                   <button
                     key={tab}
                     onClick={() => setQueueTab(tab)}
-                    className={`px-2.5 py-1 rounded text-[0.6rem] tracking-wide transition-all cursor-pointer capitalize ${
+                    className={`px-2.5 py-1 rounded text-[0.8rem] tracking-wide transition-all cursor-pointer capitalize ${
                       queueTab === tab
                         ? "bg-paper text-charcoal shadow-sm"
                         : "text-mid hover:text-charcoal"
@@ -456,7 +459,7 @@ export default function FactoryPage() {
                   : ideaQueue.rejected;
             if (items.length === 0) {
               return (
-                <p className="text-sm text-mid/40 text-center py-4">
+                <p className="text-sm text-mid/60 text-center py-4">
                   {queueTab === "queued"
                     ? "No ideas in queue. Scout will populate this from nightly research."
                     : `No ${queueTab} ideas yet.`}
@@ -476,7 +479,7 @@ export default function FactoryPage() {
         {/* ═══ TWO-LANE DIAGRAM ═══════════════════════════════════════ */}
         <div className="grid grid-cols-2 gap-3">
           <Card className="p-4">
-            <p className="label-caps text-mid/60 mb-2">Content Engine</p>
+            <p className="label-caps text-mid/80 mb-2">Content Engine</p>
             <div className="space-y-1.5">
               <LaneStep agent="scout" label="Nightly Research" />
               <LaneArrow />
@@ -486,13 +489,13 @@ export default function FactoryPage() {
               <LaneArrow />
               <LaneStep agent="vibe" label="Distribute to Channels" />
             </div>
-            <p className="text-[0.55rem] text-mid/40 mt-3 text-center">
+            <p className="text-[0.75rem] text-mid/60 mt-3 text-center">
               Builds audience + validates ideas
             </p>
           </Card>
 
           <Card className="p-4">
-            <p className="label-caps text-mid/60 mb-2">App Factory</p>
+            <p className="label-caps text-mid/80 mb-2">App Factory</p>
             <div className="space-y-1.5">
               <LaneStep agent="scout" label="Pain Mining + Research" />
               <LaneArrow />
@@ -502,7 +505,7 @@ export default function FactoryPage() {
               <LaneArrow />
               <LaneStep agent="vibe" label="Ship + Market" />
             </div>
-            <p className="text-[0.55rem] text-mid/40 mt-3 text-center">
+            <p className="text-[0.75rem] text-mid/60 mt-3 text-center">
               Turns ideas into shipped apps
             </p>
           </Card>
@@ -533,7 +536,7 @@ function KPIChip({
       >
         {value}
       </p>
-      <p className="label-caps text-[0.5rem] mt-1">{label}</p>
+      <p className="label-caps text-[0.7rem] mt-1">{label}</p>
     </div>
   );
 }
@@ -550,7 +553,7 @@ function FactoryProjectRow({
   onToggle: () => void;
 }) {
   const statusColor =
-    project.status === "shipped"
+    project.status === "shipped" || project.status === "submitted"
       ? "var(--olive)"
       : project.status === "awaiting-approval"
         ? "var(--amber)"
@@ -558,7 +561,9 @@ function FactoryProjectRow({
           ? "var(--terracotta)"
           : "var(--lilac)";
 
-  const currentAgent = PHASE_AGENTS[phaseLabels[project.currentPhaseIdx]] ?? "builder";
+  const currentAgent = project.currentPhaseIdx >= 0
+    ? (PHASE_AGENTS[phaseLabels[project.currentPhaseIdx]] ?? "builder")
+    : "main";
 
   // Determine if this project has recent agent activity
   const activity = project.lastActivity;
@@ -578,7 +583,7 @@ function FactoryProjectRow({
           <div className="flex items-center gap-2">
             <div className="relative">
               <span
-                className="w-6 h-6 rounded-md flex items-center justify-center text-[0.5rem] text-white font-medium"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[0.7rem] text-white font-medium"
                 style={{ backgroundColor: agentToken(currentAgent).color }}
               >
                 {project.slug.slice(0, 2).toUpperCase()}
@@ -601,16 +606,16 @@ function FactoryProjectRow({
                       className="w-1.5 h-1.5 rounded-full pulse-dot flex-shrink-0"
                       style={{ backgroundColor: agentToken(activity.agent).color }}
                     />
-                    <span className="text-[0.6rem] font-semibold" style={{ color: agentToken(activity.agent).color }}>
+                    <span className="text-[0.8rem] font-semibold" style={{ color: agentToken(activity.agent).color }}>
                       {agentToken(activity.agent).name}
                     </span>
-                    <span className="text-[0.55rem] text-mid/60">
+                    <span className="text-[0.75rem] text-mid/80">
                       {activity.action.replace(/-/g, " ")}
                     </span>
                     {activity.model && activity.model !== "unknown" && (
                       <ModelBadge model={activity.model} />
                     )}
-                    <span className="text-[0.5rem] text-mid/35 tabular-nums">{relTime(activity.timestamp)}</span>
+                    <span className="text-[0.7rem] text-mid/60 tabular-nums">{relTime(activity.timestamp)}</span>
                   </span>
                 </div>
               ) : (
@@ -627,8 +632,8 @@ function FactoryProjectRow({
           {phaseLabels.map((label, i) => {
             const phaseKey = label.replace(" ", "_");
             const phaseState = project.phases[phaseKey];
-            const isComplete = phaseState?.status === "complete";
-            const isCurrent = i === project.currentPhaseIdx;
+            const isComplete = phaseState?.status === "complete" || phaseState?.status === "drafted";
+            const isCurrent = project.currentPhaseIdx >= 0 && i === project.currentPhaseIdx;
             const phaseAgent = PHASE_AGENTS[label];
             const agentColor = phaseAgent ? agentToken(phaseAgent).color : "var(--mid)";
 
@@ -640,14 +645,14 @@ function FactoryProjectRow({
                   backgroundColor: isCurrent
                     ? `${agentColor}25`
                     : isComplete
-                      ? "var(--olive-soft, rgba(118, 135, 90, 0.12))"
+                      ? "var(--olive-soft, rgba(118, 135, 90, 0.22))"
                       : "var(--warm)",
                   borderBottom: isCurrent ? `2px solid ${agentColor}` : undefined,
                 }}
                 title={`${label}: ${phaseState?.status ?? "pending"}`}
               >
                 {isComplete && (
-                  <span className="text-[0.5rem] text-olive/60">&#10003;</span>
+                  <span className="text-sm text-olive font-bold">&#10003;</span>
                 )}
                 {isCurrent && (
                   <span
@@ -667,18 +672,18 @@ function FactoryProjectRow({
               className="text-sm font-medium tabular-nums"
               style={{
                 color:
-                  project.qualityScore >= 8
+                  project.qualityScore >= 80
                     ? "var(--olive)"
-                    : project.qualityScore >= 6
+                    : project.qualityScore >= 60
                       ? "var(--amber)"
                       : "var(--terracotta)",
               }}
             >
-              {project.qualityScore}/10
+              {project.qualityScore}/100
             </span>
           )}
           {project.qualityAttempt > 0 && project.qualityScore === null && (
-            <span className="text-[0.6rem] text-terracotta">
+            <span className="text-[0.8rem] text-terracotta">
               attempt {project.qualityAttempt}
             </span>
           )}
@@ -708,28 +713,28 @@ function FactoryProjectRow({
                 </pre>
               </div>
             ) : (
-              <p className="text-sm text-mid/50 text-center py-4">
+              <p className="text-sm text-mid/70 text-center py-4">
                 One-pager not yet generated. Research phase will create it.
               </p>
             )}
             {/* Phase detail strip */}
             <div className="mt-3 pt-3 border-t border-warm/50 grid grid-cols-4 gap-3">
               <div>
-                <p className="label-caps text-[0.5rem] mb-1">Progress</p>
+                <p className="label-caps text-[0.7rem] mb-1">Progress</p>
                 <p className="text-sm text-charcoal tabular-nums">
                   {project.completedPhases}/{project.totalPhases} phases
                 </p>
               </div>
               <div>
-                <p className="label-caps text-[0.5rem] mb-1">Quality</p>
+                <p className="label-caps text-[0.7rem] mb-1">Quality</p>
                 <p className="text-sm text-charcoal tabular-nums">
                   {project.qualityScore !== null
-                    ? `${project.qualityScore}/10 (attempt ${project.qualityAttempt})`
+                    ? `${project.qualityScore}/100 (attempt ${project.qualityAttempt})`
                     : "Not yet tested"}
                 </p>
               </div>
               <div>
-                <p className="label-caps text-[0.5rem] mb-1">Started</p>
+                <p className="label-caps text-[0.7rem] mb-1">Started</p>
                 <p className="text-sm text-charcoal">
                   {new Date(project.created_at).toLocaleDateString("en-GB", {
                     day: "numeric",
@@ -741,7 +746,7 @@ function FactoryProjectRow({
               <div className="flex items-end justify-end">
                 <Link
                   href={`/factory/${project.slug}/analytics`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.65rem] font-medium transition-all hover:bg-warm border border-warm/60"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.8rem] font-medium transition-all hover:bg-warm border border-warm/60"
                   style={{ color: "var(--terracotta)" }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -793,7 +798,7 @@ function IdeaRow({ idea }: { idea: IdeaEntry }) {
           />
         </svg>
         <span
-          className="absolute inset-0 flex items-center justify-center text-[0.55rem] font-medium tabular-nums"
+          className="absolute inset-0 flex items-center justify-center text-[0.75rem] font-medium tabular-nums"
           style={{ color: scoreColor }}
         >
           {idea.score}
@@ -805,15 +810,21 @@ function IdeaRow({ idea }: { idea: IdeaEntry }) {
         <p className="text-sm font-medium text-charcoal truncate capitalize">
           {idea.title || idea.slug.replace(/-/g, " ")}
         </p>
-        <p className="text-xs text-mid/60 truncate">{idea.tagline}</p>
+        <p className="text-xs text-mid/80 truncate">{idea.tagline}</p>
+        {idea.target_audience && (
+          <p className="text-[0.75rem] text-mid/60 truncate mt-0.5">{idea.target_audience}</p>
+        )}
       </div>
 
       {/* Meta */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {idea.segment && (
+          <Badge color={idea.segment === "b2b" ? "#6B8F71" : "var(--olive)"}>{idea.segment}</Badge>
+        )}
         {idea.painkiller && (
           <Badge color="var(--terracotta)">painkiller</Badge>
         )}
-        <span className="text-[0.55rem] text-mid/40">{idea.source}</span>
+        <span className="text-[0.75rem] text-mid/60">{idea.source}</span>
       </div>
     </div>
   );
@@ -836,7 +847,7 @@ function KPICard({ project }: { project: FactoryProject }) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span
-            className="w-6 h-6 rounded-md flex items-center justify-center text-[0.5rem] text-white font-medium"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[0.7rem] text-white font-medium"
             style={{ backgroundColor: "var(--olive)" }}
           >
             {project.slug.slice(0, 2).toUpperCase()}
@@ -845,7 +856,7 @@ function KPICard({ project }: { project: FactoryProject }) {
             <p className="text-sm font-medium text-charcoal capitalize">
               {project.slug.replace(/-/g, " ")}
             </p>
-            <p className="text-[0.55rem] text-mid/50">
+            <p className="text-[0.75rem] text-mid/70">
               {kpi.week} &middot; {project.shipDate ? `Shipped ${new Date(project.shipDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
             </p>
           </div>
@@ -860,7 +871,7 @@ function KPICard({ project }: { project: FactoryProject }) {
       <div className="grid grid-cols-4 gap-3">
         {/* Traffic */}
         <div>
-          <p className="label-caps text-[0.45rem] text-mid/50 mb-1">Traffic</p>
+          <p className="label-caps text-[0.65rem] text-mid/70 mb-1">Traffic</p>
           <div className="space-y-0.5">
             <KPIMetric
               label="Downloads"
@@ -881,7 +892,7 @@ function KPICard({ project }: { project: FactoryProject }) {
 
         {/* Users */}
         <div>
-          <p className="label-caps text-[0.45rem] text-mid/50 mb-1">Users</p>
+          <p className="label-caps text-[0.65rem] text-mid/70 mb-1">Users</p>
           <div className="space-y-0.5">
             <KPIMetric label="DAU" value={kpi.users.dau} trend={trend(kpi.users.dau, prev?.users.dau)} />
             <KPIMetric label="D1 Ret" value={kpi.users.d1_retention != null ? `${kpi.users.d1_retention}%` : "-"} />
@@ -891,7 +902,7 @@ function KPICard({ project }: { project: FactoryProject }) {
 
         {/* Revenue */}
         <div>
-          <p className="label-caps text-[0.45rem] text-mid/50 mb-1">Revenue</p>
+          <p className="label-caps text-[0.65rem] text-mid/70 mb-1">Revenue</p>
           <div className="space-y-0.5">
             <KPIMetric
               label="MRR"
@@ -905,7 +916,7 @@ function KPICard({ project }: { project: FactoryProject }) {
 
         {/* Churn */}
         <div>
-          <p className="label-caps text-[0.45rem] text-mid/50 mb-1">Churn</p>
+          <p className="label-caps text-[0.65rem] text-mid/70 mb-1">Churn</p>
           <div className="space-y-0.5">
             <KPIMetric
               label="Rate"
@@ -938,8 +949,8 @@ function KPIMetric({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[0.55rem] text-mid/50">{label}</span>
-      <span className={`text-[0.6rem] tabular-nums font-medium ${alert ? "text-terracotta" : "text-charcoal"}`}>
+      <span className="text-[0.75rem] text-mid/70">{label}</span>
+      <span className={`text-[0.8rem] tabular-nums font-medium ${alert ? "text-terracotta" : "text-charcoal"}`}>
         {value}
         {trend !== undefined && <TrendArrow value={trend ?? null} />}
       </span>
@@ -952,7 +963,7 @@ function TrendArrow({ value }: { value: number | null }) {
   const up = value > 0;
   return (
     <span
-      className="text-[0.5rem] ml-0.5"
+      className="text-[0.7rem] ml-0.5"
       style={{ color: up ? "var(--olive)" : "var(--terracotta)" }}
     >
       {up ? "\u2191" : "\u2193"}{Math.abs(value).toFixed(0)}%
@@ -976,7 +987,7 @@ function ModelBadge({ model }: { model: string }) {
   const style = MODEL_STYLES[model] ?? { bg: "#374151", fg: "#9CA3AF", label: model.toUpperCase() };
   return (
     <span
-      className="px-1.5 py-0.5 rounded text-[0.4rem] font-bold tracking-widest font-[family-name:var(--font-dm-mono)] flex-shrink-0"
+      className="px-1.5 py-0.5 rounded text-[0.65rem] font-bold tracking-widest font-[family-name:var(--font-dm-mono)] flex-shrink-0"
       style={{ backgroundColor: style.bg, color: style.fg }}
     >
       {style.label}
@@ -989,7 +1000,7 @@ function LaneStep({ agent, label }: { agent: string; label: string }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md" style={{ backgroundColor: `${token.color}10` }}>
       <span
-        className="w-4 h-4 rounded-full flex items-center justify-center text-[0.4rem] text-white font-medium flex-shrink-0"
+        className="w-4 h-4 rounded-full flex items-center justify-center text-[0.65rem] text-white font-medium flex-shrink-0"
         style={{ backgroundColor: token.color }}
       >
         {token.label}
@@ -1052,7 +1063,7 @@ function ApprovalPanel({
         <p className="text-lg" style={{ fontFamily: "var(--font-cormorant)", color: result.status === "approved" ? "var(--olive)" : "var(--terracotta)" }}>
           {result.status === "approved" ? "Approved — shipping started" : result.status === "rejected" ? "Rejected" : "Error"}
         </p>
-        <p className="text-xs text-mid/60 mt-1 font-[family-name:var(--font-dm-mono)]">{result.message}</p>
+        <p className="text-xs text-mid/80 mt-1 font-[family-name:var(--font-dm-mono)]">{result.message}</p>
       </div>
     );
   }
@@ -1072,7 +1083,7 @@ function ApprovalPanel({
             <p className="text-xl text-charcoal tracking-tight" style={{ fontFamily: "var(--font-cormorant)" }}>
               Ship {project.slug.replace(/-/g, " ")}?
             </p>
-            <p className="text-[0.6rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+            <p className="text-[0.8rem] text-mid/80 font-[family-name:var(--font-dm-mono)]">
               Approval required before shipping to App Store
             </p>
           </div>
@@ -1084,14 +1095,14 @@ function ApprovalPanel({
         {/* Quality Journey */}
         <div className="flex gap-4">
           <div className="flex-1 rounded-lg p-3 border border-warm/50">
-            <p className="label-caps text-[0.45rem] text-mid/50 mb-2">Quality Gate</p>
+            <p className="label-caps text-[0.65rem] text-mid/70 mb-2">Quality Gate</p>
             <div className="flex items-end gap-3">
               {qg?.prior_score != null && (
                 <div className="text-center">
                   <p className="text-2xl font-light tabular-nums text-terracotta/60" style={{ fontFamily: "var(--font-cormorant)" }}>
                     {qg.prior_score}
                   </p>
-                  <p className="text-[0.5rem] text-mid/40">before</p>
+                  <p className="text-[0.7rem] text-mid/60">before</p>
                 </div>
               )}
               {qg?.prior_score != null && (
@@ -1107,15 +1118,15 @@ function ApprovalPanel({
                     color: (qg?.score ?? 0) >= 80 ? "var(--olive)" : (qg?.score ?? 0) >= 60 ? "var(--amber)" : "var(--terracotta)",
                   }}
                 >
-                  {qg?.score ?? "—"}<span className="text-lg text-mid/40">/100</span>
+                  {qg?.score ?? "—"}<span className="text-lg text-mid/60">/100</span>
                 </p>
-                <p className="text-[0.5rem] text-mid/40">
+                <p className="text-[0.7rem] text-mid/60">
                   after &middot; attempt {qg?.attempt ?? "?"}
                 </p>
               </div>
             </div>
             {qg?.summary && (
-              <p className="text-[0.55rem] text-mid/60 mt-2 leading-relaxed font-[family-name:var(--font-dm-mono)]">
+              <p className="text-[0.75rem] text-mid/80 mt-2 leading-relaxed font-[family-name:var(--font-dm-mono)]">
                 {qg.summary}
               </p>
             )}
@@ -1123,29 +1134,29 @@ function ApprovalPanel({
 
           {/* Monetization */}
           <div className="flex-1 rounded-lg p-3 border border-warm/50">
-            <p className="label-caps text-[0.45rem] text-mid/50 mb-2">Monetization</p>
+            <p className="label-caps text-[0.65rem] text-mid/70 mb-2">Monetization</p>
             {monetization?.pricing ? (
               <div>
                 <div className="flex items-baseline gap-1.5">
                   <p className="text-2xl font-light tabular-nums text-charcoal" style={{ fontFamily: "var(--font-cormorant)" }}>
                     ${monetization.pricing.monthly}
                   </p>
-                  <span className="text-xs text-mid/40">/mo</span>
+                  <span className="text-xs text-mid/60">/mo</span>
                 </div>
-                <p className="text-[0.55rem] text-mid/50 mt-0.5">
+                <p className="text-[0.75rem] text-mid/70 mt-0.5">
                   ${monetization.pricing.annual}/yr &middot; {monetization.trial_days ?? 7}-day free trial
                   {monetization.free_trial_scans != null && ` &middot; ${monetization.free_trial_scans} free scans`}
                 </p>
                 {monetization.changes && monetization.changes.length > 0 && (
                   <div className="mt-2 space-y-0.5">
                     {monetization.changes.map((c, i) => (
-                      <p key={i} className="text-[0.5rem] text-mid/40 font-[family-name:var(--font-dm-mono)]">• {c}</p>
+                      <p key={i} className="text-[0.7rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">• {c}</p>
                     ))}
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-mid/40">Not configured</p>
+              <p className="text-sm text-mid/60">Not configured</p>
             )}
           </div>
         </div>
@@ -1158,8 +1169,8 @@ function ApprovalPanel({
               className="w-full flex items-center justify-between px-3 py-2 hover:bg-warm/10 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded flex items-center justify-center text-[0.5rem] text-white font-medium" style={{ backgroundColor: "var(--lilac)" }}>B</span>
-                <span className="text-[0.6rem] text-charcoal font-medium">
+                <span className="w-5 h-5 rounded flex items-center justify-center text-[0.7rem] text-white font-medium" style={{ backgroundColor: "var(--lilac)" }}>B</span>
+                <span className="text-[0.8rem] text-charcoal font-medium">
                   {build.fixes_applied.length} security fixes applied by Builder
                 </span>
               </div>
@@ -1174,8 +1185,8 @@ function ApprovalPanel({
               <div className="px-3 pb-3 space-y-1 fade-up">
                 {build.fixes_applied.map((fix, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <span className="text-olive text-[0.55rem] mt-0.5">&#10003;</span>
-                    <p className="text-[0.55rem] text-mid/70 leading-relaxed font-[family-name:var(--font-dm-mono)]">{fix}</p>
+                    <span className="text-olive text-[0.75rem] mt-0.5">&#10003;</span>
+                    <p className="text-[0.75rem] text-mid/70 leading-relaxed font-[family-name:var(--font-dm-mono)]">{fix}</p>
                   </div>
                 ))}
               </div>
@@ -1186,14 +1197,14 @@ function ApprovalPanel({
         {/* Operator Tasks */}
         {operatorTasks.length > 0 && (
           <div className="rounded-lg p-3 border border-terracotta/20" style={{ backgroundColor: "rgba(196, 107, 72, 0.03)" }}>
-            <p className="label-caps text-[0.45rem] text-terracotta/60 mb-2">
+            <p className="label-caps text-[0.65rem] text-terracotta/60 mb-2">
               Operator Tasks — complete before shipping
             </p>
             <div className="space-y-1.5">
               {operatorTasks.map((task, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="w-3.5 h-3.5 rounded border border-mid/20 flex-shrink-0 mt-0.5" />
-                  <p className="text-[0.55rem] text-mid/70 leading-relaxed font-[family-name:var(--font-dm-mono)]">{task}</p>
+                  <p className="text-[0.75rem] text-mid/70 leading-relaxed font-[family-name:var(--font-dm-mono)]">{task}</p>
                 </div>
               ))}
             </div>
@@ -1206,7 +1217,7 @@ function ApprovalPanel({
             {Object.entries(packaging.metadata_verified).map(([key, ok]) => (
               <span
                 key={key}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[0.5rem] font-[family-name:var(--font-dm-mono)]"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[0.7rem] font-[family-name:var(--font-dm-mono)]"
                 style={{
                   backgroundColor: ok ? "rgba(118, 135, 90, 0.08)" : "rgba(196, 107, 72, 0.08)",
                   color: ok ? "var(--olive)" : "var(--terracotta)",
@@ -1231,19 +1242,19 @@ function ApprovalPanel({
               <span className="text-sm">
                 {project.e2eResults.status === "pass" ? "✓" : project.e2eResults.status === "fail" ? "✗" : "⊘"}
               </span>
-              <span className="text-[0.6rem] font-medium text-charcoal">E2E Tests</span>
+              <span className="text-[0.8rem] font-medium text-charcoal">E2E Tests</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[0.55rem] text-mid/60 font-[family-name:var(--font-dm-mono)] tabular-nums">
+              <span className="text-[0.75rem] text-mid/80 font-[family-name:var(--font-dm-mono)] tabular-nums">
                 {project.e2eResults.passed}/{project.e2eResults.tests} passed
               </span>
               {project.e2eResults.failed > 0 && (
-                <span className="text-[0.55rem] text-terracotta font-[family-name:var(--font-dm-mono)] tabular-nums">
+                <span className="text-[0.75rem] text-terracotta font-[family-name:var(--font-dm-mono)] tabular-nums">
                   {project.e2eResults.failed} failed
                 </span>
               )}
               {project.e2eResults.status === "skip" && (
-                <span className="text-[0.5rem] text-mid/40 font-[family-name:var(--font-dm-mono)]">
+                <span className="text-[0.7rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
                   skipped — no simulator
                 </span>
               )}
@@ -1279,7 +1290,7 @@ function ApprovalPanel({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Reason for rejection..."
-                className="w-full px-3 py-2 rounded-lg border border-warm text-sm font-[family-name:var(--font-dm-mono)] placeholder:text-mid/30 focus:outline-none focus:border-terracotta/40"
+                className="w-full px-3 py-2 rounded-lg border border-warm text-sm font-[family-name:var(--font-dm-mono)] placeholder:text-mid/55 focus:outline-none focus:border-terracotta/40"
                 autoFocus
               />
               <div className="flex gap-2">

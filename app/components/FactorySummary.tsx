@@ -58,22 +58,22 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <p className="label-caps text-mid/60">App Factory</p>
+          <p className="label-caps text-mid/80">App Factory</p>
           {isLive ? (
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#16A34A" }}>
               <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ backgroundColor: "#4ADE80" }} />
-              <span className="text-[0.45rem] text-white font-semibold tracking-wide uppercase">Live</span>
+              <span className="text-[0.65rem] text-white font-semibold tracking-wide uppercase">Live</span>
             </span>
           ) : (
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-warm">
               <span className="w-1.5 h-1.5 rounded-full bg-mid/30" />
-              <span className="text-[0.45rem] text-mid/50 tracking-wide uppercase">Idle</span>
+              <span className="text-[0.65rem] text-mid/70 tracking-wide uppercase">Idle</span>
             </span>
           )}
         </div>
         <a
           href="/factory"
-          className="text-[0.55rem] text-mid/40 hover:text-charcoal transition-colors"
+          className="text-[0.75rem] text-mid/80 hover:text-charcoal transition-colors"
         >
           View all &rarr;
         </a>
@@ -90,10 +90,10 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
       </div>
 
       {/* Active project progress bars */}
-      {projects.filter((p) => !["shipped", "paused", "rejected"].includes(p.status)).length > 0 && (
+      {projects.filter((p) => !["shipped", "submitted", "paused", "rejected"].includes(p.status)).length > 0 && (
         <div className="space-y-2 mb-3">
           {projects
-            .filter((p) => !["shipped", "paused", "rejected"].includes(p.status))
+            .filter((p) => !["shipped", "submitted", "paused", "rejected"].includes(p.status))
             .slice(0, 3)
             .map((p) => {
               const pct = Math.round((p.completedPhases / Math.max(p.totalPhases, 1)) * 100);
@@ -105,7 +105,7 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
 
               return (
                 <div key={p.slug} className="flex items-center gap-2">
-                  <span className="text-[0.6rem] text-charcoal capitalize w-16 truncate">{p.slug}</span>
+                  <span className="text-[0.8rem] text-charcoal capitalize w-16 truncate">{p.slug}</span>
                   <div className="flex-1 h-1.5 rounded-full bg-warm overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
@@ -115,18 +115,18 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
                       }}
                     />
                   </div>
-                  <span className="text-[0.5rem] text-mid/40 tabular-nums w-6 text-right">{pct}%</span>
+                  <span className="text-[0.7rem] text-mid/80 tabular-nums w-6 text-right">{pct}%</span>
                   {isAwaitingApproval ? (
                     <a
                       href="/factory"
-                      className="px-1.5 py-0.5 rounded text-[0.35rem] font-bold tracking-wider text-white flex-shrink-0 attention-pulse"
+                      className="px-1.5 py-0.5 rounded text-[0.8rem] font-bold tracking-wider text-white flex-shrink-0 attention-pulse"
                       style={{ backgroundColor: "var(--amber)" }}
                     >
                       APPROVE
                     </a>
                   ) : hasActivity && activityAgent ? (
                     <span
-                      className="w-3 h-3 rounded-full flex items-center justify-center text-[0.3rem] text-white font-bold flex-shrink-0 pulse-dot-subtle"
+                      className="w-3 h-3 rounded-full flex items-center justify-center text-[0.75rem] text-white font-bold flex-shrink-0 pulse-dot-subtle"
                       style={{ backgroundColor: activityAgent.color }}
                     >
                       {activityAgent.label}
@@ -152,29 +152,29 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
                 className={`flex items-start gap-2 px-2.5 py-1.5 border-b border-white/5 transition-opacity ${isRecent ? "opacity-100" : "opacity-60"}`}
               >
                 <span
-                  className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[0.35rem] text-white font-medium flex-shrink-0 mt-0.5 ${isRecent ? "pulse-dot-subtle" : ""}`}
+                  className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[0.8rem] text-white font-medium flex-shrink-0 mt-0.5 ${isRecent ? "pulse-dot-subtle" : ""}`}
                   style={{ backgroundColor: token.color }}
                 >
                   {token.label}
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[0.55rem] font-medium font-[family-name:var(--font-dm-mono)]" style={{ color: token.color }}>
+                    <span className="text-[0.75rem] font-medium font-[family-name:var(--font-dm-mono)]" style={{ color: token.color }}>
                       {token.name}
                     </span>
                     {modelLabel && (
                       <span
-                        className="px-1 py-0 rounded text-[0.35rem] font-bold tracking-wider font-[family-name:var(--font-dm-mono)]"
+                        className="px-1 py-0 rounded text-[0.8rem] font-bold tracking-wider font-[family-name:var(--font-dm-mono)]"
                         style={{ backgroundColor: modelColor, color: "#fff" }}
                       >
                         {modelLabel}
                       </span>
                     )}
-                    <span className="text-[0.45rem] text-white/20 tabular-nums font-[family-name:var(--font-dm-mono)]">
+                    <span className="text-[0.65rem] text-white/60 tabular-nums font-[family-name:var(--font-dm-mono)]">
                       {relTime(event.timestamp)}
                     </span>
                   </div>
-                  <p className="text-[0.5rem] text-white/40 truncate font-[family-name:var(--font-dm-mono)]">
+                  <p className="text-[0.7rem] text-white/60 truncate font-[family-name:var(--font-dm-mono)]">
                     {event.outcome}
                   </p>
                 </div>
@@ -184,7 +184,7 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[0.55rem] text-mid/30">No factory activity yet</p>
+          <p className="text-[0.75rem] text-mid/55">No factory activity yet</p>
         </div>
       )}
     </div>
@@ -197,7 +197,7 @@ function Stat({ label, value, color, pulse = false }: { label: string; value: nu
       <p className="text-lg font-light tabular-nums" style={{ fontFamily: "var(--font-cormorant)", color }}>
         {value}
       </p>
-      <p className="label-caps text-[0.4rem]">{label}</p>
+      <p className="label-caps text-[0.65rem]">{label}</p>
     </div>
   );
 }

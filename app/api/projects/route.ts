@@ -301,6 +301,8 @@ export async function GET() {
             const existing = projects.find((p) => p.slug === entry);
             if (existing) {
               existing.factoryStatus = factoryStatus;
+              // Update lifecycle phase from factory state (overrides PRD frontmatter default)
+              existing.lifecyclePhase = factoryStatusToLifecycle(factoryStatus);
             }
           } else {
             let name = entry.charAt(0).toUpperCase() + entry.slice(1);

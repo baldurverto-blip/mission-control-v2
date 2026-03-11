@@ -100,13 +100,13 @@ export default function HistoryPage() {
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Badge color={item.status === "posted" ? "var(--olive)" : item.status === "rejected" ? "var(--terracotta)" : "var(--mid)"}>{item.status}</Badge>
                       <Badge color="var(--lilac)">{item.project}</Badge>
-                      <span className="text-[0.6rem] text-mid/60 capitalize">{item.platform}</span>
-                      {item.subreddit && <span className="text-[0.6rem] text-mid/50">{item.subreddit}</span>}
+                      <span className="text-[0.8rem] text-mid/80 capitalize">{item.platform}</span>
+                      {item.subreddit && <span className="text-[0.8rem] text-mid/70">{item.subreddit}</span>}
                     </div>
                     <p className="text-sm truncate">{item.title}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[0.55rem] text-mid/50">{new Date(item.created_at).toLocaleDateString("en-GB")}</span>
-                      {item.humanizer_score > 0 && <span className="text-[0.55rem] text-mid/50">voice: {item.humanizer_score}</span>}
+                      <span className="text-[0.75rem] text-mid/70">{new Date(item.created_at).toLocaleDateString("en-GB")}</span>
+                      {item.humanizer_score > 0 && <span className="text-[0.75rem] text-mid/70">voice: {item.humanizer_score}</span>}
                     </div>
                   </div>
                   {item.engagement && (
@@ -114,13 +114,13 @@ export default function HistoryPage() {
                       {item.engagement.upvotes !== undefined && (
                         <div>
                           <p className="text-sm tabular-nums font-medium" style={{ color: "var(--terracotta)" }}>{item.engagement.upvotes}</p>
-                          <p className="text-[0.5rem] text-mid/40">upvotes</p>
+                          <p className="text-[0.7rem] text-mid/60">upvotes</p>
                         </div>
                       )}
                       {item.engagement.comments !== undefined && (
                         <div>
                           <p className="text-sm tabular-nums font-medium" style={{ color: "var(--lilac)" }}>{item.engagement.comments}</p>
-                          <p className="text-[0.5rem] text-mid/40">comments</p>
+                          <p className="text-[0.7rem] text-mid/60">comments</p>
                         </div>
                       )}
                     </div>

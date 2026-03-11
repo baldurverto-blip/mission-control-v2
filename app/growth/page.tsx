@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { EmptyState } from "../components/EmptyState";
 import { AGENTS, relTime, agent as agentToken } from "../lib/agents";
+import { B2BLane } from "../components/B2BLane";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -236,9 +237,9 @@ function PipelineNode({
           >
             {metric}
           </p>
-          <p className="label-caps text-[0.45rem] mt-0.5 text-mid/60">{metricLabel}</p>
+          <p className="label-caps text-[0.8rem] mt-0.5 text-mid/80">{metricLabel}</p>
           {/* Stage label */}
-          <p className="text-[0.55rem] mt-1.5 pt-1.5 border-t border-warm/60 capitalize transition-colors group-hover:opacity-80" style={{ color }}>
+          <p className="text-[0.75rem] mt-1.5 pt-1.5 border-t border-warm/60 capitalize transition-colors group-hover:opacity-80" style={{ color }}>
             {name} →
           </p>
         </div>
@@ -276,8 +277,8 @@ function ModuleCard({
       style={{ animationDelay: `${delay}s`, borderLeft: `3px solid ${color}` }}
     >
       <div className="flex items-center justify-between mb-2">
-        <p className="label-caps text-[0.55rem]" style={{ color }}>{title}</p>
-        <span className="text-[0.5rem] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color }}>
+        <p className="label-caps text-[0.75rem]" style={{ color }}>{title}</p>
+        <span className="text-[0.7rem] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color }}>
           Open →
         </span>
       </div>
@@ -308,8 +309,8 @@ function MiniBar({ segments }: { segments: { value: number; color: string; label
 function MetricRow({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
     <div className="flex items-center justify-between py-0.5">
-      <span className="text-[0.65rem] text-mid/70">{label}</span>
-      <span className="text-[0.65rem] tabular-nums font-medium" style={{ color: color ?? "var(--charcoal)" }}>{value}</span>
+      <span className="text-[0.8rem] text-mid/70">{label}</span>
+      <span className="text-[0.8rem] tabular-nums font-medium" style={{ color: color ?? "var(--charcoal)" }}>{value}</span>
     </div>
   );
 }
@@ -320,7 +321,7 @@ function LayerDots({ layers }: { layers: { name: string; status: string }[] }) {
       {layers.map((l) => (
         <div key={l.name} className="flex items-center gap-0.5" title={`${l.name}: ${l.status}`}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusDotColor(l.status) }} />
-          <span className="text-[0.5rem] text-mid/50 uppercase">{l.name.slice(0, 3)}</span>
+          <span className="text-[0.7rem] text-mid/70 uppercase">{l.name.slice(0, 3)}</span>
         </div>
       ))}
     </div>
@@ -336,7 +337,8 @@ function PhaseBar({ completedPhases, totalPhases, status }: { completedPhases: n
     <div className="flex gap-0.5">
       {PHASE_LABELS.map((label, i) => {
         const done = i < completedPhases;
-        const current = i === completedPhases && status !== "shipped";
+        const isTerminal = ["shipped", "submitted", "rejected", "paused"].includes(status);
+        const current = i === completedPhases && !isTerminal;
         return (
           <div
             key={label}
@@ -405,19 +407,19 @@ export default function GrowthOverview() {
         <div className="flex-1 min-w-[200px]">
           <p className="text-sm text-mid mb-1">
             <span className="font-medium" style={{ color: tempColor(temperature) }}>{tempLabel(temperature)}</span>
-            <span className="text-mid/40 mx-2">·</span>
-            <span className="text-mid/60">{factory.building + factory.shipping} building · {factory.shipped} shipped</span>
+            <span className="text-mid/60 mx-2">·</span>
+            <span className="text-mid/80">{factory.building + factory.shipping} building · {factory.shipped} shipped</span>
           </p>
           {/* Flow summary */}
           <div className="flex items-center gap-2 text-sm text-mid/80">
             <span className="tabular-nums" style={{ color: "var(--olive)" }}>{discovery.totalSignals}</span>
-            <span className="text-mid/30">signals →</span>
+            <span className="text-mid/55">signals →</span>
             <span className="tabular-nums" style={{ color: "var(--amber)" }}>{ideation.total}</span>
-            <span className="text-mid/30">ideas →</span>
+            <span className="text-mid/55">ideas →</span>
             <span className="tabular-nums" style={{ color: "var(--lilac)" }}>{content.posted}</span>
-            <span className="text-mid/30">posted →</span>
+            <span className="text-mid/55">posted →</span>
             <span className="tabular-nums" style={{ color: "var(--terracotta)" }}>{distribution.apps.length}</span>
-            <span className="text-mid/30">distributing</span>
+            <span className="text-mid/55">distributing</span>
           </div>
         </div>
         {/* Attention count */}
@@ -475,7 +477,7 @@ export default function GrowthOverview() {
               { n: discovery.warm ?? 0, c: "var(--amber)", l: "warm" },
               { n: discovery.emerging ?? 0, c: "var(--olive)", l: "emerging" },
             ].map((tier) => (
-              <span key={tier.l} className="flex items-center gap-0.5 text-[0.55rem]" style={{ color: tier.c }}>
+              <span key={tier.l} className="flex items-center gap-0.5 text-[0.75rem]" style={{ color: tier.c }}>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tier.c }} />
                 {tier.n}
               </span>
@@ -524,13 +526,13 @@ export default function GrowthOverview() {
         {/* Distribution Module */}
         <ModuleCard title="Distribution" color={STAGE_COLORS.distribution} href="/growth/distribution" delay={0.45}>
           {distribution.apps.length === 0 ? (
-            <p className="text-[0.65rem] text-mid/40 italic py-2">No apps in distribution yet</p>
+            <p className="text-[0.8rem] text-mid/60 italic py-2">No apps in distribution yet</p>
           ) : (
             distribution.apps.map((app) => (
               <div key={app.slug} className="mb-2 last:mb-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.65rem] font-medium text-charcoal capitalize">{app.slug}</span>
-                  <span className="text-[0.5rem] px-1.5 py-0.5 rounded-full" style={{
+                  <span className="text-[0.8rem] font-medium text-charcoal capitalize">{app.slug}</span>
+                  <span className="text-[0.7rem] px-1.5 py-0.5 rounded-full" style={{
                     backgroundColor: app.engineStatus === "active" ? "var(--olive-soft)" : "var(--warm)",
                     color: app.engineStatus === "active" ? "var(--olive)" : "var(--mid)",
                   }}>
@@ -556,8 +558,8 @@ export default function GrowthOverview() {
           {feedback.activeSignals.length > 0 && (
             <div className="mt-1 pt-1 border-t border-warm/60">
               {feedback.activeSignals.map((s) => (
-                <div key={s.slug} className="text-[0.55rem]">
-                  <span className="text-mid/60">{s.slug}:</span>{" "}
+                <div key={s.slug} className="text-[0.75rem]">
+                  <span className="text-mid/80">{s.slug}:</span>{" "}
                   <span style={{ color: "var(--amber)" }}>{s.signals.join(", ")}</span>
                 </div>
               ))}
@@ -568,26 +570,26 @@ export default function GrowthOverview() {
         {/* Engagement Module */}
         <ModuleCard title="Engagement" color="var(--amber)" href="/growth/engagement" delay={0.55}>
           {distribution.apps.length === 0 ? (
-            <p className="text-[0.65rem] text-mid/40 italic py-2">No engagement data yet</p>
+            <p className="text-[0.8rem] text-mid/60 italic py-2">No engagement data yet</p>
           ) : (
             distribution.apps.map((app) => (
               <div key={app.slug} className="mb-2 last:mb-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.65rem] font-medium text-charcoal capitalize">{app.slug}</span>
+                  <span className="text-[0.8rem] font-medium text-charcoal capitalize">{app.slug}</span>
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[0.55rem] text-mid/60">
+                  <span className="text-[0.75rem] text-mid/80">
                     <span className="tabular-nums font-medium" style={{ color: "var(--amber)" }}>{app.reddit.karma}</span> karma
                   </span>
-                  <span className="text-[0.55rem] text-mid/60">
+                  <span className="text-[0.75rem] text-mid/80">
                     <span className="tabular-nums font-medium">{app.reddit.comments}</span> comments
                   </span>
-                  <span className="text-[0.55rem] text-mid/60">
+                  <span className="text-[0.75rem] text-mid/80">
                     <span className="tabular-nums font-medium">{app.reddit.subreddits.length}</span> subs
                   </span>
                 </div>
                 {app.waitlist.signups > 0 && (
-                  <span className="text-[0.55rem] text-mid/60 block mt-0.5">
+                  <span className="text-[0.75rem] text-mid/80 block mt-0.5">
                     <span className="tabular-nums font-medium" style={{ color: "var(--olive)" }}>{app.waitlist.signups}</span> waitlist signups
                   </span>
                 )}
@@ -597,15 +599,18 @@ export default function GrowthOverview() {
         </ModuleCard>
       </div>
 
+      {/* ── B2B Discovery Lane ─────────────────────────────── */}
+      <B2BLane />
+
       {/* ── Attention Items ──────────────────────────────────── */}
       {attention.length > 0 && (
         <div className="card fade-up" style={{ animationDelay: "0.6s" }}>
-          <p className="label-caps text-[0.55rem] mb-2">Needs Attention</p>
+          <p className="label-caps text-[0.75rem] mb-2">Needs Attention</p>
           <div className="space-y-1">
             {attention.slice(0, 8).map((item, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[0.65rem]"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[0.8rem]"
                 style={{ backgroundColor: severitySoft(item.severity) }}
               >
                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: severityColor(item.severity) }} />
@@ -613,7 +618,7 @@ export default function GrowthOverview() {
               </div>
             ))}
             {attention.length > 8 && (
-              <p className="text-[0.55rem] text-mid/40 pl-3">+{attention.length - 8} more</p>
+              <p className="text-[0.75rem] text-mid/60 pl-3">+{attention.length - 8} more</p>
             )}
           </div>
         </div>
@@ -623,8 +628,8 @@ export default function GrowthOverview() {
       {factory.projects.length > 0 && (
         <div className="card fade-up" style={{ animationDelay: "0.65s" }}>
           <div className="flex items-center justify-between mb-3">
-            <p className="label-caps text-[0.55rem]">Factory Alignment</p>
-            <Link href="/factory" className="text-[0.55rem] text-mid/50 hover:text-charcoal transition-colors">
+            <p className="label-caps text-[0.75rem]">Factory Alignment</p>
+            <Link href="/factory" className="text-[0.75rem] text-mid/70 hover:text-charcoal transition-colors">
               Open Factory →
             </Link>
           </div>
@@ -635,7 +640,7 @@ export default function GrowthOverview() {
                   <div className="flex items-center gap-2">
                     <span className="text-[0.7rem] font-medium text-charcoal capitalize">{p.slug}</span>
                     <span
-                      className="text-[0.5rem] px-1.5 py-0.5 rounded-full"
+                      className="text-[0.7rem] px-1.5 py-0.5 rounded-full"
                       style={{
                         backgroundColor:
                           p.status === "shipped" ? "var(--olive-soft)"
@@ -652,7 +657,7 @@ export default function GrowthOverview() {
                       {p.status.replace("-", " ")}
                     </span>
                   </div>
-                  <span className="text-[0.55rem] text-mid/50 tabular-nums">{p.completedPhases}/{p.totalPhases}</span>
+                  <span className="text-[0.75rem] text-mid/70 tabular-nums">{p.completedPhases}/{p.totalPhases}</span>
                 </div>
                 <PhaseBar completedPhases={p.completedPhases} totalPhases={p.totalPhases} status={p.status} />
               </div>
@@ -664,7 +669,7 @@ export default function GrowthOverview() {
       {/* ── Recent Activity ──────────────────────────────────── */}
       {activity.length > 0 && (
         <div className="card fade-up" style={{ animationDelay: "0.7s" }}>
-          <p className="label-caps text-[0.55rem] mb-2">Recent Activity</p>
+          <p className="label-caps text-[0.75rem] mb-2">Recent Activity</p>
           <div className="space-y-0.5 max-h-[240px] overflow-y-auto custom-scroll">
             {activity.slice(0, 10).map((evt, i) => {
               const tok = agentToken(evt.agent);
@@ -672,21 +677,21 @@ export default function GrowthOverview() {
               return (
                 <div key={i} className="flex items-start gap-2 py-1.5 border-b border-warm/30 last:border-0">
                   {/* Time */}
-                  <span className="text-[0.55rem] text-mid/40 tabular-nums w-8 flex-shrink-0 pt-0.5" suppressHydrationWarning>
+                  <span className="text-[0.75rem] text-mid/60 tabular-nums w-8 flex-shrink-0 pt-0.5" suppressHydrationWarning>
                     {relTime(evt.timestamp)}
                   </span>
                   {/* Agent badge */}
                   <span
-                    className="text-[0.5rem] px-1 py-0.5 rounded font-medium flex-shrink-0"
+                    className="text-[0.7rem] px-1 py-0.5 rounded font-medium flex-shrink-0"
                     style={{ backgroundColor: tok.soft, color: tok.color }}
                   >
                     {tok.label}
                   </span>
                   {/* Action + outcome */}
                   <div className="flex-1 min-w-0">
-                    <span className="text-[0.6rem] text-mid/70">{evt.action}</span>
+                    <span className="text-[0.8rem] text-mid/70">{evt.action}</span>
                     <p
-                      className="text-[0.6rem] truncate"
+                      className="text-[0.8rem] truncate"
                       style={{ color: isErr ? "var(--terracotta)" : "var(--charcoal)" }}
                     >
                       {evt.outcome}
@@ -694,7 +699,7 @@ export default function GrowthOverview() {
                   </div>
                   {/* Model badge */}
                   {evt.model && evt.model !== "unknown" && (
-                    <span className="text-[0.45rem] px-1 py-0.5 rounded bg-warm/50 text-mid/50 flex-shrink-0">
+                    <span className="text-[0.8rem] px-1 py-0.5 rounded bg-warm/50 text-mid/70 flex-shrink-0">
                       {evt.model}
                     </span>
                   )}

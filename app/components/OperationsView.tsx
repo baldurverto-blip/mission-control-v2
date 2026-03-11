@@ -193,7 +193,7 @@ export function OperationsView({
                   {doneInbox.length > 0 && (
                     <div className="pt-2 mt-2 border-t border-warm">
                       {doneInbox.map((item, i) => (
-                        <div key={`done-${i}`} className="flex items-start gap-2.5 py-1 px-2 text-sm text-mid/50">
+                        <div key={`done-${i}`} className="flex items-start gap-2.5 py-1 px-2 text-sm text-mid/70">
                           <span className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded bg-olive/30 border border-olive/30 flex items-center justify-center text-[8px] text-olive">&#10003;</span>
                           <span className="leading-snug line-through">{item.text}</span>
                         </div>
@@ -207,7 +207,7 @@ export function OperationsView({
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
                     placeholder="Add to inbox..."
-                    className="flex-1 bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal placeholder:text-mid/50 focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"
+                    className="flex-1 bg-bg border border-warm rounded-lg px-3 py-2 text-sm text-charcoal placeholder:text-mid/70 focus:outline-none focus:border-terracotta/50 focus:ring-1 focus:ring-terracotta/20 transition-all"
                   />
                   <button
                     type="submit"
@@ -226,23 +226,23 @@ export function OperationsView({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="label-caps" style={{ color: "var(--charcoal)" }}>Morning</p>
-                    <span className="text-[0.6rem] text-mid/50">{briefs.morning?.name ?? "—"}</span>
+                    <span className="text-[0.8rem] text-mid/70">{briefs.morning?.name ?? "—"}</span>
                   </div>
                   {briefs.morning ? (
                     <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid">{previewBrief(briefs.morning.content)}</pre>
                   ) : (
-                    <p className="text-sm text-mid/60">No morning brief yet.</p>
+                    <p className="text-sm text-mid/80">No morning brief yet.</p>
                   )}
                 </div>
                 <div className="border-t border-warm pt-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="label-caps" style={{ color: "var(--charcoal)" }}>Evening</p>
-                    <span className="text-[0.6rem] text-mid/50">{briefs.evening?.name ?? "—"}</span>
+                    <span className="text-[0.8rem] text-mid/70">{briefs.evening?.name ?? "—"}</span>
                   </div>
                   {briefs.evening ? (
                     <pre className="text-xs whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid">{previewBrief(briefs.evening.content)}</pre>
                   ) : (
-                    <p className="text-sm text-mid/60">No evening brief yet.</p>
+                    <p className="text-sm text-mid/80">No evening brief yet.</p>
                   )}
                 </div>
               </div>
@@ -306,7 +306,7 @@ export function OperationsView({
                   <>
                     {workflows.state.active.length > 0 && (
                       <div>
-                        <p className="label-caps text-mid/60 mb-2">Active</p>
+                        <p className="label-caps text-mid/80 mb-2">Active</p>
                         {workflows.state.active.map((w) => (
                           <div key={w.runId} className="flex items-center gap-3 p-2.5 rounded-lg bg-warm/40 mb-2">
                             <StatusDot status={w.approvalPending ? "warn" : "ok"} />
@@ -317,13 +317,13 @@ export function OperationsView({
                                 {w.approvalPending && <span className="text-terracotta ml-2">· awaiting approval</span>}
                               </p>
                             </div>
-                            <p className="text-[0.6rem] text-mid/50" suppressHydrationWarning>{relTimeMs(new Date(w.startedAt).getTime())}</p>
+                            <p className="text-[0.8rem] text-mid/70" suppressHydrationWarning>{relTimeMs(new Date(w.startedAt).getTime())}</p>
                           </div>
                         ))}
                       </div>
                     )}
                     <div>
-                      <p className="label-caps text-mid/60 mb-2">Pipelines</p>
+                      <p className="label-caps text-mid/80 mb-2">Pipelines</p>
                       <div className="space-y-1.5">
                         {workflows.definitions.map((def) => (
                           <div key={def.file} className="p-2.5 rounded-lg bg-warm/30">
@@ -331,8 +331,8 @@ export function OperationsView({
                             <div className="flex items-center gap-1 flex-wrap">
                               {def.steps.map((step, i) => (
                                 <span key={step} className="flex items-center gap-1">
-                                  <span className="text-[0.55rem] text-mid bg-warm rounded px-1 py-0.5">{step}</span>
-                                  {i < def.steps.length - 1 && <span className="text-mid/30 text-[0.5rem]">&rarr;</span>}
+                                  <span className="text-[0.75rem] text-mid bg-warm rounded px-1 py-0.5">{step}</span>
+                                  {i < def.steps.length - 1 && <span className="text-mid/55 text-[0.7rem]">&rarr;</span>}
                                 </span>
                               ))}
                             </div>
@@ -342,18 +342,18 @@ export function OperationsView({
                     </div>
                     {workflows.state.completed.length > 0 && (
                       <div>
-                        <p className="label-caps text-mid/60 mb-2">Recent</p>
+                        <p className="label-caps text-mid/80 mb-2">Recent</p>
                         {workflows.state.completed.slice(0, 5).map((w) => (
                           <div key={w.runId} className="flex items-center gap-3 py-1.5">
                             <StatusDot status={w.finalStatus === "done" ? "ok" : "error"} />
                             <p className="text-xs text-mid flex-1">{w.workflow}</p>
-                            <p className="text-[0.6rem] text-mid/50">{w.finalStatus}</p>
+                            <p className="text-[0.8rem] text-mid/70">{w.finalStatus}</p>
                           </div>
                         ))}
                       </div>
                     )}
                     {workflows.state.active.length === 0 && workflows.state.completed.length === 0 && (
-                      <p className="text-sm text-mid/60 py-2 text-center">No pipeline activity yet</p>
+                      <p className="text-sm text-mid/80 py-2 text-center">No pipeline activity yet</p>
                     )}
                   </>
                 ) : (

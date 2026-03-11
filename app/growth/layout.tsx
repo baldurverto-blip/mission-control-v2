@@ -38,7 +38,7 @@ export default function GrowthLayout({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-2">
             <StatusDot status={status} size="md" />
-            <span className="text-[0.6rem] text-mid/60 label-caps">{version}</span>
+            <span className="text-[0.8rem] text-mid/80 label-caps">{version}</span>
           </div>
         </div>
 

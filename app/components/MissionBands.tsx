@@ -29,7 +29,7 @@ export function MissionBands({ goals, selectedGoal, onSelectGoal }: MissionBands
     <div className="px-5 py-2.5 bg-paper border border-warm rounded-xl fade-up flex-shrink-0">
       {/* Compact view: single stacked bar + legend */}
       <div className="flex items-center gap-3">
-        <span className="label-caps text-mid/50 flex-shrink-0 text-[0.5rem]">Missions</span>
+        <span className="label-caps text-mid/70 flex-shrink-0 text-[0.7rem]">Missions</span>
 
         {/* Stacked spark-bar */}
         <div className="flex-1 h-2.5 rounded-full overflow-hidden bg-warm/40 flex cursor-pointer" onClick={() => setShowDetail(!showDetail)}>
@@ -69,15 +69,15 @@ export function MissionBands({ goals, selectedGoal, onSelectGoal }: MissionBands
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: primaryAgent ? agent(primaryAgent.id).color : "var(--mid)" }}
                 />
-                <span className="text-[0.5rem] text-mid whitespace-nowrap">{goalLabel(goal.id)}</span>
-                <span className="text-[0.45rem] text-mid/30 tabular-nums">{goal.pulseCount}</span>
+                <span className="text-[0.7rem] text-mid whitespace-nowrap">{goalLabel(goal.id)}</span>
+                <span className="text-[0.65rem] text-mid/55 tabular-nums">{goal.pulseCount}</span>
               </button>
             );
           })}
           {goals.length > 5 && (
             <button
               onClick={() => setShowDetail(!showDetail)}
-              className="text-[0.5rem] text-mid/40 hover:text-mid cursor-pointer"
+              className="text-[0.7rem] text-mid/60 hover:text-mid cursor-pointer"
             >
               +{goals.length - 5}
             </button>
@@ -103,8 +103,8 @@ export function MissionBands({ goals, selectedGoal, onSelectGoal }: MissionBands
                     <span key={a.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: agent(a.id).color }} />
                   ))}
                 </div>
-                <span className="text-[0.55rem] text-mid truncate">{goalLabel(goal.id)}</span>
-                <span className="text-[0.5rem] text-mid/30 tabular-nums ml-auto">{goal.pulseCount}</span>
+                <span className="text-[0.75rem] text-mid truncate">{goalLabel(goal.id)}</span>
+                <span className="text-[0.7rem] text-mid/55 tabular-nums ml-auto">{goal.pulseCount}</span>
               </button>
             );
           })}

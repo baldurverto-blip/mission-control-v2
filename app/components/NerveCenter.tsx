@@ -130,7 +130,7 @@ function AgentHalo({ agentId, pulses, isActive, isSelected, onClick }: {
           />
         ))}
       </div>
-      <span className="text-[0.45rem] text-mid/50 group-hover:text-charcoal transition-colors leading-none">{a.name}</span>
+      <span className="text-[0.65rem] text-mid/70 group-hover:text-charcoal transition-colors leading-none">{a.name}</span>
     </button>
   );
 }
@@ -177,15 +177,15 @@ export function NerveCenter({ pulses, stats, cronHealth, selectedAgent, onSelect
       <div className="flex-shrink-0 text-right space-y-0.5">
         <div>
           <span className="text-xl text-charcoal font-heading tabular-nums">{stats.totalToday}</span>
-          <span className="text-[0.5rem] text-mid/50 ml-1">pulses</span>
+          <span className="text-[0.7rem] text-mid/70 ml-1">pulses</span>
         </div>
-        <div className="text-[0.6rem] text-mid tabular-nums">
-          {stats.activeAgents.length}/{ALL_AGENT_IDS.length} <span className="text-mid/40">active</span>
+        <div className="text-[0.8rem] text-mid tabular-nums">
+          {stats.activeAgents.length}/{ALL_AGENT_IDS.length} <span className="text-mid/60">active</span>
         </div>
-        <div className="text-[0.55rem] tabular-nums" style={{ color: stats.hasAttention ? "var(--terracotta)" : "var(--olive)" }}>
+        <div className="text-[0.75rem] tabular-nums" style={{ color: stats.hasAttention ? "var(--terracotta)" : "var(--olive)" }}>
           {stats.hasAttention ? "attention needed" : "all clear"}
         </div>
-        <div className="text-[0.5rem] text-mid/35 tabular-nums" suppressHydrationWarning>
+        <div className="text-[0.7rem] text-mid/60 tabular-nums" suppressHydrationWarning>
           {stats.lastPulse ? `last ${relTime(stats.lastPulse)}` : "—"}
           {cronHealth && ` · ${cronHealth.healthy}/${cronHealth.total} crons`}
         </div>

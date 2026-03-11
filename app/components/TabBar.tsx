@@ -21,7 +21,7 @@ export function TabBar({ tabs, active, onChange }: { tabs: Tab[]; active: string
         >
           {tab.label}
           {tab.count !== undefined && (
-            <span className="ml-1.5 text-[0.6rem] tabular-nums opacity-60">{tab.count}</span>
+            <span className="ml-1.5 text-[0.8rem] tabular-nums opacity-60">{tab.count}</span>
           )}
         </button>
       ))}

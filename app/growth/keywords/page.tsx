@@ -41,6 +41,13 @@ interface ParsedSignals {
   insights: InsightSection[];
 }
 
+interface LinkedIdea {
+  slug: string;
+  title: string;
+  status: string;
+  niche: string;
+}
+
 // ── Parser ───────────────────────────────────────────────────────
 
 function parseMarkdown(md: string): ParsedSignals {
@@ -235,7 +242,7 @@ function KeywordTable({
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left label-caps text-[0.5rem] text-mid/60">
+          <tr className="text-left label-caps text-[0.7rem] text-mid/80">
             <th className="pb-2 pr-3">Keyword</th>
             <th className="pb-2 pr-3 text-right">Volume</th>
             <th className="pb-2 pr-3 text-right">CPC</th>
@@ -277,7 +284,7 @@ function KeywordTable({
                 )}
                 <td className="py-1.5 pr-3 text-right">
                   <span
-                    className="inline-flex items-center justify-center w-8 h-5 rounded-full text-[0.6rem] font-medium tabular-nums"
+                    className="inline-flex items-center justify-center w-8 h-5 rounded-full text-[0.8rem] font-medium tabular-nums"
                     style={{
                       backgroundColor: intent >= 70 ? "var(--terracotta-soft)" : intent >= 50 ? "var(--amber-soft)" : "var(--warm)",
                       color: intent >= 70 ? "var(--terracotta)" : intent >= 50 ? "var(--amber)" : "var(--mid)",
@@ -300,9 +307,17 @@ function KeywordTable({
   );
 }
 
-function NicheCard({ niche }: { niche: Niche }) {
+function NicheCard({ niche, linkedIdeas }: { niche: Niche; linkedIdeas?: LinkedIdea[] }) {
   const [expanded, setExpanded] = useState(false);
   const color = VIABILITY_COLORS[niche.viability] ?? "var(--mid)";
+
+  const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
+    qualified: { bg: "var(--olive-soft)", fg: "var(--olive)" },
+    refined: { bg: "var(--amber-soft)", fg: "var(--amber)" },
+    proposed: { bg: "var(--warm)", fg: "var(--mid)" },
+    rejected: { bg: "var(--terracotta-soft)", fg: "var(--terracotta)" },
+    shipped: { bg: "var(--olive-soft)", fg: "var(--olive)" },
+  };
 
   return (
     <div
@@ -313,14 +328,29 @@ function NicheCard({ niche }: { niche: Niche }) {
         <h4 className="text-sm font-medium" style={{ color: "var(--charcoal)" }}>
           {niche.title}
         </h4>
-        <Badge color={color}>{niche.viability}</Badge>
+        <div className="flex items-center gap-1.5">
+          {linkedIdeas && linkedIdeas.length > 0 && linkedIdeas.map((idea) => {
+            const s = STATUS_STYLE[idea.status] ?? STATUS_STYLE.proposed;
+            return (
+              <a
+                key={idea.slug}
+                href="/growth/ideas"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.7rem] font-medium no-underline hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: s.bg, color: s.fg }}
+              >
+                &rarr; {idea.title} &middot; {idea.status}
+              </a>
+            );
+          })}
+          <Badge color={color}>{niche.viability}</Badge>
+        </div>
       </div>
-      <p className="text-[0.65rem] text-mid/60 mb-3">{niche.stats}</p>
+      <p className="text-[0.8rem] text-mid/80 mb-3">{niche.stats}</p>
       <KeywordTable rows={expanded ? niche.keywords : niche.keywords.slice(0, 3)} />
       {niche.keywords.length > 3 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-[0.65rem] mt-2 hover:underline"
+          className="text-[0.8rem] mt-2 hover:underline"
           style={{ color }}
         >
           {expanded ? "Show less" : `+${niche.keywords.length - 3} more keywords`}
@@ -337,7 +367,7 @@ function InsightCard({ section }: { section: InsightSection }) {
 
   return (
     <div className="card" style={{ borderLeft: `3px solid ${color}` }}>
-      <p className="label-caps text-[0.55rem] mb-2" style={{ color }}>
+      <p className="label-caps text-[0.75rem] mb-2" style={{ color }}>
         {section.title}
       </p>
       <ul className="space-y-1">
@@ -372,6 +402,29 @@ export default function KeywordsPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [activeProduct, setActiveProduct] = useState<string | null>(null);
+  const [linkedIdeas, setLinkedIdeas] = useState<LinkedIdea[]>([]);
+
+  // Fetch idea queue for niche → idea lineage
+  useEffect(() => {
+    fetch("/api/growth/ideas")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.success || !data.queue) return;
+        const q = data.queue;
+        const all = [...(q.queue ?? []), ...(q.shipped ?? []), ...(q.rejected ?? []), ...(q.parked ?? [])];
+        setLinkedIdeas(
+          all
+            .filter((i: Record<string, unknown>) => (i.evidence as Record<string, unknown>)?.niche || i.source === "keyword_discovery")
+            .map((i: Record<string, unknown>) => ({
+              slug: (i.slug ?? "") as string,
+              title: (i.title ?? "") as string,
+              status: (i.status ?? "proposed") as string,
+              niche: (((i.evidence as Record<string, unknown>)?.niche ?? "") as string).toLowerCase().trim(),
+            })),
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchSignals = useCallback(async (file?: string) => {
     try {
@@ -459,19 +512,19 @@ export default function KeywordsPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="label-caps text-[0.55rem] text-mid/60">
+          <p className="label-caps text-[0.75rem] text-mid/80">
             Keyword Signals {date && `\u2014 ${date}`}
           </p>
-          <p className="text-[0.65rem] text-mid/40 mt-0.5">
+          <p className="text-[0.8rem] text-mid/60 mt-0.5">
             {parsed.credits && `${parsed.credits} credits used`}
           </p>
           {fallbackUsed && (
-            <p className="text-[0.65rem] mt-1" style={{ color: "var(--amber)" }}>
+            <p className="text-[0.8rem] mt-1" style={{ color: "var(--amber)" }}>
               Showing fallback report. {fallbackReason}
             </p>
           )}
           {latestDate && date && latestDate !== date && (
-            <p className="text-[0.65rem] text-mid/50 mt-1">
+            <p className="text-[0.8rem] text-mid/70 mt-1">
               Latest file exists for {latestDate}, but it has no scored keywords yet.
             </p>
           )}
@@ -481,7 +534,7 @@ export default function KeywordsPage() {
             <select
               value={selectedFile}
               onChange={(e) => fetchSignals(e.target.value)}
-              className="px-2 py-1.5 rounded-lg text-[0.65rem] border bg-transparent"
+              className="px-2 py-1.5 rounded-lg text-[0.8rem] border bg-transparent"
               style={{ borderColor: "var(--warm)", color: "var(--charcoal)" }}
             >
               {files.map((f) => (
@@ -492,7 +545,7 @@ export default function KeywordsPage() {
           <button
             onClick={triggerRun}
             disabled={running}
-            className="px-3 py-1.5 rounded-lg text-[0.65rem] font-medium transition-all border"
+            className="px-3 py-1.5 rounded-lg text-[0.8rem] font-medium transition-all border"
             style={{
               borderColor: running ? "var(--warm)" : "var(--charcoal)",
               color: running ? "var(--mid)" : "var(--charcoal)",
@@ -527,9 +580,9 @@ export default function KeywordsPage() {
             >
               {kpi.value}
             </p>
-            <p className="label-caps text-[0.5rem] text-mid/60">{kpi.label}</p>
+            <p className="label-caps text-[0.7rem] text-mid/80">{kpi.label}</p>
             {kpi.sub && (
-              <p className="text-[0.5rem] text-mid/40 mt-0.5 truncate">{kpi.sub}</p>
+              <p className="text-[0.7rem] text-mid/60 mt-0.5 truncate">{kpi.sub}</p>
             )}
           </div>
         ))}
@@ -569,12 +622,12 @@ export default function KeywordsPage() {
       {/* Selected product content */}
       {selectedProduct && (
         <>
-          <p className="text-[0.65rem] text-mid/50">{selectedProduct.summary}</p>
+          <p className="text-[0.8rem] text-mid/70">{selectedProduct.summary}</p>
 
           {/* Top 10 keywords table */}
           {selectedProduct.topKeywords.length > 0 && (
             <div className="card">
-              <p className="label-caps text-[0.55rem] text-mid/60 mb-3">
+              <p className="label-caps text-[0.75rem] text-mid/80 mb-3">
                 Top Keywords by Intent Score
               </p>
               <KeywordTable rows={selectedProduct.topKeywords} showCompetition />
@@ -584,7 +637,7 @@ export default function KeywordsPage() {
           {/* Niches grid */}
           {selectedProduct.niches.filter((n) => n.keywords.length > 0).length > 0 && (
             <>
-              <p className="label-caps text-[0.55rem] text-mid/60">Niches</p>
+              <p className="label-caps text-[0.75rem] text-mid/80">Niches</p>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {selectedProduct.niches
                   .filter((n) => n.keywords.length > 0)
@@ -593,7 +646,10 @@ export default function KeywordsPage() {
                     return order.indexOf(a.viability) - order.indexOf(b.viability);
                   })
                   .map((n, i) => (
-                    <NicheCard key={i} niche={n} />
+                    <NicheCard key={i} niche={n} linkedIdeas={linkedIdeas.filter((idea) => {
+                      const nicheKey = n.title.toLowerCase().trim();
+                      return idea.niche && (idea.niche === nicheKey || idea.niche.includes(nicheKey) || nicheKey.includes(idea.niche));
+                    })} />
                   ))}
               </div>
             </>

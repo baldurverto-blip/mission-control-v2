@@ -201,8 +201,8 @@ function GoalBars({ pulses }: { pulses: PulseEvent[] }) {
         {sorted.map(([goal, { count }]) => (
           <div key={goal} className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: goalColors[goal], opacity: 0.7 }} />
-            <span className="text-[0.6rem] text-mid">{goalLabel(goal)}</span>
-            <span className="text-[0.55rem] text-mid/40 tabular-nums">{count}</span>
+            <span className="text-[0.8rem] text-mid">{goalLabel(goal)}</span>
+            <span className="text-[0.75rem] text-mid/75 tabular-nums">{count}</span>
           </div>
         ))}
       </div>
@@ -255,15 +255,15 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 mb-1">
             <h2 className="text-xl text-charcoal leading-none">Pulse</h2>
-            <span className="text-[0.65rem] text-mid/50 tabular-nums" suppressHydrationWarning>
+            <span className="text-[0.8rem] text-mid/70 tabular-nums" suppressHydrationWarning>
               {stats.lastPulse ? `last ${relTime(stats.lastPulse)} ago` : "no pulses"}
             </span>
           </div>
-          <div className="flex items-center gap-4 text-[0.65rem]">
-            <span className="text-mid tabular-nums">{stats.totalToday} <span className="text-mid/40">today</span></span>
-            <span className="text-mid tabular-nums">{stats.activeAgents.length}/{allAgentIds.length} <span className="text-mid/40">agents active</span></span>
+          <div className="flex items-center gap-4 text-[0.8rem]">
+            <span className="text-mid tabular-nums">{stats.totalToday} <span className="text-mid/75">today</span></span>
+            <span className="text-mid tabular-nums">{stats.activeAgents.length}/{allAgentIds.length} <span className="text-mid/75">agents active</span></span>
             {attentionPulses.length > 0 && (
-              <span className="text-terracotta tabular-nums">{attentionPulses.length} <span className="text-terracotta/60">need attention</span></span>
+              <span className="text-terracotta tabular-nums">{attentionPulses.length} <span className="text-terracotta/80">need attention</span></span>
             )}
           </div>
         </div>
@@ -283,7 +283,7 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
               >
                 <div className="relative">
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-[0.55rem] font-medium transition-all"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[0.75rem] font-medium transition-all"
                     style={{
                       backgroundColor: isSelected ? a.color : a.soft,
                       color: isSelected ? "var(--paper)" : a.color,
@@ -320,7 +320,7 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
         <div className="px-5 py-3 border-b" style={{ borderColor: "var(--terracotta)", borderLeftWidth: 3, backgroundColor: "var(--terracotta-soft)" }}>
           <div className="flex items-center gap-2 mb-2">
             <span className="w-2 h-2 rounded-full attention-pulse" style={{ backgroundColor: "var(--terracotta)" }} />
-            <span className="text-[0.6rem] font-medium tracking-wider uppercase" style={{ color: "var(--terracotta)" }}>
+            <span className="text-[0.8rem] font-medium tracking-wider uppercase" style={{ color: "var(--terracotta)" }}>
               Needs attention
             </span>
           </div>
@@ -328,11 +328,11 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
             {attentionPulses.slice(0, 3).map((p, i) => {
               const a = agent(p.agent);
               return (
-                <div key={i} className="flex items-center gap-2.5 text-[0.7rem]">
+                <div key={i} className="flex items-center gap-2.5 text-[0.85rem]">
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: a.color }} />
                   <span className="font-medium" style={{ color: a.color }}>{a.name}</span>
                   <span className="text-charcoal flex-1 truncate">{p.outcome}</span>
-                  <span className="text-mid/35 tabular-nums flex-shrink-0">{clockTime(p.timestamp)}</span>
+                  <span className="text-mid/75 tabular-nums flex-shrink-0">{clockTime(p.timestamp)}</span>
                 </div>
               );
             })}
@@ -343,7 +343,7 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
       {/* Goal Distribution — where effort is going today */}
       {!selectedAgent && todayPulses.length > 3 && (
         <div className="px-5 py-3 border-b border-warm/40">
-          <p className="text-[0.55rem] font-medium tracking-wider uppercase text-mid/50 mb-2">Effort distribution</p>
+          <p className="text-[0.75rem] font-medium tracking-wider uppercase text-mid/70 mb-2">Effort distribution</p>
           <GoalBars pulses={todayPulses} />
         </div>
       )}
@@ -372,7 +372,7 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
               {showGap && (
                 <div className="flex items-center gap-3 px-5 py-1.5">
                   <div className="flex-1 border-t border-dashed border-warm/60" />
-                  <span className="text-[0.5rem] text-mid/25 tabular-nums whitespace-nowrap">
+                  <span className="text-[0.85rem] text-mid/70 tabular-nums whitespace-nowrap">
                     {Math.round(gap / 3600000)}h quiet
                   </span>
                   <div className="flex-1 border-t border-dashed border-warm/60" />
@@ -388,38 +388,38 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
               >
                 {/* Agent dot */}
                 <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[0.45rem] font-medium flex-shrink-0"
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[0.8rem] font-medium flex-shrink-0"
                   style={{ backgroundColor: a.soft, color: a.color }}
                 >
                   {a.label}
                 </span>
 
                 {/* Agent name */}
-                <span className="text-[0.65rem] font-medium w-14 flex-shrink-0 truncate" style={{ color: a.color }}>
+                <span className="text-[0.8rem] font-medium w-14 flex-shrink-0 truncate" style={{ color: a.color }}>
                   {a.name}
                 </span>
 
                 {/* Outcome — the most important text */}
-                <span className={`text-[0.7rem] flex-1 min-w-0 truncate ${
+                <span className={`text-[0.85rem] flex-1 min-w-0 truncate ${
                   attention ? "text-terracotta font-medium" : "text-charcoal"
                 }`}>
                   {pulse.outcome}
                 </span>
 
                 {/* Goal tag */}
-                <span className="text-[0.5rem] text-mid/40 bg-warm/60 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
+                <span className="text-[0.85rem] text-mid/75 bg-warm/60 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
                   {goalLabel(pulse.goal)}
                 </span>
 
                 {/* Duration */}
                 {dur && (
-                  <span className="text-[0.55rem] text-mid/30 tabular-nums flex-shrink-0 w-8 text-right">
+                  <span className="text-[0.75rem] text-mid/55 tabular-nums flex-shrink-0 w-8 text-right">
                     {dur}
                   </span>
                 )}
 
                 {/* Time */}
-                <span className="text-[0.6rem] text-mid/35 tabular-nums flex-shrink-0 w-10 text-right" suppressHydrationWarning>
+                <span className="text-[0.8rem] text-mid/75 tabular-nums flex-shrink-0 w-10 text-right" suppressHydrationWarning>
                   {clockTime(pulse.timestamp)}
                 </span>
 
@@ -433,27 +433,27 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
               {/* Expanded detail — Notion toggle-block inspired */}
               {isExpanded && (
                 <div className="px-5 pb-3 pl-[3.25rem] bg-warm/20">
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[0.65rem]">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[0.8rem]">
                     <div>
-                      <span className="text-mid/40">Action</span>
+                      <span className="text-mid/75">Action</span>
                       <p className="text-charcoal">{pulse.action}</p>
                     </div>
                     <div>
-                      <span className="text-mid/40">Goal</span>
+                      <span className="text-mid/75">Goal</span>
                       <p className="text-charcoal">{goalLabel(pulse.goal)}</p>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-mid/40">Outcome</span>
+                      <span className="text-mid/75">Outcome</span>
                       <p className="text-charcoal">{pulse.outcome}</p>
                     </div>
                     {pulse.duration_ms > 0 && (
                       <div>
-                        <span className="text-mid/40">Duration</span>
+                        <span className="text-mid/75">Duration</span>
                         <p className="text-charcoal tabular-nums">{dur}</p>
                       </div>
                     )}
                     <div>
-                      <span className="text-mid/40">Time</span>
+                      <span className="text-mid/75">Time</span>
                       <p className="text-charcoal tabular-nums">{clockTime(pulse.timestamp)}</p>
                     </div>
                   </div>
@@ -465,10 +465,10 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
 
         {filteredPulses.length === 0 && (
           <div className="py-10 text-center">
-            <p className="text-mid/50 text-sm">
+            <p className="text-mid/70 text-sm">
               {selectedAgent ? `No pulses from ${agent(selectedAgent).name}` : "No pulses yet"}
             </p>
-            <p className="text-mid/30 text-xs mt-1">Agents emit pulses as they work</p>
+            <p className="text-mid/55 text-xs mt-1">Agents emit pulses as they work</p>
           </div>
         )}
       </div>
@@ -478,7 +478,7 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
         <div className="px-5 py-2.5 border-t border-warm/40 flex items-center justify-between">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-[0.6rem] text-mid/50 hover:text-charcoal transition-colors"
+            className="text-[0.8rem] text-mid/70 hover:text-charcoal transition-colors"
           >
             {expanded ? "Collapse" : `Show all ${(selectedAgent ? pulses.filter(p => p.agent === selectedAgent) : pulses).length} pulses`}
           </button>
@@ -486,12 +486,12 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
             {selectedAgent && (
               <button
                 onClick={() => setSelectedAgent(null)}
-                className="text-[0.6rem] px-2 py-0.5 rounded bg-warm/60 text-mid/60 hover:text-charcoal transition-colors"
+                className="text-[0.8rem] px-2 py-0.5 rounded bg-warm/60 text-mid/75 hover:text-charcoal transition-colors"
               >
                 Clear filter
               </button>
             )}
-            <span className="text-[0.5rem] text-mid/25 tabular-nums" suppressHydrationWarning>
+            <span className="text-[0.85rem] text-mid/70 tabular-nums" suppressHydrationWarning>
               refreshes every 60s
             </span>
           </div>

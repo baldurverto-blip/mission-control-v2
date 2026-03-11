@@ -54,7 +54,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .label-caps {
   font-family: var(--font-dm-mono), ui-monospace, monospace;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 400;
   letter-spacing: 0.2em;
   text-transform: uppercase;

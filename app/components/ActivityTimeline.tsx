@@ -34,11 +34,11 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
         <h3 className="text-sm text-charcoal font-heading">Activity</h3>
         <div className="flex items-center gap-2">
           {(selectedAgent || selectedGoal) && (
-            <span className="text-[0.55rem] text-mid/50">
+            <span className="text-[0.75rem] text-mid/70">
               filtered{selectedAgent ? ` · ${agent(selectedAgent).name}` : ""}{selectedGoal ? ` · ${goalLabel(selectedGoal)}` : ""}
             </span>
           )}
-          <span className="text-[0.5rem] text-mid/25 tabular-nums" suppressHydrationWarning>
+          <span className="text-[0.85rem] text-mid/70 tabular-nums" suppressHydrationWarning>
             refreshes every 60s
           </span>
         </div>
@@ -64,7 +64,7 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
               {showGap && (
                 <div className="flex items-center gap-3 px-5 py-1.5">
                   <div className="flex-1 border-t border-dashed border-warm/60" />
-                  <span className="text-[0.5rem] text-mid/25 tabular-nums whitespace-nowrap">
+                  <span className="text-[0.85rem] text-mid/70 tabular-nums whitespace-nowrap">
                     {Math.round(gap / 3600000)}h quiet
                   </span>
                   <div className="flex-1 border-t border-dashed border-warm/60" />
@@ -78,33 +78,33 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
                 }`}
               >
                 <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[0.45rem] font-medium flex-shrink-0"
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[0.8rem] font-medium flex-shrink-0"
                   style={{ backgroundColor: a.soft, color: a.color }}
                 >
                   {a.label}
                 </span>
 
-                <span className="text-[0.65rem] font-medium w-14 flex-shrink-0 truncate" style={{ color: a.color }}>
+                <span className="text-[0.8rem] font-medium w-14 flex-shrink-0 truncate" style={{ color: a.color }}>
                   {a.name}
                 </span>
 
-                <span className={`text-[0.7rem] flex-1 min-w-0 truncate ${
+                <span className={`text-[0.85rem] flex-1 min-w-0 truncate ${
                   attention ? "text-terracotta font-medium" : "text-charcoal"
                 }`}>
                   {pulse.outcome}
                 </span>
 
-                <span className="text-[0.5rem] text-mid/40 bg-warm/60 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
+                <span className="text-[0.85rem] text-mid/60 bg-warm/60 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
                   {goalLabel(pulse.goal)}
                 </span>
 
                 {dur && (
-                  <span className="text-[0.55rem] text-mid/30 tabular-nums flex-shrink-0 w-8 text-right">
+                  <span className="text-[0.75rem] text-mid/55 tabular-nums flex-shrink-0 w-8 text-right">
                     {dur}
                   </span>
                 )}
 
-                <span className="text-[0.6rem] text-mid/35 tabular-nums flex-shrink-0 w-10 text-right" suppressHydrationWarning>
+                <span className="text-[0.8rem] text-mid/60 tabular-nums flex-shrink-0 w-10 text-right" suppressHydrationWarning>
                   {clockTime(pulse.timestamp)}
                 </span>
 
@@ -116,27 +116,27 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
 
               {isExp && (
                 <div className="px-5 pb-3 pl-[3.25rem] bg-warm/20">
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[0.65rem]">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[0.8rem]">
                     <div>
-                      <span className="text-mid/40">Action</span>
+                      <span className="text-mid/60">Action</span>
                       <p className="text-charcoal">{pulse.action}</p>
                     </div>
                     <div>
-                      <span className="text-mid/40">Goal</span>
+                      <span className="text-mid/60">Goal</span>
                       <p className="text-charcoal">{goalLabel(pulse.goal)}</p>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-mid/40">Outcome</span>
+                      <span className="text-mid/60">Outcome</span>
                       <p className="text-charcoal">{pulse.outcome}</p>
                     </div>
                     {pulse.duration_ms > 0 && (
                       <div>
-                        <span className="text-mid/40">Duration</span>
+                        <span className="text-mid/60">Duration</span>
                         <p className="text-charcoal tabular-nums">{dur}</p>
                       </div>
                     )}
                     <div>
-                      <span className="text-mid/40">Time</span>
+                      <span className="text-mid/60">Time</span>
                       <p className="text-charcoal tabular-nums" suppressHydrationWarning>{clockTime(pulse.timestamp)}</p>
                     </div>
                   </div>
@@ -148,10 +148,10 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
 
         {filteredPulses.length === 0 && (
           <div className="py-10 text-center">
-            <p className="text-mid/50 text-sm">
+            <p className="text-mid/70 text-sm">
               {selectedAgent || selectedGoal ? "No matching pulses" : "No pulses yet"}
             </p>
-            <p className="text-mid/30 text-xs mt-1">Agents emit pulses as they work</p>
+            <p className="text-mid/55 text-xs mt-1">Agents emit pulses as they work</p>
           </div>
         )}
       </div>
@@ -161,7 +161,7 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
         <div className="px-5 py-2 border-t border-warm/40 flex items-center justify-between flex-shrink-0">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-[0.6rem] text-mid/50 hover:text-charcoal transition-colors cursor-pointer"
+            className="text-[0.8rem] text-mid/70 hover:text-charcoal transition-colors cursor-pointer"
           >
             {expanded ? "Show less" : `Show all ${totalCount} pulses`}
           </button>

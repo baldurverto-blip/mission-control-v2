@@ -1,19 +1,33 @@
 import { NextResponse } from "next/server";
-import { readFile, readdir } from "fs/promises";
-import { join } from "path";
-import { AGENTS_DIR, OPS } from "@/app/lib/paths";
+import { readFile } from "fs/promises";
+import { ORG_JSON, MISSION_MD } from "@/app/lib/paths";
 import { execSync } from "child_process";
 
-interface Agent {
+interface Goal {
+  id: string;
+  description: string;
+  exitCriteria: string;
+}
+
+interface OrgAgent {
   id: string;
   name: string;
+  title: string;
+  tier: "board" | "orchestrator" | "specialist";
+  type: "human" | "ai-openclaw" | "ai-claude";
   role: string;
+  capabilities: string;
+  goals: Goal[];
   model: string;
-  reportsTo: string;
-  type: "human" | "orchestrator" | "specialist";
+  adapter: string;
+  invoke: string | null;
+  reportsTo: string | null;
+  escalatesTo: string | null;
   color: string;
+  cronCount: number;
   crons: string[];
   status: string;
+  costCapMonthly: number;
 }
 
 interface CronJob {
@@ -23,25 +37,67 @@ interface CronJob {
   lastStatus: string;
 }
 
+interface ValueStream {
+  name: string;
+  steps: string[];
+  agents: string[];
+}
+
+interface Mission {
+  statement: string;
+  tagline: string;
+  values: string[];
+}
+
+function extractMission(markdown: string): Mission {
+  // Extract Mission Statement section
+  const missionMatch = markdown.match(/## Mission Statement\s*\n\n([\s\S]*?)(?=\n## )/);
+  const paragraphs = (missionMatch?.[1] ?? "")
+    .trim()
+    .split(/\n\n/)
+    .map((p) => p.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "").trim())
+    .filter(Boolean);
+
+  // Extract How We Work values
+  const howWeWorkMatch = markdown.match(/## How We Work\s*\n\n([\s\S]*?)(?=\n## |$)/);
+  const values: string[] = [];
+  if (howWeWorkMatch) {
+    const valueMatches = howWeWorkMatch[1].matchAll(/\*\*(.*?)\*\*/g);
+    for (const m of valueMatches) {
+      values.push(m[1]);
+    }
+  }
+
+  return {
+    statement: paragraphs[0] ?? "Verto Studios is a product studio that builds for what's next.",
+    tagline: paragraphs[1] ?? "",
+    values: values.slice(0, 4),
+  };
+}
+
 export async function GET() {
   try {
-    // Parse agent soul files for roles
-    const agentMeta: Record<string, { role: string; model: string }> = {};
+    // Read ORG.json — the source of truth for agent topology
+    let orgData: { agents: OrgAgent[]; } = { agents: [] };
     try {
-      const files = await readdir(AGENTS_DIR);
-      for (const f of files.filter((f) => f.endsWith(".md") && !f.includes("brief"))) {
-        const content = await readFile(join(AGENTS_DIR, f), "utf-8");
-        const roleMatch = content.match(/^>\s*Role:\s*(.+)/m);
-        const modelMatch = content.match(/^>\s*Model:\s*(.+)/m);
-        const id = f.replace(".md", "");
-        agentMeta[id] = {
-          role: roleMatch?.[1]?.trim() ?? "Unknown",
-          model: modelMatch?.[1]?.trim() ?? "Unknown",
-        };
-      }
-    } catch { /* no agent files */ }
+      const orgRaw = await readFile(ORG_JSON, "utf-8");
+      orgData = JSON.parse(orgRaw);
+    } catch {
+      // fallback: continue with empty agents
+    }
 
-    // Get cron jobs
+    // Read mission.md — source of truth for mission statement
+    let mission: Mission = {
+      statement: "Verto Studios is a product studio that builds for what's next.",
+      tagline: "We help people and businesses navigate the shift that's already underway.",
+      values: ["Ship real things", "Compound the learning", "Grounded and honest", "Human-first"],
+    };
+    try {
+      const missionRaw = await readFile(MISSION_MD, "utf-8");
+      mission = extractMission(missionRaw);
+    } catch { /* use defaults */ }
+
+    // Get cron jobs from openclaw
     let crons: CronJob[] = [];
     try {
       const raw = execSync("openclaw cron list --json 2>/dev/null", {
@@ -60,135 +116,69 @@ export async function GET() {
           (j.state as Record<string, unknown>)?.lastStatus ?? "idle"
         ),
       }));
-    } catch { /* cron list failed */ }
+    } catch { /* openclaw unavailable */ }
 
-    // Define agents with org structure
-    const agents: Agent[] = [
-      {
-        id: "mads",
-        name: "Mads",
-        role: "Owner & Gatekeeper",
-        model: "Human",
-        reportsTo: "",
-        type: "human",
-        color: "var(--charcoal)",
-        crons: [],
-        status: "active",
-      },
-      {
-        id: "main",
-        name: "Baldur",
-        role: agentMeta.main?.role ?? "Orchestrator — assigns, delegates, reports",
-        model: agentMeta.main?.model ?? "GPT-5.3 Codex / MiniMax-M2.5",
-        reportsTo: "mads",
-        type: "orchestrator",
-        color: "var(--terracotta)",
-        crons: crons.filter((c) => c.agentId === "main").map((c) => c.name),
-        status: "active",
-      },
-      {
-        id: "scout",
-        name: "Scout",
-        role: agentMeta.scout?.role ?? "Discovery, research, signals",
-        model: agentMeta.scout?.model ?? "MiniMax-M2.5",
-        reportsTo: "main",
-        type: "specialist",
-        color: "var(--olive)",
-        crons: crons.filter((c) => c.agentId === "scout").map((c) => c.name),
-        status: "active",
-      },
-      {
-        id: "builder",
-        name: "Builder",
-        role: agentMeta.builder?.role ?? "Implementation, feature dev",
-        model: agentMeta.builder?.model ?? "MiniMax-M2.5",
-        reportsTo: "main",
-        type: "specialist",
-        color: "var(--lilac)",
-        crons: crons.filter((c) => c.agentId === "builder").map((c) => c.name),
-        status: "active",
-      },
-      {
-        id: "bastion",
-        name: "Bastion",
-        role: agentMeta.bastion?.role ?? "Security fortress — tactical + strategic CISO",
-        model: agentMeta.bastion?.model ?? "MiniMax-M2.5",
-        reportsTo: "main",
-        type: "specialist",
-        color: "var(--amber)",
-        crons: crons.filter((c) => c.agentId === "bastion").map((c) => c.name),
-        status: "active",
-      },
-      {
-        id: "vibe",
-        name: "Vibe",
-        role: agentMeta.vibe?.role ?? "Distribution engine, voice guardian",
-        model: agentMeta.vibe?.model ?? "MiniMax-M2.5",
-        reportsTo: "main",
-        type: "specialist",
-        color: "#B07AA1",
-        crons: crons.filter((c) => c.agentId === "vibe").map((c) => c.name),
-        status: "active",
-      },
-      {
-        id: "frigg",
-        name: "Frigg",
-        role: agentMeta.frigg?.role ?? "Governance — process alignment, continual improvement",
-        model: agentMeta.frigg?.model ?? "MiniMax-M2.5",
-        reportsTo: "main",
-        type: "specialist",
-        color: "#7BA7BC",
-        crons: crons.filter((c) => c.agentId === "frigg").map((c) => c.name),
-        status: "active",
-      },
-    ];
+    // Merge cron counts into agents
+    const agents: OrgAgent[] = (orgData.agents ?? []).map((a) => {
+      const agentCrons = crons.filter((c) => c.agentId === a.id);
+      return {
+        ...a,
+        cronCount: agentCrons.length,
+        crons: agentCrons.map((c) => c.name),
+        goals: a.goals ?? [],
+      };
+    });
 
-    // Value streams
-    const valueStreams = [
+    // Value streams (defined here, sourced from ORG.json in future)
+    const valueStreams: ValueStream[] = [
       {
-        name: "Research",
-        steps: ["Scout (nightly)", "Signals", "Cross-validate", "Rank", "INBOX"],
+        name: "Research → Idea Queue",
+        steps: ["Scout mines signals", "Score ≥60", "Refiner enriches", "Qualifier approves", "Queue promoted"],
         agents: ["scout", "main"],
       },
       {
-        name: "Content",
-        steps: ["Scout (scan)", "Drafter", "Humanise", "Approve", "Distribute", "Measure"],
-        agents: ["scout", "main", "vibe"],
+        name: "Idea → Shipped App",
+        steps: ["Factory tick", "One-pager", "Build (Builder+Mimir)", "QG Opus", "Bastion scan", "Ship"],
+        agents: ["main", "builder", "bastion", "mimir"],
       },
       {
-        name: "Security",
-        steps: ["Bastion (scan)", "Findings", "Risk register", "Posture score", "Report"],
-        agents: ["bastion"],
+        name: "Ship → Distribution",
+        steps: ["ASO keywords", "Landing page", "Blog posts (Mimir)", "Social posting", "Reddit engage"],
+        agents: ["vibe", "mimir", "scout"],
       },
       {
-        name: "Governance",
-        steps: ["Frigg (audit)", "Value check", "Improvement register", "Proposals", "Implement"],
+        name: "Security Posture",
+        steps: ["Bastion scan", "Risk register", "Fix (Builder)", "Verify", "Score update"],
+        agents: ["bastion", "builder"],
+      },
+      {
+        name: "Governance Loop",
+        steps: ["Frigg audit", "Value stream map", "Improvement register", "Proposals", "Implement"],
         agents: ["frigg", "main"],
-      },
-      {
-        name: "Build",
-        steps: ["INBOX/PRD", "Assign", "Build", "Review", "Ship"],
-        agents: ["main", "builder", "bastion"],
       },
     ];
 
-    // Cadences summary
+    // Cadence breakdown
     const cadences = {
-      daily: crons.filter((c) =>
-        c.schedule.includes("* * *") && !c.schedule.includes("* * 5") && !c.schedule.includes("* * 0") && !c.schedule.includes("* * 1") && !c.schedule.includes("*/5")
+      daily: crons.filter(
+        (c) => c.schedule.includes("* * *") && !["* * 5", "* * 0", "* * 1", "*/5", "*/10", "*/30"].some((p) => c.schedule.includes(p))
       ).length,
-      weekly: crons.filter((c) =>
-        c.schedule.includes("* * 5") || c.schedule.includes("* * 0") || c.schedule.includes("* * 1")
+      weekly: crons.filter(
+        (c) => ["* * 5", "* * 0", "* * 1", "* * 2", "* * 3", "* * 4"].some((p) => c.schedule.includes(p))
       ).length,
-      periodic: crons.filter((c) => c.schedule.includes("*/5")).length,
+      periodic: crons.filter(
+        (c) => ["*/5", "*/10", "*/30"].some((p) => c.schedule.includes(p))
+      ).length,
       total: crons.length,
     };
 
-    return NextResponse.json({ agents, crons, valueStreams, cadences });
+    const healthyCrons = crons.filter((c) => c.lastStatus === "ok" || c.lastStatus === "idle").length;
+
+    return NextResponse.json({ mission, agents, crons, valueStreams, cadences, healthyCrons });
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to build org data", detail: String(err) },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

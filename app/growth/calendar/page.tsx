@@ -183,7 +183,7 @@ export default function GrowthCalendarPage() {
               <h2 className="text-xl text-charcoal">
                 {weekOffset === 0 ? "This Week" : weekOffset === -1 ? "Last Week" : weekOffset === 1 ? "Next Week" : `Week`}
               </h2>
-              <p className="text-xs text-mid/60 mt-0.5">{formatWeekRange(weekDates)}</p>
+              <p className="text-xs text-mid/80 mt-0.5">{formatWeekRange(weekDates)}</p>
             </div>
             <div className="flex items-center gap-1">
               {weekOffset !== 0 && (
@@ -233,7 +233,7 @@ export default function GrowthCalendarPage() {
                     />
                     <span className="text-sm capitalize font-medium">{ch === "x" ? "X" : ch}</span>
                     <span
-                      className="text-[0.55rem] px-1.5 py-0.5 rounded-full"
+                      className="text-[0.75rem] px-1.5 py-0.5 rounded-full"
                       style={{ backgroundColor: `${LANE_COLORS[lane]}20`, color: LANE_COLORS[lane] }}
                     >
                       {lane.toUpperCase()}
@@ -253,7 +253,7 @@ export default function GrowthCalendarPage() {
                           return (
                             <div
                               key={idx}
-                              className="text-[0.6rem] px-1.5 py-1 rounded mb-0.5 flex items-center gap-1 min-w-0 overflow-hidden"
+                              className="text-[0.8rem] px-1.5 py-1 rounded mb-0.5 flex items-center gap-1 min-w-0 overflow-hidden"
                               style={{ backgroundColor: style.bg, color: style.fg }}
                               title={`${item.title} (${style.label}${item.source === "supabase" ? " · Supabase" : ""})`}
                             >
@@ -266,7 +266,7 @@ export default function GrowthCalendarPage() {
                           );
                         })}
                         {hiddenCount > 0 && (
-                          <div className="text-[0.55rem] px-1.5 py-1 rounded bg-warm text-mid/70">
+                          <div className="text-[0.75rem] px-1.5 py-1 rounded bg-warm text-mid/70">
                             +{hiddenCount} more
                           </div>
                         )}
@@ -281,7 +281,7 @@ export default function GrowthCalendarPage() {
           {/* ── Weekly Summary Row ─────────────────────────── */}
           {schedule && (
             <div className="mt-4 pt-3 border-t border-warm/60">
-              <p className="label-caps text-[0.5rem] text-mid/50 mb-2">This Week · Target vs Actual</p>
+              <p className="label-caps text-[0.7rem] text-mid/70 mb-2">This Week · Target vs Actual</p>
               <div className="flex flex-wrap gap-3">
                 {CHANNELS.map((ch) => {
                   const target = schedule.channels[ch]?.postsPerWeek ?? 0;
@@ -315,7 +315,7 @@ export default function GrowthCalendarPage() {
           {/* Lane toggles */}
           {schedule && (
             <div className="mb-5">
-              <p className="label-caps mb-2 text-mid/60">Lanes</p>
+              <p className="label-caps mb-2 text-mid/80">Lanes</p>
               {Object.entries(schedule.lanes).map(([lane, cfg]) => (
                 <button
                   key={lane}
@@ -336,7 +336,7 @@ export default function GrowthCalendarPage() {
           {/* Per-channel sliders */}
           {schedule && (
             <div className="space-y-4 mb-5">
-              <p className="label-caps text-mid/60">Posts / Week</p>
+              <p className="label-caps text-mid/80">Posts / Week</p>
               {CHANNELS.map((ch) => {
                 const cfg = schedule.channels[ch];
                 if (!cfg) return null;
@@ -367,7 +367,7 @@ export default function GrowthCalendarPage() {
                         background: `linear-gradient(to right, ${CHANNEL_COLORS[ch]} ${(cfg.postsPerWeek / 14) * 100}%, var(--warm) ${(cfg.postsPerWeek / 14) * 100}%)`,
                       }}
                     />
-                    <div className="flex justify-between text-[0.55rem] text-mid/40 mt-0.5">
+                    <div className="flex justify-between text-[0.75rem] text-mid/60 mt-0.5">
                       <span>0</span>
                       <span>Best: {cfg.bestTimes?.join(", ") ?? "\u2014"}</span>
                       <span>14</span>
@@ -390,11 +390,11 @@ export default function GrowthCalendarPage() {
           {/* Method legend */}
           {schedule && (
             <div className="mt-5 pt-4 border-t border-warm">
-              <p className="label-caps text-mid/40 mb-2">Posting Method</p>
+              <p className="label-caps text-mid/60 mb-2">Posting Method</p>
               {CHANNELS.map((ch) => {
                 const method = schedule.channels[ch]?.method ?? "\u2014";
                 return (
-                  <div key={ch} className="flex items-center justify-between text-[0.65rem] text-mid/60 py-0.5">
+                  <div key={ch} className="flex items-center justify-between text-[0.8rem] text-mid/80 py-0.5">
                     <span className="capitalize">{ch === "x" ? "X" : ch}</span>
                     <span>{method}</span>
                   </div>
@@ -416,7 +416,7 @@ function StatCard({ label, value, color }: { label: string; value: number; color
       <p className="text-2xl font-medium leading-none mb-1 tabular-nums" style={{ color, fontFamily: "var(--font-cormorant), Georgia, serif" }}>
         {value}
       </p>
-      <p className="label-caps text-mid/60 text-[0.55rem]">{label}</p>
+      <p className="label-caps text-mid/80 text-[0.75rem]">{label}</p>
     </div>
   );
 }

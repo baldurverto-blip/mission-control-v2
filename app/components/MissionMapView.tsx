@@ -95,28 +95,28 @@ function FocusAreaBand({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span
-              className="w-5 h-5 rounded flex items-center justify-center text-[0.5rem] font-medium text-white"
+              className="w-5 h-5 rounded flex items-center justify-center text-[0.7rem] font-medium text-white"
               style={{ backgroundColor: style.accent }}
             >
               {style.icon}
             </span>
-            <p className="label-caps text-mid/60">{label}</p>
-            <span className="text-[0.55rem] text-mid/40 italic ml-1">{mission}</span>
+            <p className="label-caps text-mid/80">{label}</p>
+            <span className="text-[0.75rem] text-mid/80 italic ml-1">{mission}</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
               <StatusDot status={health === "healthy" ? "ok" : health === "degraded" ? "warning" : "error"} />
-              <span className="text-[0.6rem] font-medium" style={{ color: healthColor }}>
+              <span className="text-[0.8rem] font-medium" style={{ color: healthColor }}>
                 {health}
               </span>
             </div>
-            <span className="text-[0.55rem] text-mid tabular-nums">
+            <span className="text-[0.75rem] text-mid tabular-nums">
               {engineStats?.agents ?? 6} agents
             </span>
-            <span className="text-[0.55rem] text-mid tabular-nums">
+            <span className="text-[0.75rem] text-mid tabular-nums">
               {engineStats?.crons ?? 22} crons
             </span>
-            <span className="text-[0.55rem] text-mid tabular-nums">
+            <span className="text-[0.75rem] text-mid tabular-nums">
               {engineStats?.pulsesToday ?? 0} pulses today
             </span>
           </div>
@@ -139,30 +139,30 @@ function FocusAreaBand({
       {/* Band header */}
       <div className="flex items-center gap-2 mb-2">
         <span
-          className="w-5 h-5 rounded flex items-center justify-center text-[0.5rem] font-medium text-white"
+          className="w-5 h-5 rounded flex items-center justify-center text-[0.7rem] font-medium text-white"
           style={{ backgroundColor: style.accent }}
         >
           {style.icon}
         </span>
-        <p className="label-caps text-mid/60">{label}</p>
-        <span className="text-[0.55rem] text-mid/40 italic ml-1">{mission}</span>
+        <p className="label-caps text-mid/80">{label}</p>
+        <span className="text-[0.75rem] text-mid/80 italic ml-1">{mission}</span>
         {count > 0 && (
-          <span className="ml-auto text-[0.6rem] text-mid tabular-nums">{countLabel}</span>
+          <span className="ml-auto text-[0.8rem] text-mid tabular-nums">{countLabel}</span>
         )}
       </div>
 
       {/* Phase column headers */}
       {count > 0 && (
         <div className="flex items-center gap-3 mb-1">
-          <div className="w-36 flex-shrink-0" />
+          <div className="w-44 flex-shrink-0" />
           <div className="flex-1 grid grid-cols-5 gap-1">
             {PHASE_LABELS.map((label) => (
-              <p key={label} className="text-center text-[0.55rem] text-mid/40 uppercase tracking-widest">
+              <p key={label} className="text-center text-[0.75rem] text-mid/80 uppercase tracking-widest">
                 {label}
               </p>
             ))}
           </div>
-          <div className="w-20 flex-shrink-0" />
+          <div className="w-24 flex-shrink-0" />
         </div>
       )}
 
@@ -170,7 +170,7 @@ function FocusAreaBand({
       {count > 0 ? (
         projects.map((p) => <ProductLane key={p.slug} project={p} />)
       ) : (
-        <p className="text-sm text-mid/50 text-center py-2">
+        <p className="text-sm text-mid/70 text-center py-2">
           {area === "advisory" ? "No active engagements" : "No products"}
         </p>
       )}
@@ -234,10 +234,10 @@ export function MissionMapView({
         {/* Expeditions */}
         <div className="col-span-3 min-h-0 overflow-y-auto custom-scroll">
           <div className="bg-paper border border-warm rounded-xl p-4 h-full">
-            <p className="label-caps text-mid/60 mb-3">
+            <p className="label-caps text-mid/80 mb-3">
               Expeditions
               {activeExpeditions.length > 0 && (
-                <span className="ml-2 text-[0.6rem] text-olive tabular-nums">{activeExpeditions.length} active</span>
+                <span className="ml-2 text-[0.8rem] text-olive tabular-nums">{activeExpeditions.length} active</span>
               )}
             </p>
             {expeditions.length > 0 ? (
@@ -247,7 +247,7 @@ export function MissionMapView({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-mid/50 text-center py-4">No expeditions running</p>
+              <p className="text-sm text-mid/70 text-center py-4">No expeditions running</p>
             )}
           </div>
         </div>

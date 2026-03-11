@@ -16,7 +16,7 @@ export function AttentionBar({ pulses }: AttentionBarProps) {
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="w-2 h-2 rounded-full attention-pulse" style={{ backgroundColor: "var(--terracotta)" }} />
-        <span className="text-[0.6rem] font-medium tracking-wider uppercase" style={{ color: "var(--terracotta)" }}>
+        <span className="text-[0.8rem] font-medium tracking-wider uppercase" style={{ color: "var(--terracotta)" }}>
           Needs attention
         </span>
       </div>
@@ -24,11 +24,11 @@ export function AttentionBar({ pulses }: AttentionBarProps) {
         {pulses.slice(0, 3).map((p, i) => {
           const a = agent(p.agent);
           return (
-            <div key={i} className="flex items-center gap-2.5 text-[0.7rem]">
+            <div key={i} className="flex items-center gap-2.5 text-[0.85rem]">
               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: a.color }} />
               <span className="font-medium" style={{ color: a.color }}>{a.name}</span>
               <span className="text-charcoal flex-1 truncate">{p.outcome}</span>
-              <span className="text-mid/35 tabular-nums flex-shrink-0" suppressHydrationWarning>{clockTime(p.timestamp)}</span>
+              <span className="text-mid/60 tabular-nums flex-shrink-0" suppressHydrationWarning>{clockTime(p.timestamp)}</span>
             </div>
           );
         })}

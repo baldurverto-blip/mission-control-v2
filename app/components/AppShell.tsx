@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Logo / Collapse toggle */}
         <div className="flex items-center justify-between px-4 h-14 border-b border-warm flex-shrink-0">
           {!collapsed && (
-            <span className="label-caps text-lilac tracking-[0.25em] text-[0.6rem]">VertoOS</span>
+            <span className="label-caps text-lilac tracking-[0.25em] text-[0.8rem]">VertoOS</span>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -87,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div key={group.label} className="mb-4">
                   {!collapsed && (
                     <div className="flex items-center gap-2 px-4 mb-1">
-                      <span className="label-caps text-[0.55rem]">{group.label}</span>
+                      <span className="label-caps text-[0.75rem]">{group.label}</span>
                       {group.healthEndpoint && (
                         <StatusDot status={growthStatus} size="sm" />
                       )}
@@ -131,7 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div key={group.label} className="mb-4">
                 {!collapsed && (
                   <div className="flex items-center gap-2 px-4 mb-1">
-                    <span className="label-caps text-[0.55rem]">{group.label}</span>
+                    <span className="label-caps text-[0.75rem]">{group.label}</span>
                     {group.healthEndpoint && (
                       <StatusDot status={growthStatus} size="sm" />
                     )}
@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           <span className="flex-1">{item.label}</span>
                           {badgeCounts[item.href] > 0 && (
                             <span
-                              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[0.55rem] font-medium text-paper"
+                              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[0.75rem] font-medium text-paper"
                               style={{ backgroundColor: "var(--terracotta)" }}
                             >
                               {badgeCounts[item.href]}
@@ -190,7 +190,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Footer */}
         {!collapsed && (
           <div className="px-4 py-3 border-t border-warm">
-            <p className="label-caps text-mid/40 text-[0.5rem]">Verto Studios</p>
+            <p className="label-caps text-mid/60 text-[0.7rem]">Verto Studios</p>
           </div>
         )}
       </aside>

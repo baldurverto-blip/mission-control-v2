@@ -338,7 +338,7 @@ export default function QueuePage() {
 
         {health?.modules && (
           <div className="flex items-center gap-4 mb-4 fade-up" style={{ animationDelay: "0.05s" }}>
-            <span className="label-caps text-[0.55rem]">Modules</span>
+            <span className="label-caps text-[0.75rem]">Modules</span>
             {Object.entries(health.modules).map(([mod, active]) => (
               <div key={mod} className="flex items-center gap-1.5">
                 <StatusDot status={active ? "ok" : "error"} size="sm" />
@@ -373,15 +373,15 @@ export default function QueuePage() {
                   Approved ≠ posted. This board shows what you need to manually post vs what the system tries to auto-post.
                 </p>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#8b5cf620", color: "var(--lilac)" }}>AGENT</span>
-                  <span className="text-[0.55rem] text-mid/70">posted by me via agent browser</span>
-                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#22c55e20", color: "var(--olive)" }}>AUTO</span>
-                  <span className="text-[0.55rem] text-mid/70">backend API autopost</span>
-                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#f59e0b20", color: "var(--amber)" }}>MANUAL</span>
-                  <span className="text-[0.55rem] text-mid/70">you post manually</span>
+                  <span className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#8b5cf620", color: "var(--lilac)" }}>AGENT</span>
+                  <span className="text-[0.75rem] text-mid/70">posted by me via agent browser</span>
+                  <span className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#22c55e20", color: "var(--olive)" }}>AUTO</span>
+                  <span className="text-[0.75rem] text-mid/70">backend API autopost</span>
+                  <span className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#f59e0b20", color: "var(--amber)" }}>MANUAL</span>
+                  <span className="text-[0.75rem] text-mid/70">you post manually</span>
                 </div>
               </div>
-              <div className="text-[0.65rem] text-mid/70">
+              <div className="text-[0.8rem] text-mid/70">
                 Manual: <b>{approvedManualItems.length}</b> · Auto pending: <b>{approvedAutoItems.length}</b>
               </div>
             </div>
@@ -406,9 +406,9 @@ export default function QueuePage() {
                   <div key={`action-${item.id}`} className="flex items-center justify-between gap-2 bg-bg rounded-lg px-3 py-2 border border-warm/70">
                     <div className="min-w-0">
                       <p className="text-xs text-charcoal truncate">{item.title ?? item.body ?? item.id}</p>
-                      <p className="text-[0.6rem] text-mid/70 capitalize">{item.platform} · {note}</p>
+                      <p className="text-[0.8rem] text-mid/70 capitalize">{item.platform} · {note}</p>
                       <div className="mt-1">
-                        <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${routeMeta.color}20`, color: routeMeta.color }}>
+                        <span className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${routeMeta.color}20`, color: routeMeta.color }}>
                           {routeMeta.label}
                         </span>
                       </div>
@@ -416,7 +416,7 @@ export default function QueuePage() {
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => setPreviewItem(item)}
-                        className="text-[0.65rem] px-2.5 py-1 rounded-md cursor-pointer"
+                        className="text-[0.8rem] px-2.5 py-1 rounded-md cursor-pointer"
                         style={{ color: "var(--charcoal)", backgroundColor: "var(--warm)" }}
                       >
                         Open post
@@ -425,7 +425,7 @@ export default function QueuePage() {
                         <button
                           onClick={() => openRedditManual(item.id)}
                           disabled={openingManualId === item.id}
-                          className="text-[0.65rem] px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-50"
+                          className="text-[0.8rem] px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-50"
                           style={{ color: "var(--charcoal)", backgroundColor: "var(--sand)" }}
                         >
                           Open manual
@@ -437,7 +437,7 @@ export default function QueuePage() {
                       <button
                         onClick={() => markPosted(item.id)}
                         disabled={acting === item.id}
-                        className="text-[0.65rem] px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-50 text-paper"
+                        className="text-[0.8rem] px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-50 text-paper"
                         style={{ backgroundColor: "var(--charcoal)" }}
                       >
                         Mark posted
@@ -458,7 +458,7 @@ export default function QueuePage() {
               <button
                 key={pill.id}
                 onClick={() => setTypeFilter(pill.id)}
-                className={`text-[0.6rem] px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                className={`text-[0.8rem] px-2.5 py-1 rounded-md cursor-pointer transition-all ${
                   typeFilter === pill.id
                     ? "bg-charcoal text-paper"
                     : "text-mid hover:text-charcoal"
@@ -492,7 +492,7 @@ export default function QueuePage() {
                       <Badge color="var(--lilac)">{video.project}</Badge>
                     </div>
                     <p className="text-sm leading-relaxed line-clamp-3 mb-2">{video.caption}</p>
-                    <div className="flex items-center gap-3 text-[0.55rem] text-mid/50">
+                    <div className="flex items-center gap-3 text-[0.75rem] text-mid/70">
                       <span>{video.manifest_id}</span>
                       <span>{new Date(video.created_at).toLocaleDateString("en-GB")}</span>
                     </div>
@@ -539,26 +539,26 @@ export default function QueuePage() {
                         <Badge color={STATUS_COLORS[text.status] ?? "var(--mid)"}>{STATUS_LABELS[text.status] ?? text.status}</Badge>
                         <Badge color="var(--olive)">{platform}</Badge>
                         <Badge color="var(--lilac)">{project}</Badge>
-                        <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${routeMeta.color}20`, color: routeMeta.color }}>
+                        <span className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${routeMeta.color}20`, color: routeMeta.color }}>
                           {routeMeta.label}
                         </span>
                         {contentType && (
-                          <span className="text-[0.6rem] text-mid/60">{contentType}</span>
+                          <span className="text-[0.8rem] text-mid/80">{contentType}</span>
                         )}
                         {text.humanizer_score != null && (
-                          <span className="text-[0.6rem] text-mid/60">score: {text.humanizer_score}</span>
+                          <span className="text-[0.8rem] text-mid/80">score: {text.humanizer_score}</span>
                         )}
                       </div>
                       <h3 className="text-sm font-medium text-charcoal mb-1">{displayTitle}</h3>
-                      {target && <p className="text-[0.65rem] text-mid/70 mb-1">{target}</p>}
+                      {target && <p className="text-[0.8rem] text-mid/70 mb-1">{target}</p>}
                       <p className="text-xs leading-relaxed text-mid line-clamp-4 whitespace-pre-line">{displayBody.replace(/^#\s.*\n\n?/, "").slice(0, 300)}</p>
                       <div className="flex items-center gap-3 mt-2">
-                        <span className="text-[0.6rem] text-mid/50">{new Date(text.created_at).toLocaleDateString("en-GB")}</span>
+                        <span className="text-[0.8rem] text-mid/70">{new Date(text.created_at).toLocaleDateString("en-GB")}</span>
                         {text.post_url && (
-                          <a href={text.post_url} target="_blank" rel="noopener" className="text-[0.6rem] text-terracotta hover:underline">View post</a>
+                          <a href={text.post_url} target="_blank" rel="noopener" className="text-[0.8rem] text-terracotta hover:underline">View post</a>
                         )}
                         {text.tags?.slice(0, 3).map((tag) => (
-                          <span key={tag} className="text-[0.55rem] px-1.5 py-0.5 rounded bg-warm text-mid">{tag}</span>
+                          <span key={tag} className="text-[0.75rem] px-1.5 py-0.5 rounded bg-warm text-mid">{tag}</span>
                         ))}
                       </div>
                     </div>
@@ -649,7 +649,7 @@ export default function QueuePage() {
                       </>
                     )}
                     {!isPending && (
-                      <span className="text-[0.6rem] text-mid/40 ml-auto">
+                      <span className="text-[0.8rem] text-mid/60 ml-auto">
                         {STATUS_LABELS[text.status]}
                       </span>
                     )}

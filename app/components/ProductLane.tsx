@@ -42,14 +42,27 @@ export function ProductLane({ project }: { project: ProjectLane }) {
   const primaryColor = primaryAgent ? agentToken(primaryAgent).color : "var(--olive)";
   const typeBadge = TYPE_BADGES[project.productType ?? ""] ?? null;
 
+  // Determine secondary label: advisory stage, factory tag, or nothing
+  const secondaryLabel = project.pipelineStage && project.productType === "advisory"
+    ? project.pipelineStage
+    : project.isFactoryProject
+      ? "factory"
+      : project.factoryStatus && project.factoryStatus !== project.status
+        ? project.factoryStatus.replace(/-/g, " ")
+        : null;
+
+  const secondaryColor = project.productType === "advisory"
+    ? "var(--amber)"
+    : "var(--amber)";
+
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-warm/30 transition-colors group">
-      {/* Product name + type badge */}
-      <div className="w-36 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-warm/30 transition-colors group">
+      {/* Product name + badges — fixed width, no wrap */}
+      <div className="w-44 flex-shrink-0 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           {typeBadge && (
             <span
-              className="text-[0.45rem] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded"
+              className="flex-shrink-0 text-[0.8rem] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
               style={{
                 backgroundColor: `${typeBadge.color}18`,
                 color: typeBadge.color,
@@ -59,21 +72,21 @@ export function ProductLane({ project }: { project: ProjectLane }) {
               {typeBadge.label}
             </span>
           )}
-          <p className="text-sm font-medium text-charcoal truncate">{project.name}</p>
+          <p className="text-sm font-medium text-charcoal truncate leading-tight">{project.name}</p>
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+        <div className="flex items-center gap-1 mt-0.5">
           <Badge color={project.isStalled ? "var(--terracotta)" : "var(--olive)"}>{project.status}</Badge>
-          {project.pipelineStage && project.productType === "advisory" && (
-            <Badge color="var(--amber)">{project.pipelineStage}</Badge>
-          )}
-          {project.factoryStatus && !project.isFactoryProject && (
-            <Badge color="var(--amber)">{project.factoryStatus.replace(/-/g, " ")}</Badge>
-          )}
-          {project.isFactoryProject && (
-            <span className="text-[0.45rem] text-amber/60 uppercase tracking-wider">factory</span>
-          )}
-          {project.pulseCount7d > 0 && (
-            <span className="text-[0.55rem] text-mid tabular-nums">{project.pulseCount7d}p/7d</span>
+          {secondaryLabel && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[0.7rem] font-medium tracking-wide"
+              style={{
+                backgroundColor: `${secondaryColor}14`,
+                color: `${secondaryColor}`,
+                opacity: 0.75,
+              }}
+            >
+              {secondaryLabel}
+            </span>
           )}
         </div>
       </div>
@@ -87,25 +100,23 @@ export function ProductLane({ project }: { project: ProjectLane }) {
           return (
             <div
               key={phase}
-              className="relative h-8 rounded-md flex items-center justify-center overflow-hidden transition-all"
+              className="relative h-8 rounded flex items-center justify-center overflow-hidden transition-all"
               style={{
                 backgroundColor: isCurrent
-                  ? `${primaryColor}30`
+                  ? `${primaryColor}28`
                   : isCompleted
-                    ? "var(--olive-soft, rgba(118, 135, 90, 0.15))"
+                    ? "rgba(118, 135, 90, 0.12)"
                     : "var(--warm)",
-                borderLeft: isCurrent ? `2px solid ${primaryColor}` : undefined,
+                borderLeft: isCurrent ? `2px solid ${primaryColor}80` : undefined,
+                boxShadow: isCurrent ? `inset 0 0 0 1px ${primaryColor}18` : undefined,
               }}
             >
-              {isCurrent && (
-                <div className="lane-fill absolute inset-0 rounded-md" style={{ backgroundColor: `${primaryColor}15` }} />
-              )}
               {isCurrent && project.activeAgents.length > 0 && (
-                <div className="relative z-10 flex gap-1">
+                <div className="relative z-10 flex gap-0.5">
                   {project.activeAgents.slice(0, 3).map((a) => (
                     <span
                       key={a}
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[0.45rem] text-white font-medium"
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[0.8rem] text-white font-semibold"
                       style={{ backgroundColor: agentToken(a).color }}
                       title={agentToken(a).name}
                     >
@@ -115,24 +126,31 @@ export function ProductLane({ project }: { project: ProjectLane }) {
                 </div>
               )}
               {isCompleted && (
-                <span className="text-[0.5rem] text-olive/50">&#10003;</span>
+                <span className="text-[0.75rem] text-olive/60 select-none">✓</span>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Stall indicator */}
-      <div className="w-20 flex-shrink-0 text-right">
+      {/* Right: stall / pulse info */}
+      <div className="w-24 flex-shrink-0 text-right">
         {project.isStalled ? (
           <div className="flex items-center justify-end gap-1">
             <StatusDot status="error" />
-            <span className="text-[0.6rem] text-terracotta">{project.staleDays}d stalled</span>
+            <span className="text-[0.8rem] text-terracotta">{project.staleDays}d stalled</span>
           </div>
-        ) : project.staleDays >= 0 ? (
-          <span className="text-[0.55rem] text-mid/50">{project.staleDays === 0 ? "active" : `${project.staleDays}d ago`}</span>
         ) : (
-          <span className="text-[0.55rem] text-mid/30">no pulses</span>
+          <div className="flex flex-col items-end gap-0.5">
+            {project.staleDays >= 0 && (
+              <span className="text-[0.75rem] text-mid/70">
+                {project.staleDays === 0 ? "active" : `${project.staleDays}d ago`}
+              </span>
+            )}
+            {project.pulseCount7d > 0 && (
+              <span className="text-[0.7rem] text-mid/60 tabular-nums">{project.pulseCount7d}p/7d</span>
+            )}
+          </div>
         )}
       </div>
     </div>

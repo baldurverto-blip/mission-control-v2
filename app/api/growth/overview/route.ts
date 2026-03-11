@@ -266,13 +266,17 @@ export async function GET() {
 
     // ── 6. Build factory summary ────────────────────────────────
     const PHASE_ORDER = ["research", "validation", "build", "quality_gate", "monetization", "packaging", "shipping", "marketing", "promo"];
+    const TERMINAL_STATUSES = ["shipped", "submitted", "rejected", "paused"];
     const factoryProjects = projects.map((p) => {
-      const phaseIdx = PHASE_ORDER.indexOf(p.status.replace("-", "_"));
       const completedPhases = PHASE_ORDER.filter((ph) => p.phases[ph]?.status === "complete").length;
+      const isTerminal = TERMINAL_STATUSES.includes(p.status);
+      const phaseIdx = isTerminal
+        ? -1
+        : PHASE_ORDER.findIndex((ph) => p.phases[ph]?.status !== "complete");
       return {
         slug: p.slug,
         status: p.status,
-        phase: phaseIdx >= 0 ? phaseIdx : 0,
+        phase: phaseIdx,
         completedPhases,
         totalPhases: PHASE_ORDER.length,
         qualityScore: p.phases.quality_gate?.score ?? null,
@@ -284,7 +288,7 @@ export async function GET() {
       ["research", "validation", "build", "quality-gate", "monetization", "packaging"].includes(p.status)
     ).length;
     const shipping = projects.filter((p) => p.status === "shipping" || p.status === "awaiting-approval").length;
-    const shipped = projects.filter((p) => p.status === "shipped").length;
+    const shipped = projects.filter((p) => p.status === "shipped" || p.status === "submitted").length;
     const attention = projects.filter((p) =>
       p.status === "needs-review" || p.status === "awaiting-approval" || (p.phases.quality_gate?.attempt ?? 0) >= 2
     ).length;

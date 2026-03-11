@@ -17,6 +17,7 @@ export const AGENTS: Record<string, AgentToken> = {
   bastion: { color: "#48453F", soft: "#48453f12", gradient: "from-[#48453F] to-[#6B675F]", label: "Ba", name: "Bastion" },
   vibe:    { color: "#C9A227", soft: "#C9A22715", gradient: "from-[#C9A227] to-[#DDB94A]", label: "V",  name: "Vibe" },
   frigg:   { color: "#7A8B8A", soft: "#7A8B8A15", gradient: "from-[#7A8B8A] to-[#9AABA9]", label: "F",  name: "Frigg" },
+  mimir:   { color: "#5B6FA8", soft: "#5B6FA815", gradient: "from-[#5B6FA8] to-[#7A8FC8]", label: "Mi", name: "Mimir" },
 };
 
 export const ALL_AGENT_IDS = ["baldur", "scout", "builder", "bastion", "vibe", "frigg"] as const;

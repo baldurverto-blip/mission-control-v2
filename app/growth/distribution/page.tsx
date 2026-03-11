@@ -121,11 +121,11 @@ function LayerCard({ layer, delay }: { layer: Layer; delay: number }) {
           </svg>
           <div>
             <p className="text-[0.7rem] font-medium text-charcoal">{meta.label}</p>
-            <p className="text-[0.5rem] text-mid/50">Every {meta.cadence} · {meta.agent}</p>
+            <p className="text-[0.7rem] text-mid/70">Every {meta.cadence} · {meta.agent}</p>
           </div>
         </div>
         <span
-          className="text-[0.5rem] px-2 py-0.5 rounded-full font-medium"
+          className="text-[0.7rem] px-2 py-0.5 rounded-full font-medium"
           style={{ backgroundColor: statusSoft(layer.status), color: statusColor(layer.status) }}
         >
           {layer.status}
@@ -135,11 +135,11 @@ function LayerCard({ layer, delay }: { layer: Layer; delay: number }) {
       {/* Stats row */}
       <div className="flex items-center gap-4 mt-2.5 pt-2 border-t border-warm/40">
         <div>
-          <p className="text-[0.5rem] text-mid/50">Runs</p>
+          <p className="text-[0.7rem] text-mid/70">Runs</p>
           <p className="text-[0.7rem] tabular-nums font-medium text-charcoal">{layer.runs}</p>
         </div>
         <div>
-          <p className="text-[0.5rem] text-mid/50">Last run</p>
+          <p className="text-[0.7rem] text-mid/70">Last run</p>
           <p className="text-[0.7rem] tabular-nums text-charcoal" suppressHydrationWarning>
             {layer.lastRun ? relTime(layer.lastRun) : "never"}
           </p>
@@ -149,7 +149,7 @@ function LayerCard({ layer, delay }: { layer: Layer; delay: number }) {
       {/* Result */}
       {layer.result && (
         <p
-          className="text-[0.6rem] mt-1.5 leading-snug"
+          className="text-[0.8rem] mt-1.5 leading-snug"
           style={{ color: layer.status === "failed" ? "var(--terracotta)" : "var(--mid)" }}
         >
           {layer.result.length > 120 ? layer.result.slice(0, 120) + "…" : layer.result}
@@ -160,7 +160,7 @@ function LayerCard({ layer, delay }: { layer: Layer; delay: number }) {
       {layer.blocking.length > 0 && (
         <div className="mt-1.5 space-y-0.5">
           {layer.blocking.map((b, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[0.55rem]" style={{ color: "var(--amber)" }}>
+            <div key={i} className="flex items-center gap-1.5 text-[0.75rem]" style={{ color: "var(--amber)" }}>
               <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--amber)" }} />
               {b}
             </div>
@@ -182,8 +182,8 @@ function ChannelMetrics({ app }: { app: DistributionApp }) {
         >
           {app.reddit.karma}
         </p>
-        <p className="label-caps text-[0.45rem] text-mid/60">Reddit Karma</p>
-        <p className="text-[0.5rem] text-mid/40 mt-0.5">{app.reddit.comments} comments · {app.reddit.subreddits.length} subs</p>
+        <p className="label-caps text-[0.8rem] text-mid/80">Reddit Karma</p>
+        <p className="text-[0.7rem] text-mid/60 mt-0.5">{app.reddit.comments} comments · {app.reddit.subreddits.length} subs</p>
       </div>
 
       {/* SEO */}
@@ -194,8 +194,8 @@ function ChannelMetrics({ app }: { app: DistributionApp }) {
         >
           {app.seo.indexedPages}
         </p>
-        <p className="label-caps text-[0.45rem] text-mid/60">Indexed Pages</p>
-        <p className="text-[0.5rem] text-mid/40 mt-0.5">{app.seo.blogs} blog · {app.seo.faqEntries} FAQ · {app.seo.programmaticPages} prog</p>
+        <p className="label-caps text-[0.8rem] text-mid/80">Indexed Pages</p>
+        <p className="text-[0.7rem] text-mid/60 mt-0.5">{app.seo.blogs} blog · {app.seo.faqEntries} FAQ · {app.seo.programmaticPages} prog</p>
       </div>
 
       {/* TikTok */}
@@ -206,7 +206,7 @@ function ChannelMetrics({ app }: { app: DistributionApp }) {
         >
           {app.tiktok.drafted}
         </p>
-        <p className="label-caps text-[0.45rem] text-mid/60">TikTok Drafted</p>
+        <p className="label-caps text-[0.8rem] text-mid/80">TikTok Drafted</p>
       </div>
 
       {/* Waitlist */}
@@ -217,13 +217,13 @@ function ChannelMetrics({ app }: { app: DistributionApp }) {
         >
           {app.waitlist.signups}
         </p>
-        <p className="label-caps text-[0.45rem] text-mid/60">Waitlist Signups</p>
+        <p className="label-caps text-[0.8rem] text-mid/80">Waitlist Signups</p>
         {app.waitlist.url && (
           <a
             href={app.waitlist.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[0.5rem] text-mid/40 hover:text-charcoal mt-0.5 block truncate"
+            className="text-[0.7rem] text-mid/60 hover:text-charcoal mt-0.5 block truncate"
           >
             {app.waitlist.url.replace("https://", "")}
           </a>
@@ -312,11 +312,11 @@ export default function DistributionPage() {
         <div className="flex-1">
           <p className="text-sm text-mid">
             <span className="font-medium text-charcoal">{apps.length} {apps.length === 1 ? "app" : "apps"}</span>
-            <span className="text-mid/40 mx-2">·</span>
+            <span className="text-mid/60 mx-2">·</span>
             <span style={{ color: "var(--olive)" }}>{data!.pipeline.distribution.totalActiveLayers} active layers</span>
             {data!.pipeline.distribution.totalFailedLayers > 0 && (
               <>
-                <span className="text-mid/40 mx-2">·</span>
+                <span className="text-mid/60 mx-2">·</span>
                 <span style={{ color: "var(--terracotta)" }}>{data!.pipeline.distribution.totalFailedLayers} failed</span>
               </>
             )}
@@ -332,8 +332,8 @@ export default function DistributionPage() {
             { label: "Amplifier", cadence: "7d" },
           ].map((l) => (
             <div key={l.label} className="text-center">
-              <p className="text-[0.5rem] text-mid/50 uppercase">{l.label}</p>
-              <p className="text-[0.45rem] text-mid/30">{l.cadence}</p>
+              <p className="text-[0.7rem] text-mid/70 uppercase">{l.label}</p>
+              <p className="text-[0.8rem] text-mid/55">{l.cadence}</p>
             </div>
           ))}
         </div>
@@ -365,7 +365,7 @@ export default function DistributionPage() {
                     <h3 className="text-lg text-charcoal capitalize" style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}>
                       {app.slug}
                     </h3>
-                    <p className="text-[0.6rem] text-mid/50" suppressHydrationWarning>
+                    <p className="text-[0.8rem] text-mid/70" suppressHydrationWarning>
                       {app.activeLayers}/6 layers active · Updated {relTime(app.updatedAt)}
                     </p>
                   </div>
@@ -417,7 +417,7 @@ export default function DistributionPage() {
       })}
 
       {/* ── Legend ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-center gap-6 text-[0.55rem] text-mid/50 pt-2">
+      <div className="flex items-center justify-center gap-6 text-[0.75rem] text-mid/70 pt-2">
         {[
           { color: "var(--olive)", label: "Active/Complete" },
           { color: "var(--amber)", label: "Pending" },

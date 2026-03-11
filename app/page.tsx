@@ -209,14 +209,14 @@ export default function Dashboard() {
             <TabBar tabs={viewTabs} active={view} onChange={(id) => setView(id as "map" | "ops")} />
             {kpis && (
               <div className="flex items-center gap-2">
-                <span className="label-caps text-mid/50">Roadmap</span>
+                <span className="label-caps text-mid/70">Roadmap</span>
                 <div className="w-24 h-1.5 rounded-full bg-warm overflow-hidden">
                   <div className="h-full rounded-full bg-olive transition-all" style={{ width: `${roadmapPct}%` }} />
                 </div>
-                <span className="text-[0.6rem] text-mid tabular-nums">{roadmapPct}%</span>
+                <span className="text-[0.8rem] text-mid tabular-nums">{roadmapPct}%</span>
               </div>
             )}
-            <p className="text-xs text-mid/50" suppressHydrationWarning>
+            <p className="text-xs text-mid/70" suppressHydrationWarning>
               {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/Copenhagen" })}
             </p>
           </div>

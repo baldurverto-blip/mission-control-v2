@@ -187,7 +187,7 @@ export default function EngagementPage() {
       <main className="px-8 pb-12 max-w-[1440px] mx-auto space-y-4">
         {/* Account Selector */}
         <div className="card p-4">
-          <p className="text-[0.6rem] text-mid/50 label-caps mb-3">Reddit Account Pool</p>
+          <p className="text-[0.8rem] text-mid/70 label-caps mb-3">Reddit Account Pool</p>
           <div className="flex items-center gap-2 flex-wrap">
             {configuredAccounts.map((a) => (
               <button
@@ -205,10 +205,10 @@ export default function EngagementPage() {
                 />
                 <div className="text-left">
                   <span className="text-charcoal font-medium">{slugLabel(a.slug)}</span>
-                  <span className="text-mid/50 ml-1.5">u/{a.username}</span>
+                  <span className="text-mid/70 ml-1.5">u/{a.username}</span>
                 </div>
                 {a.flagged_subs.length > 0 && (
-                  <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--terracotta-soft, #f5e6d0)", color: "var(--terracotta)" }}>
+                  <span className="text-[0.75rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--terracotta-soft, #f5e6d0)", color: "var(--terracotta)" }}>
                     {a.flagged_subs.length} flagged
                   </span>
                 )}
@@ -222,12 +222,12 @@ export default function EngagementPage() {
               >
                 <div className="w-2 h-2 rounded-full shrink-0 bg-warm" />
                 <span className="text-mid">{slugLabel(a.slug)}</span>
-                <span className="text-mid/40">no account</span>
+                <span className="text-mid/60">no account</span>
               </div>
             ))}
           </div>
           {selectedAccount && selectedAccount.notes && (
-            <p className="text-[0.6rem] text-mid/40 mt-2 ml-1">{selectedAccount.notes}</p>
+            <p className="text-[0.8rem] text-mid/60 mt-2 ml-1">{selectedAccount.notes}</p>
           )}
         </div>
 
@@ -253,7 +253,7 @@ export default function EngagementPage() {
 
             <div className="rounded-xl px-4 py-6 text-center" style={{ backgroundColor: "var(--warm)" }}>
               <p className="text-sm text-mid mb-1">Select an account above to view details and run engagement</p>
-              <p className="text-[0.6rem] text-mid/50">Each account maps to a product for targeted outreach</p>
+              <p className="text-[0.8rem] text-mid/70">Each account maps to a product for targeted outreach</p>
             </div>
 
             {/* Tabs still work for aggregate view */}
@@ -329,7 +329,7 @@ export default function EngagementPage() {
                 Dry Run
               </button>
               {running && (
-                <span className="text-[0.6rem] text-mid/50">Takes 30-90 min (anti-detection delays between comments)</span>
+                <span className="text-[0.8rem] text-mid/70">Takes 30-90 min (anti-detection delays between comments)</span>
               )}
             </div>
 
@@ -365,7 +365,7 @@ function CronCard({ cronJob }: { cronJob: CronJob }) {
             <p className="text-xs text-charcoal">
               Daily at {cronJob.schedule.expr ?? "?"} {cronJob.schedule.tz ? `(${cronJob.schedule.tz.split("/")[1]?.replace("_", " ")})` : ""}
             </p>
-            <p className="text-[0.6rem] text-mid/50">
+            <p className="text-[0.8rem] text-mid/70">
               Agent: {cronJob.agentId} &middot; All configured accounts
             </p>
           </div>
@@ -373,13 +373,13 @@ function CronCard({ cronJob }: { cronJob: CronJob }) {
         <div className="flex items-center gap-4 text-xs">
           {cronJob.state.nextRunAtMs && (
             <div className="text-right">
-              <p className="text-mid/50 text-[0.6rem] label-caps">Next run</p>
+              <p className="text-mid/70 text-[0.8rem] label-caps">Next run</p>
               <p className="text-charcoal tabular-nums">{formatRelativeTime(cronJob.state.nextRunAtMs)}</p>
             </div>
           )}
           {cronJob.state.lastRunAtMs && (
             <div className="text-right">
-              <p className="text-mid/50 text-[0.6rem] label-caps">Last run</p>
+              <p className="text-mid/70 text-[0.8rem] label-caps">Last run</p>
               <p className="text-charcoal tabular-nums">
                 {formatRelativeTime(cronJob.state.lastRunAtMs)}
                 {cronJob.state.lastRunStatus && (
@@ -423,7 +423,7 @@ function ActivityTab({ entries }: { entries: OutreachEntry[] }) {
                     {e.flagged_sub && <Badge color="var(--terracotta)">flagged</Badge>}
                   </div>
                   <p className="text-sm text-charcoal leading-snug mb-1">{e.thread_title || "Unknown thread"}</p>
-                  <p className="text-xs text-mid/50">{date} &middot; Phase {e.phase} &middot; Karma {e.karma_at_post}</p>
+                  <p className="text-xs text-mid/70">{date} &middot; Phase {e.phase} &middot; Karma {e.karma_at_post}</p>
                 </div>
               </div>
 
@@ -478,7 +478,7 @@ function SubredditTab({ stats }: { stats?: RedditStats }) {
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-charcoal">
                 r/{sub}
-                {isFlagged && <span className="text-[0.6rem] ml-1.5" style={{ color: "var(--terracotta)" }}>flagged</span>}
+                {isFlagged && <span className="text-[0.8rem] ml-1.5" style={{ color: "var(--terracotta)" }}>flagged</span>}
               </span>
               <span className="text-xs tabular-nums text-mid/60">{count}</span>
             </div>
@@ -515,12 +515,12 @@ function DailyTab({ stats }: { stats?: RedditStats }) {
           const label = day.substring(5);
           return (
             <div key={day} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-[0.55rem] tabular-nums text-mid/50">{count}</span>
+              <span className="text-[0.75rem] tabular-nums text-mid/70">{count}</span>
               <div
                 className="w-full rounded-t-sm transition-all duration-500"
                 style={{ height: h, backgroundColor: "var(--olive)" }}
               />
-              <span className="text-[0.5rem] text-mid/40 -rotate-45 whitespace-nowrap origin-top-left">{label}</span>
+              <span className="text-[0.7rem] text-mid/60 -rotate-45 whitespace-nowrap origin-top-left">{label}</span>
             </div>
           );
         })}
