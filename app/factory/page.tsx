@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
-import { StatusDot } from "../components/StatusDot";
 import { agent as agentToken, relTime, clockTime } from "@/app/lib/agents";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -28,6 +27,7 @@ interface PhaseDetail extends PhaseState {
   fixes_applied?: string[];
   summary?: string;
   prior_score?: number;
+  owner?: string;
   model?: string;
   trial_days?: number;
   free_trial_scans?: number;
@@ -38,8 +38,23 @@ interface PhaseDetail extends PhaseState {
   outputs?: string[];
 }
 
+interface ArtifactPhaseAudit {
+  required: string[];
+  delivered: string[];
+  missing: string[];
+}
+
+interface ArtifactAudit {
+  slug: string;
+  updated_at: string;
+  phase: string;
+  phase_state?: string;
+  artifacts: Record<string, ArtifactPhaseAudit>;
+}
+
 interface FactoryProject {
   slug: string;
+  displayName?: string | null;
   status: string;
   phase: number;
   phases: Record<string, PhaseDetail>;
@@ -57,6 +72,7 @@ interface FactoryProject {
   shipDate?: string | null;
   lastActivity?: ActivityEvent | null;
   e2eResults?: { status: string; tests: number; passed: number; failed: number } | null;
+  artifactAudit?: ArtifactAudit | null;
 }
 
 interface ActivityEvent {
@@ -561,16 +577,21 @@ function FactoryProjectRow({
           ? "var(--terracotta)"
           : "var(--lilac)";
 
-  const currentAgent = project.currentPhaseIdx >= 0
-    ? (PHASE_AGENTS[phaseLabels[project.currentPhaseIdx]] ?? "builder")
-    : "main";
+  const currentPhaseLabel = project.currentPhaseIdx >= 0
+    ? phaseLabels[project.currentPhaseIdx]
+    : null;
+  const currentPhaseKey = currentPhaseLabel ? currentPhaseLabel.replace(" ", "_") : null;
+  const currentPhaseDetail = currentPhaseKey ? project.phases[currentPhaseKey] : undefined;
+  const currentAgent = currentPhaseDetail?.owner
+    ? currentPhaseDetail.owner.toLowerCase()
+    : project.currentPhaseIdx >= 0
+      ? (PHASE_AGENTS[phaseLabels[project.currentPhaseIdx]] ?? "builder")
+      : "main";
 
   // Determine if this project has recent agent activity
   const activity = project.lastActivity;
-  const activityAge = activity
-    ? Date.now() - new Date(activity.timestamp).getTime()
-    : Infinity;
-  const hasLiveActivity = activityAge < 30 * 60 * 1000; // 30 min
+  // UI detail page now owns artifact readiness; live activity is presence-based here to avoid render-time time math.
+  const hasLiveActivity = Boolean(activity);
 
   return (
     <div>
@@ -586,7 +607,7 @@ function FactoryProjectRow({
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[0.7rem] text-white font-medium"
                 style={{ backgroundColor: agentToken(currentAgent).color }}
               >
-                {project.slug.slice(0, 2).toUpperCase()}
+                {(project.displayName ?? project.slug).slice(0, 2).toUpperCase()}
               </span>
               {hasLiveActivity && (
                 <span
@@ -596,32 +617,31 @@ function FactoryProjectRow({
               )}
             </div>
             <div>
-              <p className="text-sm font-medium text-charcoal truncate capitalize">
-                {project.slug.replace(/-/g, " ")}
+              <p className="text-sm font-medium text-charcoal truncate">
+                {project.displayName ?? project.slug.replace(/-/g, " ")}
               </p>
               {hasLiveActivity && activity ? (
                 <div className="flex flex-col">
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 text-[0.75rem] text-mid/80">
                     <span
                       className="w-1.5 h-1.5 rounded-full pulse-dot flex-shrink-0"
                       style={{ backgroundColor: agentToken(activity.agent).color }}
                     />
-                    <span className="text-[0.8rem] font-semibold" style={{ color: agentToken(activity.agent).color }}>
-                      {agentToken(activity.agent).name}
-                    </span>
-                    <span className="text-[0.75rem] text-mid/80">
-                      {activity.action.replace(/-/g, " ")}
-                    </span>
-                    {activity.model && activity.model !== "unknown" && (
-                      <ModelBadge model={activity.model} />
-                    )}
+                    <span>{activity.action.replace(/-/g, ' ')}</span>
                     <span className="text-[0.7rem] text-mid/60 tabular-nums">{relTime(activity.timestamp)}</span>
                   </span>
                 </div>
               ) : (
-                <Badge color={statusColor}>
-                  {STATUS_LABELS[project.status] ?? project.status}
-                </Badge>
+                <div className="flex flex-col gap-1">
+                  <Badge color={statusColor}>
+                    {STATUS_LABELS[project.status] ?? project.status}
+                  </Badge>
+                  {currentPhaseDetail?.owner && (
+                    <span className="text-[0.72rem] text-mid/70">
+                      Owner: <span className="capitalize">{currentPhaseDetail.owner}</span>
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -716,6 +736,75 @@ function FactoryProjectRow({
               <p className="text-sm text-mid/70 text-center py-4">
                 One-pager not yet generated. Research phase will create it.
               </p>
+            )}
+
+            {project.artifactAudit && (
+              <div className="mt-4 pt-4 border-t border-warm/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="label-caps text-[0.72rem]">Phase Agreement Checklist</p>
+                  <span className="text-[0.75rem] text-mid/65">
+                    {project.artifactAudit.phase_state ? project.artifactAudit.phase_state.replace(/-/g, " ") : "audit active"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {Object.entries(project.artifactAudit.artifacts).map(([phaseName, audit]) => {
+                    const complete = audit.required.length > 0 && audit.missing.length === 0;
+                    const active = project.artifactAudit?.phase === phaseName;
+                    return (
+                      <div
+                        key={phaseName}
+                        className="rounded-lg border p-3 transition-colors"
+                        style={{
+                          borderColor: complete ? "rgba(118, 135, 90, 0.35)" : active ? "rgba(183, 110, 121, 0.35)" : "rgba(201, 183, 159, 0.55)",
+                          backgroundColor: complete ? "rgba(118, 135, 90, 0.08)" : active ? "rgba(183, 110, 121, 0.06)" : "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[0.8rem] font-medium text-charcoal capitalize">
+                              {phaseName.replace(/_/g, " ")}
+                            </p>
+                            {complete ? (
+                              <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(118, 135, 90, 0.14)", color: "var(--olive)" }}>
+                                ready
+                              </span>
+                            ) : active ? (
+                              <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(183, 110, 121, 0.12)", color: "var(--terracotta)" }}>
+                                active
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className="text-[0.72rem] text-mid/70 tabular-nums">
+                            {audit.delivered.length}/{audit.required.length} delivered
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {audit.required.map((item) => {
+                            const delivered = audit.delivered.includes(item);
+                            return (
+                              <div
+                                key={item}
+                                className="flex items-start gap-2 text-[0.76rem] rounded-md px-2 py-1"
+                                style={{ backgroundColor: delivered ? "rgba(118, 135, 90, 0.06)" : "rgba(0,0,0,0.02)" }}
+                              >
+                                <span className="mt-[2px] font-medium" style={{ color: delivered ? "var(--olive)" : "var(--mid)" }}>
+                                  {delivered ? "☑" : "☐"}
+                                </span>
+                                <span className={delivered ? "text-charcoal" : "text-mid/70"}>{item}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {audit.missing.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-warm/40 text-[0.72rem] text-mid/70">
+                            Missing: {audit.missing.join(", ")}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
             {/* Phase detail strip */}
             <div className="mt-3 pt-3 border-t border-warm/50 grid grid-cols-4 gap-3">

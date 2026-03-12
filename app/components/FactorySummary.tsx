@@ -13,6 +13,7 @@ interface ActivityEvent {
 
 interface FactoryProject {
   slug: string;
+  displayName?: string | null;
   status: string;
   completedPhases: number;
   totalPhases: number;
@@ -27,30 +28,11 @@ export interface FactorySummaryData {
   lastPulseAt: string | null;
 }
 
-const MODEL_COLORS: Record<string, string> = {
-  "Opus 4.6": "#6B21A8",
-  "opus": "#6B21A8",
-  "Sonnet 4.6": "#1D4ED8",
-  "sonnet": "#1D4ED8",
-  "MiniMax-M2.5": "#374151",
-  "minimax": "#374151",
-};
-
-const MODEL_LABELS: Record<string, string> = {
-  "Opus 4.6": "OPUS",
-  "opus": "OPUS",
-  "Sonnet 4.6": "SONNET",
-  "sonnet": "SONNET",
-  "MiniMax-M2.5": "MINIMAX",
-  "minimax": "MINIMAX",
-};
 
 export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
   if (!data) return null;
 
-  const { stats, activityFeed, projects, loopRunning, lastPulseAt } = data;
-  const now = Date.now();
-  const LIVE_THRESHOLD = 30 * 60 * 1000;
+  const { stats, activityFeed, projects, loopRunning } = data;
   const isLive = loopRunning;
 
   return (
@@ -98,14 +80,14 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
             .map((p) => {
               const pct = Math.round((p.completedPhases / Math.max(p.totalPhases, 1)) * 100);
               const activity = p.lastActivity;
-              const hasActivity = activity && (now - new Date(activity.timestamp).getTime() < LIVE_THRESHOLD);
+              const hasActivity = Boolean(activity);
               const activityAgent = hasActivity ? agentToken(activity!.agent) : null;
 
               const isAwaitingApproval = p.status === "awaiting-approval";
 
               return (
                 <div key={p.slug} className="flex items-center gap-2">
-                  <span className="text-[0.8rem] text-charcoal capitalize w-16 truncate">{p.slug}</span>
+                  <span className="text-[0.8rem] text-charcoal w-20 truncate">{p.displayName ?? p.slug.replace(/-/g, ' ')}</span>
                   <div className="flex-1 h-1.5 rounded-full bg-warm overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
@@ -143,9 +125,7 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide rounded-md" style={{ backgroundColor: "#1C1B19" }}>
           {activityFeed.slice(0, 4).map((event, i) => {
             const token = agentToken(event.agent);
-            const modelColor = MODEL_COLORS[event.model ?? ""] ?? "#374151";
-            const modelLabel = MODEL_LABELS[event.model ?? ""] ?? "";
-            const isRecent = now - new Date(event.timestamp).getTime() < LIVE_THRESHOLD;
+            const isRecent = true;
             return (
               <div
                 key={`${event.timestamp}-${i}`}
@@ -162,14 +142,6 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
                     <span className="text-[0.75rem] font-medium font-[family-name:var(--font-dm-mono)]" style={{ color: token.color }}>
                       {token.name}
                     </span>
-                    {modelLabel && (
-                      <span
-                        className="px-1 py-0 rounded text-[0.8rem] font-bold tracking-wider font-[family-name:var(--font-dm-mono)]"
-                        style={{ backgroundColor: modelColor, color: "#fff" }}
-                      >
-                        {modelLabel}
-                      </span>
-                    )}
                     <span className="text-[0.65rem] text-white/60 tabular-nums font-[family-name:var(--font-dm-mono)]">
                       {relTime(event.timestamp)}
                     </span>

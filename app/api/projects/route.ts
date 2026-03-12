@@ -111,7 +111,9 @@ function factoryStatusToLifecycle(status: string): string {
     case "monetization":
     case "packaging":
     case "shipping":
+    case "submitted":
     case "awaiting-approval":
+    case "needs-review":
     case "marketing":
     case "promo": return "distribution";
     case "shipped": return "support";
@@ -296,6 +298,14 @@ export async function GET() {
           const raw = await readFile(stateFile, "utf-8");
           const state = JSON.parse(raw);
           const factoryStatus = state.status as string;
+
+          // Skip rejected factory projects entirely
+          if (factoryStatus === "rejected") {
+            // Remove from projects if already added via PRD
+            const idx = projects.findIndex((p) => p.slug === entry);
+            if (idx !== -1) projects.splice(idx, 1);
+            continue;
+          }
 
           if (seenSlugs.has(entry)) {
             const existing = projects.find((p) => p.slug === entry);

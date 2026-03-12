@@ -32,6 +32,20 @@ interface ProjectState {
   updated_at: string;
 }
 
+interface ArtifactPhaseAudit {
+  required: string[];
+  delivered: string[];
+  missing: string[];
+}
+
+interface ArtifactAudit {
+  slug: string;
+  updated_at: string;
+  phase: string;
+  phase_state?: string;
+  artifacts: Record<string, ArtifactPhaseAudit>;
+}
+
 interface KPISnapshot {
   week: string;
   date: string;
@@ -80,7 +94,7 @@ const PHASE_ORDER = [
 
 export async function GET() {
   try {
-    const projects: (ProjectState & { onePager?: string; kpis?: KPIData; e2eResults?: { status: string; tests: number; passed: number; failed: number } })[] = [];
+    const projects: (ProjectState & { onePager?: string; displayName?: string; kpis?: KPIData; e2eResults?: { status: string; tests: number; passed: number; failed: number }; artifactAudit?: ArtifactAudit })[] = [];
 
     // Read all project state files
     const entries = await readdir(FACTORY).catch(() => []);
@@ -92,11 +106,16 @@ export async function GET() {
         const raw = await readFile(stateFile, "utf-8");
         const state: ProjectState = JSON.parse(raw);
 
-        // Try to read one-pager summary
+        // Try to read one-pager summary + display title
         let onePager: string | undefined;
+        let displayName: string | undefined;
         try {
           const op = await readFile(join(FACTORY, entry, "one-pager.md"), "utf-8");
           onePager = op.slice(0, 2000);
+          const firstHeading = op.split(/\r?\n/).find((line) => line.startsWith('# '));
+          if (firstHeading) {
+            displayName = firstHeading.replace(/^#\s+App One-Pager:\s*/i, '').trim();
+          }
         } catch { /* no one-pager yet */ }
 
         // Try to read KPI data for shipped apps
@@ -113,7 +132,14 @@ export async function GET() {
           e2eResults = JSON.parse(e2eRaw);
         } catch { /* no e2e results yet */ }
 
-        projects.push({ ...state, onePager, kpis, e2eResults });
+        // Try to read artifact audit
+        let artifactAudit: ArtifactAudit | undefined;
+        try {
+          const auditRaw = await readFile(join(FACTORY, entry, "artifact-audit.json"), "utf-8");
+          artifactAudit = JSON.parse(auditRaw);
+        } catch { /* no artifact audit yet */ }
+
+        projects.push({ ...state, onePager, displayName, kpis, e2eResults, artifactAudit });
       } catch { /* skip non-project dirs or missing state */ }
     }
 
@@ -143,7 +169,7 @@ export async function GET() {
     const queued = ideaQueue.queue.length;
 
     // Read recent pulses for live activity (last 3 days for continuity)
-    let allPulses: PulseEvent[] = [];
+    const allPulses: PulseEvent[] = [];
     for (let i = 0; i < 3; i++) {
       const date = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
       try {
@@ -206,6 +232,8 @@ export async function GET() {
         activeSignals: p.kpis?.signals?.length ?? 0,
         shipDate: p.kpis?.ship_date ?? null,
         lastActivity,
+        artifactAudit: p.artifactAudit ?? null,
+        displayName: (p as typeof p & { displayName?: string }).displayName ?? null,
       };
     });
 
