@@ -54,6 +54,29 @@ export async function GET() {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const { raw } = await req.json();
+    if (!raw || typeof raw !== "string") {
+      return NextResponse.json({ error: "Missing 'raw' field" }, { status: 400 });
+    }
+    const content = await readFile(INBOX_MD, "utf-8");
+    const lines = content.split("\n");
+    const updated = lines.map((line) =>
+      line === raw && line.startsWith("- [ ]")
+        ? line.replace("- [ ]", "- [x]")
+        : line
+    );
+    await writeFile(INBOX_MD, updated.join("\n"), "utf-8");
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to update inbox", detail: String(err) },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { text } = await req.json();

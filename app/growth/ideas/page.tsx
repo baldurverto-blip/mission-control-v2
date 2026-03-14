@@ -22,6 +22,22 @@ interface IdeaVariant {
   score: number;
 }
 
+interface ConceptFeature {
+  feature: string;
+  description: string;
+}
+
+interface ProductConcept {
+  product_name: string;
+  tagline: string;
+  problem_statement: string;
+  target_user: string;
+  core_features: ConceptFeature[];
+  differentiator: string;
+  monetization: string;
+  competitive_positioning: string;
+}
+
 interface QualificationDimension {
   score: number;
   reasoning: string;
@@ -74,6 +90,7 @@ interface ProposedIdea {
   status?: string;
   refined_at?: string;
   best_variant?: IdeaVariant;
+  concept?: ProductConcept;
 }
 
 interface HotSignal {
@@ -319,6 +336,7 @@ function PhaseGateChecklist({ idea }: { idea: ProposedIdea }) {
     { label: "Keyword data enriched", value: idea.evidence?.keyword_count ?? 0, met: (idea.evidence?.keyword_count ?? 0) > 0 },
     { label: "Variants generated", value: idea.evidence?.variants?.length ?? 0, met: (idea.evidence?.variants?.length ?? 0) > 0 },
     { label: "Competitors mapped", value: idea.evidence?.competitors?.length ?? 0, met: (idea.evidence?.competitors?.length ?? 0) > 0 },
+    { label: "Product concept synthesized", value: idea.concept ? 1 : 0, met: !!idea.concept },
     { label: "Best angle selected", value: idea.best_variant ? 1 : 0, met: !!idea.best_variant },
     { label: "Search volume > 500/mo", value: idea.evidence?.total_volume ?? 0, met: (idea.evidence?.total_volume ?? 0) > 500 },
   ];
@@ -446,8 +464,39 @@ function IdeaDrawer({
           {/* Phase Gate Checklist — WHY is this idea in its current phase */}
           <PhaseGateChecklist idea={idea} />
 
-          {/* Best variant */}
-          {idea.best_variant && (
+          {/* Product concept / Best variant */}
+          {idea.concept ? (
+            <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: `${color}08`, borderLeft: `3px solid ${color}` }}>
+              <p className="text-[0.75rem] font-medium text-mid/70 mb-1">PRODUCT CONCEPT</p>
+              <p className="text-sm font-medium text-charcoal">{idea.concept.product_name}</p>
+              <p className="text-xs text-mid/80">{idea.concept.tagline}</p>
+              <p className="text-xs text-mid/80 mt-1">
+                <span className="font-medium text-mid/90">Target:</span> {idea.concept.target_user}
+              </p>
+              <p className="text-xs text-mid/70 mt-1 italic">{idea.concept.problem_statement}</p>
+              {idea.concept.core_features && idea.concept.core_features.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-[0.7rem] font-medium text-mid/70">Core Features</p>
+                  {idea.concept.core_features.map((f, i) => (
+                    <div key={i} className="flex gap-1.5 text-[0.75rem]">
+                      <span className="text-mid/50 shrink-0">•</span>
+                      <div>
+                        <span className="font-medium text-charcoal/90">{f.feature}</span>
+                        {f.description && <span className="text-mid/60"> — {f.description}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[0.8rem] text-mid/60 mt-1">{idea.concept.differentiator}</p>
+              {idea.concept.competitive_positioning && (
+                <p className="text-[0.7rem] text-mid/55 mt-0.5">{idea.concept.competitive_positioning}</p>
+              )}
+              {idea.concept.monetization && (
+                <p className="text-[0.7rem] text-mid/55 mt-0.5">💰 {idea.concept.monetization}</p>
+              )}
+            </div>
+          ) : idea.best_variant ? (
             <div className="p-3 rounded-lg" style={{ backgroundColor: `${color}08`, borderLeft: `3px solid ${color}` }}>
               <p className="text-[0.75rem] font-medium text-mid/70 mb-1">BEST ANGLE</p>
               <p className="text-sm font-medium text-charcoal">{idea.best_variant.angle}</p>
@@ -455,7 +504,7 @@ function IdeaDrawer({
               <p className="text-xs text-mid/70 mt-1 italic">{idea.best_variant.pain_statement}</p>
               <p className="text-[0.8rem] text-mid/60 mt-1">{idea.best_variant.differentiator}</p>
             </div>
-          )}
+          ) : null}
 
           {/* Score breakdown */}
           {breakdown && Object.keys(breakdown).length > 0 && (
@@ -592,7 +641,9 @@ function IdeaDrawer({
               </button>
               {showOnePager && (
                 <pre className="mt-2 p-3 rounded-lg bg-warm/40 text-[0.75rem] text-mid/70 whitespace-pre-wrap overflow-auto max-h-[300px] custom-scroll leading-relaxed">
-                  {idea.evidence.mini_one_pager}
+                  {typeof idea.evidence.mini_one_pager === "string"
+                    ? idea.evidence.mini_one_pager
+                    : JSON.stringify(idea.evidence.mini_one_pager, null, 2)}
                 </pre>
               )}
             </div>

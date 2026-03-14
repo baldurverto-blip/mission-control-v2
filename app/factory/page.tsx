@@ -42,6 +42,7 @@ interface ArtifactPhaseAudit {
   required: string[];
   delivered: string[];
   missing: string[];
+  labels?: Record<string, string>;
 }
 
 interface ArtifactAudit {
@@ -50,6 +51,17 @@ interface ArtifactAudit {
   phase: string;
   phase_state?: string;
   artifacts: Record<string, ArtifactPhaseAudit>;
+}
+
+interface BuildPreview {
+  stats?: { files?: number; lines?: number; screens?: number; tests?: number; services?: number };
+  buildSummary?: string;
+  designColors?: { primary?: string; surface?: string; accent?: string };
+  designTone?: string;
+  hasMascot?: boolean;
+  screenList?: string[];
+  testCommand?: string;
+  projectDir?: string;
 }
 
 interface FactoryProject {
@@ -73,6 +85,9 @@ interface FactoryProject {
   lastActivity?: ActivityEvent | null;
   e2eResults?: { status: string; tests: number; passed: number; failed: number } | null;
   artifactAudit?: ArtifactAudit | null;
+  buildPreview?: BuildPreview | null;
+  track?: string;
+  trackPhases?: string[];
 }
 
 interface ActivityEvent {
@@ -113,8 +128,10 @@ interface FactoryData {
 const PHASE_AGENTS: Record<string, string> = {
   research: "scout",
   validation: "scout",
+  design: "builder",
   build: "builder",
   "quality gate": "bastion",
+  "code review": "bastion",
   monetization: "vibe",
   packaging: "vibe",
   shipping: "builder",
@@ -125,8 +142,10 @@ const PHASE_AGENTS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   research: "Researching",
   validation: "Validating",
+  design: "Designing",
   build: "Building",
   "quality-gate": "Quality Gate",
+  "code-review": "Code Review",
   monetization: "Monetizing",
   packaging: "Packaging",
   shipping: "Ready to Ship",
@@ -139,6 +158,29 @@ const STATUS_LABELS: Record<string, string> = {
   paused: "Paused",
 };
 
+const PHASE_ABBREV: Record<string, string> = {
+  research: "Res",
+  validation: "Val",
+  design: "Des",
+  build: "Build",
+  code_review: "CR",
+  "code review": "CR",
+  quality_gate: "QG",
+  "quality gate": "QG",
+  monetization: "Mon",
+  packaging: "Pkg",
+  shipping: "Ship",
+  deploy: "Deploy",
+  marketing: "Mkt",
+  promo: "Promo",
+};
+
+const TRACK_BADGES: Record<string, { label: string; color: string; bg: string }> = {
+  mobile: { label: "Mobile", color: "#5B6FA8", bg: "rgba(91, 111, 168, 0.12)" },
+  saas: { label: "SaaS", color: "#768B5A", bg: "rgba(118, 139, 90, 0.12)" },
+  advisory: { label: "Advisory", color: "#C4A048", bg: "rgba(196, 160, 72, 0.12)" },
+};
+
 // ─── Page ────────────────────────────────────────────────────────────
 
 export default function FactoryPage() {
@@ -147,6 +189,7 @@ export default function FactoryPage() {
   const [queueTab, setQueueTab] = useState<"queued" | "shipped" | "rejected">("queued");
   const [approvalLoading, setApprovalLoading] = useState<string | null>(null);
   const [approvalResult, setApprovalResult] = useState<{ slug: string; status: string; message: string } | null>(null);
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async () => {
     const res = await fetch("/api/factory").then((r) => r.json()).catch(() => null);
@@ -358,57 +401,171 @@ export default function FactoryPage() {
           />
         ))}
 
-        {/* ═══ ACTIVE PROJECTS ════════════════════════════════════════ */}
-        <Card className="p-0 overflow-hidden">
-          <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-            <p className="label-caps text-mid/80">Active Projects</p>
-            {projects.length > 0 && (
-              <span className="text-[0.8rem] text-mid/60 tabular-nums">
-                {projects.length} project{projects.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
+        {/* ═══ ACTIVE PROJECTS — grouped by track ═══════════════════ */}
+        {(() => {
+          // Separate active pipeline projects from terminal/submitted ones
+          const INACTIVE_STATUSES = ["shipped", "submitted", "paused", "parked", "rejected"];
+          const activeProjects = projects.filter((p) => !INACTIVE_STATUSES.includes(p.status));
 
-          {/* Phase column headers */}
-          <div className="px-5 flex items-center gap-3 mb-1">
-            <div className="w-36 flex-shrink-0" />
-            <div className="flex-1 grid grid-cols-9 gap-0.5">
-              {phaseLabels.map((label) => (
-                <p
-                  key={label}
-                  className="text-center text-[0.7rem] text-mid/60 uppercase tracking-[0.15em] truncate"
-                >
-                  {label.replace("quality gate", "QG")}
-                </p>
-              ))}
-            </div>
-            <div className="w-24 flex-shrink-0" />
-          </div>
+          // Group active projects by track
+          const trackGroups: Record<string, FactoryProject[]> = {};
+          for (const p of activeProjects) {
+            const track = p.track ?? "mobile";
+            if (!trackGroups[track]) trackGroups[track] = [];
+            trackGroups[track].push(p);
+          }
+          // Order: saas first (fewer phases), then mobile, then others
+          const trackOrder = ["saas", "mobile", "advisory"];
+          const sortedTracks = Object.keys(trackGroups).sort(
+            (a, b) => (trackOrder.indexOf(a) === -1 ? 99 : trackOrder.indexOf(a)) - (trackOrder.indexOf(b) === -1 ? 99 : trackOrder.indexOf(b))
+          );
 
-          {/* Project rows */}
-          {projects.length > 0 ? (
-            <div className="divide-y divide-warm/60">
-              {projects.map((p) => (
-                <FactoryProjectRow
-                  key={p.slug}
-                  project={p}
-                  phaseLabels={phaseLabels}
-                  expanded={expandedSlug === p.slug}
-                  onToggle={() =>
-                    setExpandedSlug(expandedSlug === p.slug ? null : p.slug)
-                  }
-                />
-              ))}
+          if (activeProjects.length === 0) {
+            return (
+              <Card className="p-0 overflow-hidden">
+                <div className="px-5 pt-4 pb-2">
+                  <p className="label-caps text-mid/80">Active Projects</p>
+                </div>
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-mid/70">No active projects</p>
+                  <p className="text-xs text-mid/55 mt-1">
+                    Add ideas to the queue and the factory will start building
+                  </p>
+                </div>
+              </Card>
+            );
+          }
+
+          return (
+            <div className="space-y-3">
+              {sortedTracks.map((track) => {
+                const trackProjects = trackGroups[track];
+                const trackInfo = TRACK_BADGES[track];
+                // Get phases from the first project's trackPhases or fall back to phaseLabels
+                const trackPhaseList = trackProjects[0]?.trackPhases ?? phaseLabels;
+                return (
+                  <Card key={track} className="p-0 overflow-hidden">
+                    {/* Track header + phase column labels */}
+                    <div className="px-5 pt-3.5 pb-0">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          {trackInfo && (
+                            <span
+                              className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                              style={{ color: trackInfo.color, backgroundColor: trackInfo.bg }}
+                            >
+                              {trackInfo.label}
+                            </span>
+                          )}
+                          <span className="text-[0.8rem] text-mid/60 tabular-nums">
+                            {trackProjects.length} project{trackProjects.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Phase header row */}
+                    <div className="flex items-center gap-3 px-5 pt-2 pb-1.5">
+                      <div className="w-48 flex-shrink-0" />
+                      <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${trackPhaseList.length}, minmax(0, 1fr))` }}>
+                        {trackPhaseList.map((label) => (
+                          <div key={label} className="text-center">
+                            <span
+                              className="text-[0.65rem] text-mid/70 uppercase tracking-wider font-semibold font-[family-name:var(--font-dm-mono)]"
+                              title={label.replace(/_/g, " ")}
+                            >
+                              {PHASE_ABBREV[label] ?? label.slice(0, 3)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="w-32 flex-shrink-0" />
+                    </div>
+
+                    {/* Project rows */}
+                    <div className="divide-y divide-warm/60">
+                      {trackProjects.map((p) => (
+                        <FactoryProjectRow
+                          key={p.slug}
+                          project={p}
+                          phaseLabels={trackPhaseList}
+                          expanded={expandedSlug === p.slug}
+                          onToggle={() =>
+                            setExpandedSlug(expandedSlug === p.slug ? null : p.slug)
+                          }
+                          expandedPhases={expandedPhases}
+                          onTogglePhase={(key) =>
+                            setExpandedPhases((prev) => ({ ...prev, [key]: !prev[key] }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
-          ) : (
-            <div className="px-5 py-8 text-center">
-              <p className="text-sm text-mid/70">No active projects</p>
-              <p className="text-xs text-mid/55 mt-1">
-                Add ideas to the queue and the factory will start building
-              </p>
-            </div>
-          )}
-        </Card>
+          );
+        })()}
+
+        {/* ═══ SUBMITTED / IN REVIEW ═════════════════════════════════ */}
+        {(() => {
+          const submittedProjects = projects.filter(
+            (p) => p.status === "submitted" || (p.status === "shipped" && !p.latestKPI)
+          );
+          if (submittedProjects.length === 0) return null;
+          return (
+            <Card className="p-0 overflow-hidden">
+              <div className="px-5 pt-3.5 pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <p className="label-caps text-mid/80">In Review</p>
+                    <span className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-600">
+                      App Store
+                    </span>
+                  </div>
+                  <span className="text-[0.8rem] text-mid/60 tabular-nums">
+                    {submittedProjects.length} app{submittedProjects.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+              <div className="divide-y divide-warm/60">
+                {submittedProjects.map((p) => {
+                  const name = p.displayName ?? p.slug.replace(/-/g, " ");
+                  const shippingPhase = p.phases.shipping as PhaseDetail & { notes?: string };
+                  const submittedAt = (p as any).submitted_at ?? p.updated_at;
+                  const daysSince = Math.floor(
+                    (Date.now() - new Date(submittedAt).getTime()) / 86400000
+                  );
+                  return (
+                    <div key={p.slug} className="px-5 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        <div>
+                          <p className="text-sm font-medium text-charcoal">{name}</p>
+                          <p className="text-[0.75rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+                            {shippingPhase?.notes
+                              ? (shippingPhase.notes as string).slice(0, 80) + ((shippingPhase.notes as string).length > 80 ? "..." : "")
+                              : `Submitted ${daysSince}d ago`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[0.75rem] text-mid/50 tabular-nums font-[family-name:var(--font-dm-mono)]">
+                          {p.completedPhases}/{p.totalPhases} phases
+                        </span>
+                        {p.qualityScore !== null && (
+                          <span className="text-[0.75rem] tabular-nums font-medium" style={{ color: p.qualityScore >= 80 ? "#4ade80" : "#fbbf24" }}>
+                            QG {p.qualityScore}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* ═══ POST-SHIP KPI TRACKING ═══════════════════════════════ */}
         {(() => {
@@ -515,6 +672,8 @@ export default function FactoryPage() {
             <div className="space-y-1.5">
               <LaneStep agent="scout" label="Pain Mining + Research" />
               <LaneArrow />
+              <LaneStep agent="builder" label="Design Brief" />
+              <LaneArrow />
               <LaneStep agent="builder" label="Build from Scaffold" />
               <LaneArrow />
               <LaneStep agent="bastion" label="Quality Gate (8/10)" />
@@ -562,11 +721,15 @@ function FactoryProjectRow({
   phaseLabels,
   expanded,
   onToggle,
+  expandedPhases,
+  onTogglePhase,
 }: {
   project: FactoryProject;
   phaseLabels: string[];
   expanded: boolean;
   onToggle: () => void;
+  expandedPhases: Record<string, boolean>;
+  onTogglePhase: (key: string) => void;
 }) {
   const statusColor =
     project.status === "shipped" || project.status === "submitted"
@@ -577,15 +740,16 @@ function FactoryProjectRow({
           ? "var(--terracotta)"
           : "var(--lilac)";
 
+  const effectivePhases = project.trackPhases ?? phaseLabels;
   const currentPhaseLabel = project.currentPhaseIdx >= 0
-    ? phaseLabels[project.currentPhaseIdx]
+    ? effectivePhases[project.currentPhaseIdx]
     : null;
   const currentPhaseKey = currentPhaseLabel ? currentPhaseLabel.replace(" ", "_") : null;
   const currentPhaseDetail = currentPhaseKey ? project.phases[currentPhaseKey] : undefined;
   const currentAgent = currentPhaseDetail?.owner
     ? currentPhaseDetail.owner.toLowerCase()
     : project.currentPhaseIdx >= 0
-      ? (PHASE_AGENTS[phaseLabels[project.currentPhaseIdx]] ?? "builder")
+      ? (PHASE_AGENTS[effectivePhases[project.currentPhaseIdx]] ?? "builder")
       : "main";
 
   // Determine if this project has recent agent activity
@@ -593,18 +757,30 @@ function FactoryProjectRow({
   // UI detail page now owns artifact readiness; live activity is presence-based here to avoid render-time time math.
   const hasLiveActivity = Boolean(activity);
 
+  // Progress calculations
+  const progressPct = effectivePhases.length > 0
+    ? Math.round((project.completedPhases / effectivePhases.length) * 100)
+    : 0;
+  const phasesRemaining = effectivePhases.length - project.completedPhases;
+  const currentPhaseName = currentPhaseLabel
+    ? (currentPhaseLabel.replace(/_/g, " "))
+    : null;
+  const currentPhaseAbbrev = currentPhaseLabel
+    ? (PHASE_ABBREV[currentPhaseLabel] ?? currentPhaseLabel.slice(0, 3))
+    : null;
+
   return (
     <div>
       <div
         className="flex items-center gap-3 px-5 py-3 hover:bg-warm/20 transition-colors cursor-pointer"
         onClick={onToggle}
       >
-        {/* Project name + status + live activity */}
-        <div className="w-36 flex-shrink-0">
+        {/* Project name + status + progress summary */}
+        <div className="w-48 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="relative">
               <span
-                className="w-6 h-6 rounded-md flex items-center justify-center text-[0.7rem] text-white font-medium"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-[0.7rem] text-white font-medium"
                 style={{ backgroundColor: agentToken(currentAgent).color }}
               >
                 {(project.displayName ?? project.slug).slice(0, 2).toUpperCase()}
@@ -616,40 +792,59 @@ function FactoryProjectRow({
                 />
               )}
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-charcoal truncate">
                 {project.displayName ?? project.slug.replace(/-/g, " ")}
               </p>
-              {hasLiveActivity && activity ? (
-                <div className="flex flex-col">
-                  <span className="inline-flex items-center gap-1 text-[0.75rem] text-mid/80">
-                    <span
-                      className="w-1.5 h-1.5 rounded-full pulse-dot flex-shrink-0"
-                      style={{ backgroundColor: agentToken(activity.agent).color }}
-                    />
-                    <span>{activity.action.replace(/-/g, ' ')}</span>
-                    <span className="text-[0.7rem] text-mid/60 tabular-nums">{relTime(activity.timestamp)}</span>
+              {/* Current phase + agent — always visible */}
+              {currentPhaseName ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-dot"
+                    style={{ backgroundColor: agentToken(currentAgent).color }}
+                  />
+                  <span className="text-[0.72rem] font-medium capitalize" style={{ color: agentToken(currentAgent).color }}>
+                    {currentPhaseName}
                   </span>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  <Badge color={statusColor}>
-                    {STATUS_LABELS[project.status] ?? project.status}
-                  </Badge>
-                  {currentPhaseDetail?.owner && (
-                    <span className="text-[0.72rem] text-mid/70">
-                      Owner: <span className="capitalize">{currentPhaseDetail.owner}</span>
-                    </span>
+                  <span className="text-[0.68rem] text-mid/50">·</span>
+                  <span className="text-[0.68rem] text-mid/60 capitalize">{currentAgent}</span>
+                  {hasLiveActivity && activity && (
+                    <>
+                      <span className="text-[0.68rem] text-mid/50">·</span>
+                      <span className="text-[0.68rem] text-mid/50 tabular-nums">{relTime(activity.timestamp)}</span>
+                    </>
                   )}
                 </div>
+              ) : (
+                <Badge color={statusColor}>
+                  {STATUS_LABELS[project.status] ?? project.status}
+                </Badge>
               )}
+              {/* Progress summary line */}
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[0.68rem] text-mid/55 tabular-nums">
+                  {project.completedPhases}/{effectivePhases.length} phases
+                </span>
+                <span className="text-[0.68rem] text-mid/40">·</span>
+                <span className="text-[0.68rem] tabular-nums" style={{ color: progressPct >= 80 ? "var(--olive)" : progressPct >= 40 ? "var(--amber)" : "var(--mid)" }}>
+                  {progressPct}%
+                </span>
+                {phasesRemaining > 0 && (
+                  <>
+                    <span className="text-[0.68rem] text-mid/40">·</span>
+                    <span className="text-[0.68rem] text-mid/55">
+                      {phasesRemaining} to ship
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Phase progress bar (9 columns) */}
-        <div className="flex-1 grid grid-cols-9 gap-0.5">
-          {phaseLabels.map((label, i) => {
+        {/* Phase progress bar */}
+        <div className={`flex-1 grid gap-0.5`} style={{ gridTemplateColumns: `repeat(${(project.trackPhases ?? phaseLabels).length}, minmax(0, 1fr))` }}>
+          {(project.trackPhases ?? phaseLabels).map((label, i) => {
             const phaseKey = label.replace(" ", "_");
             const phaseState = project.phases[phaseKey];
             const isComplete = phaseState?.status === "complete" || phaseState?.status === "drafted";
@@ -672,41 +867,58 @@ function FactoryProjectRow({
                 title={`${label}: ${phaseState?.status ?? "pending"}`}
               >
                 {isComplete && (
-                  <span className="text-sm text-olive font-bold">&#10003;</span>
+                  <span className="text-[0.7rem] text-olive font-bold">&#10003;</span>
                 )}
                 {isCurrent && (
                   <span
-                    className="w-3 h-3 rounded-full pulse-dot"
-                    style={{ backgroundColor: agentColor }}
-                  />
+                    className="text-[0.6rem] font-bold uppercase tracking-wide pulse-dot"
+                    style={{ color: agentColor }}
+                  >
+                    {PHASE_ABBREV[label] ?? label.slice(0, 3)}
+                  </span>
                 )}
               </div>
             );
           })}
         </div>
 
-        {/* Score + expand indicator */}
-        <div className="w-24 flex-shrink-0 flex items-center justify-end gap-2">
-          {project.qualityScore !== null && (
-            <span
-              className="text-sm font-medium tabular-nums"
-              style={{
-                color:
-                  project.qualityScore >= 80
-                    ? "var(--olive)"
-                    : project.qualityScore >= 60
-                      ? "var(--amber)"
-                      : "var(--terracotta)",
-              }}
-            >
-              {project.qualityScore}/100
-            </span>
-          )}
-          {project.qualityAttempt > 0 && project.qualityScore === null && (
-            <span className="text-[0.8rem] text-terracotta">
-              attempt {project.qualityAttempt}
-            </span>
-          )}
+        {/* Progress + score + expand */}
+        <div className="w-32 flex-shrink-0 flex items-center justify-end gap-3">
+          <div className="flex flex-col items-end gap-1">
+            {/* Mini progress bar */}
+            <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--warm)" }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progressPct}%`,
+                  backgroundColor: progressPct >= 80 ? "var(--olive)" : progressPct >= 40 ? "var(--amber)" : "var(--lilac)",
+                }}
+              />
+            </div>
+            {project.qualityScore !== null ? (
+              <span
+                className="text-[0.72rem] font-medium tabular-nums"
+                style={{
+                  color:
+                    project.qualityScore >= 80
+                      ? "var(--olive)"
+                      : project.qualityScore >= 60
+                        ? "var(--amber)"
+                        : "var(--terracotta)",
+                }}
+              >
+                QG {project.qualityScore}/100
+              </span>
+            ) : project.qualityAttempt > 0 ? (
+              <span className="text-[0.72rem] text-terracotta tabular-nums">
+                QG attempt {project.qualityAttempt}
+              </span>
+            ) : (
+              <span className="text-[0.68rem] text-mid/50 tabular-nums">
+                {progressPct}% complete
+              </span>
+            )}
+          </div>
           <svg
             width="12"
             height="12"
@@ -715,7 +927,7 @@ function FactoryProjectRow({
             stroke="var(--mid)"
             strokeWidth="2"
             strokeLinecap="round"
-            className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+            className={`transition-transform flex-shrink-0 ${expanded ? "rotate-180" : ""}`}
           >
             <path d="M6 9l6 6 6-6" />
           </svg>
@@ -750,17 +962,34 @@ function FactoryProjectRow({
                   {Object.entries(project.artifactAudit.artifacts).map(([phaseName, audit]) => {
                     const complete = audit.required.length > 0 && audit.missing.length === 0;
                     const active = project.artifactAudit?.phase === phaseName;
+                    const phaseToggleKey = `${project.slug}:${phaseName}`;
+                    const isPhaseExpanded = expandedPhases[phaseToggleKey] ?? false;
                     return (
                       <div
                         key={phaseName}
-                        className="rounded-lg border p-3 transition-colors"
+                        className="rounded-lg border transition-colors overflow-hidden"
                         style={{
-                          borderColor: complete ? "rgba(118, 135, 90, 0.35)" : active ? "rgba(183, 110, 121, 0.35)" : "rgba(201, 183, 159, 0.55)",
+                          borderColor: complete ? "rgba(118, 135, 90, 0.35)" : active ? "rgba(183, 110, 121, 0.35)" : audit.missing.length > 0 ? "rgba(196, 160, 72, 0.35)" : "rgba(201, 183, 159, 0.55)",
                           backgroundColor: complete ? "rgba(118, 135, 90, 0.08)" : active ? "rgba(183, 110, 121, 0.06)" : "rgba(255,255,255,0.45)",
                         }}
                       >
-                        <div className="flex items-center justify-between mb-2">
+                        <div
+                          className="flex items-center justify-between p-3 cursor-pointer hover:bg-warm/10 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); onTogglePhase(phaseToggleKey); }}
+                        >
                           <div className="flex items-center gap-2">
+                            <svg
+                              width="10"
+                              height="10"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="var(--mid)"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              className={`transition-transform flex-shrink-0 ${isPhaseExpanded ? "rotate-90" : ""}`}
+                            >
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
                             <p className="text-[0.8rem] font-medium text-charcoal capitalize">
                               {phaseName.replace(/_/g, " ")}
                             </p>
@@ -772,32 +1001,41 @@ function FactoryProjectRow({
                               <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(183, 110, 121, 0.12)", color: "var(--terracotta)" }}>
                                 active
                               </span>
+                            ) : audit.missing.length > 0 ? (
+                              <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(196, 160, 72, 0.12)", color: "var(--amber)" }}>
+                                pending
+                              </span>
                             ) : null}
                           </div>
                           <span className="text-[0.72rem] text-mid/70 tabular-nums">
-                            {audit.delivered.length}/{audit.required.length} delivered
+                            {audit.delivered.length}/{audit.required.length}
                           </span>
                         </div>
-                        <div className="space-y-1.5">
-                          {audit.required.map((item) => {
-                            const delivered = audit.delivered.includes(item);
-                            return (
-                              <div
-                                key={item}
-                                className="flex items-start gap-2 text-[0.76rem] rounded-md px-2 py-1"
-                                style={{ backgroundColor: delivered ? "rgba(118, 135, 90, 0.06)" : "rgba(0,0,0,0.02)" }}
-                              >
-                                <span className="mt-[2px] font-medium" style={{ color: delivered ? "var(--olive)" : "var(--mid)" }}>
-                                  {delivered ? "☑" : "☐"}
-                                </span>
-                                <span className={delivered ? "text-charcoal" : "text-mid/70"}>{item}</span>
+                        {isPhaseExpanded && (
+                          <div className="px-3 pb-3 fade-up">
+                            <div className="space-y-1.5">
+                              {audit.required.map((item) => {
+                                const delivered = audit.delivered.includes(item);
+                                const displayLabel = audit.labels?.[item] ?? item;
+                                return (
+                                  <div
+                                    key={item}
+                                    className="flex items-start gap-2 text-[0.76rem] rounded-md px-2 py-1"
+                                    style={{ backgroundColor: delivered ? "rgba(118, 135, 90, 0.06)" : "rgba(0,0,0,0.02)" }}
+                                  >
+                                    <span className="mt-[2px] font-medium" style={{ color: delivered ? "var(--olive)" : "var(--mid)" }}>
+                                      {delivered ? "\u2611" : "\u2610"}
+                                    </span>
+                                    <span className={delivered ? "text-charcoal" : "text-mid/70"}>{displayLabel}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {audit.missing.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-warm/40 text-[0.72rem] text-mid/70">
+                                Missing: {audit.missing.map((m) => audit.labels?.[m] ?? m).join(", ")}
                               </div>
-                            );
-                          })}
-                        </div>
-                        {audit.missing.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-warm/40 text-[0.72rem] text-mid/70">
-                            Missing: {audit.missing.join(", ")}
+                            )}
                           </div>
                         )}
                       </div>
@@ -908,7 +1146,15 @@ function IdeaRow({ idea }: { idea: IdeaEntry }) {
       {/* Meta */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {idea.segment && (
-          <Badge color={idea.segment === "b2b" ? "#6B8F71" : "var(--olive)"}>{idea.segment}</Badge>
+          <span
+            className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider"
+            style={{
+              color: idea.segment === "b2b" ? "#768B5A" : "#5B6FA8",
+              backgroundColor: idea.segment === "b2b" ? "rgba(118, 139, 90, 0.12)" : "rgba(91, 111, 168, 0.12)",
+            }}
+          >
+            {idea.segment === "b2b" ? "SaaS" : "Mobile"}
+          </span>
         )}
         {idea.painkiller && (
           <Badge color="var(--terracotta)">painkiller</Badge>
@@ -1127,8 +1373,43 @@ function ApprovalPanel({
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showFixes, setShowFixes] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewState, setPreviewState] = useState<{ status: "idle" | "starting" | "running" | "error"; qr?: string; url?: string; error?: string }>({ status: "idle" });
 
-  const qg = project.phases.quality_gate;
+  const launchPreview = async () => {
+    setPreviewState({ status: "starting" });
+    try {
+      const res = await fetch("/api/factory/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: project.slug }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setPreviewState({ status: "error", error: data.error });
+      } else {
+        setPreviewState({ status: "running", qr: data.qr, url: data.url });
+      }
+    } catch (err) {
+      setPreviewState({ status: "error", error: String(err) });
+    }
+  };
+
+  const stopPreview = async () => {
+    try {
+      await fetch("/api/factory/preview", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: project.slug }),
+      });
+    } catch { /* ignore */ }
+    setPreviewState({ status: "idle" });
+  };
+
+  const qgRaw = project.phases.quality_gate;
+  // Normalize: some QG runs write design_score instead of score
+  const qgScore = qgRaw?.score ?? (qgRaw as unknown as Record<string, unknown> | undefined)?.design_score as number | undefined ?? null;
+  const qg = qgRaw ? { ...qgRaw, score: qgScore } : undefined;
   const build = project.phases.build;
   const monetization = project.phases.monetization;
   const packaging = project.phases.packaging;
@@ -1170,7 +1451,7 @@ function ApprovalPanel({
           </div>
           <div>
             <p className="text-xl text-charcoal tracking-tight" style={{ fontFamily: "var(--font-cormorant)" }}>
-              Ship {project.slug.replace(/-/g, " ")}?
+              Ship {project.displayName ?? project.slug.replace(/-/g, " ")}?
             </p>
             <p className="text-[0.8rem] text-mid/80 font-[family-name:var(--font-dm-mono)]">
               Approval required before shipping to App Store
@@ -1224,19 +1505,30 @@ function ApprovalPanel({
           {/* Monetization */}
           <div className="flex-1 rounded-lg p-3 border border-warm/50">
             <p className="label-caps text-[0.65rem] text-mid/70 mb-2">Monetization</p>
-            {monetization?.pricing ? (
+            {(() => {
+              // Try structured pricing first, then parse from notes
+              const mp = monetization?.pricing;
+              const notes = monetization?.summary ?? (monetization as unknown as Record<string, unknown> | undefined)?.notes as string | undefined;
+              const monthlyMatch = !mp && notes ? notes.match(/\$(\d+\.?\d*)\/?month/i) : null;
+              const annualMatch = !mp && notes ? notes.match(/\$(\d+\.?\d*)\/?year/i) : null;
+              const monthly = mp?.monthly ?? (monthlyMatch ? parseFloat(monthlyMatch[1]) : null);
+              const annual = mp?.annual ?? (annualMatch ? parseFloat(annualMatch[1]) : null);
+              const trialMatch = !mp && notes ? notes.match(/(\d+)[- ]day free trial/i) : null;
+              const trialDays = monetization?.trial_days ?? (trialMatch ? parseInt(trialMatch[1]) : null);
+
+              if (monthly != null) return (
               <div>
                 <div className="flex items-baseline gap-1.5">
                   <p className="text-2xl font-light tabular-nums text-charcoal" style={{ fontFamily: "var(--font-cormorant)" }}>
-                    ${monetization.pricing.monthly}
+                    ${monthly}
                   </p>
                   <span className="text-xs text-mid/60">/mo</span>
                 </div>
                 <p className="text-[0.75rem] text-mid/70 mt-0.5">
-                  ${monetization.pricing.annual}/yr &middot; {monetization.trial_days ?? 7}-day free trial
-                  {monetization.free_trial_scans != null && ` &middot; ${monetization.free_trial_scans} free scans`}
+                  {annual != null && <>${annual}/yr &middot; </>}{trialDays ?? 7}-day free trial
+                  {monetization?.free_trial_scans != null && ` · ${monetization.free_trial_scans} free scans`}
                 </p>
-                {monetization.changes && monetization.changes.length > 0 && (
+                {monetization?.changes && monetization.changes.length > 0 && (
                   <div className="mt-2 space-y-0.5">
                     {monetization.changes.map((c, i) => (
                       <p key={i} className="text-[0.7rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">• {c}</p>
@@ -1244,9 +1536,12 @@ function ApprovalPanel({
                   </div>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-mid/60">Not configured</p>
-            )}
+              );
+              if (monetization?.status === "complete") return (
+                <p className="text-sm text-mid/70">Configured — see report</p>
+              );
+              return <p className="text-sm text-mid/60">Not configured</p>;
+            })()}
           </div>
         </div>
 
@@ -1348,6 +1643,167 @@ function ApprovalPanel({
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Build Preview — what was actually built */}
+        {project.buildPreview && (
+          <div className="rounded-lg border border-warm/50 overflow-hidden">
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-warm/10 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center text-[0.7rem] text-white font-medium" style={{ backgroundColor: "var(--olive)" }}>
+                  ▶
+                </span>
+                <span className="text-[0.8rem] text-charcoal font-medium">
+                  What was built
+                </span>
+                {project.buildPreview.stats && (
+                  <span className="text-[0.7rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+                    {project.buildPreview.stats.files} files &middot; {((project.buildPreview.stats.lines ?? 0) / 1000).toFixed(1)}k lines &middot; {project.buildPreview.stats.screens} screens
+                  </span>
+                )}
+              </div>
+              <svg
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--mid)" strokeWidth="2" strokeLinecap="round"
+                className={`transition-transform ${showPreview ? "rotate-180" : ""}`}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {showPreview && (
+              <div className="px-3 pb-3 space-y-3 fade-up">
+                {/* Build summary */}
+                {project.buildPreview.buildSummary && (
+                  <p className="text-[0.78rem] text-mid/90 leading-relaxed font-[family-name:var(--font-dm-mono)]">
+                    {project.buildPreview.buildSummary}
+                  </p>
+                )}
+
+                {/* Stats grid */}
+                {project.buildPreview.stats && (
+                  <div className="grid grid-cols-5 gap-2">
+                    {[
+                      { label: "Files", value: project.buildPreview.stats.files },
+                      { label: "Lines", value: project.buildPreview.stats.lines ? `${(project.buildPreview.stats.lines / 1000).toFixed(1)}k` : null },
+                      { label: "Screens", value: project.buildPreview.stats.screens },
+                      { label: "Tests", value: project.buildPreview.stats.tests },
+                      { label: "Services", value: project.buildPreview.stats.services },
+                    ].filter(s => s.value != null).map((s) => (
+                      <div key={s.label} className="text-center rounded-md py-1.5 border border-warm/30">
+                        <p className="text-lg tabular-nums text-charcoal" style={{ fontFamily: "var(--font-cormorant)" }}>{s.value}</p>
+                        <p className="text-[0.6rem] text-mid/60 uppercase tracking-widest">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Design + screens row */}
+                <div className="flex gap-3">
+                  {/* Design palette */}
+                  {project.buildPreview.designColors && (
+                    <div className="flex-1 rounded-md p-2 border border-warm/30">
+                      <p className="text-[0.65rem] text-mid/60 uppercase tracking-widest mb-1.5">Design</p>
+                      <div className="flex items-center gap-2">
+                        {project.buildPreview.designColors.primary && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-4 h-4 rounded-full border border-warm/40" style={{ backgroundColor: project.buildPreview.designColors.primary }} />
+                            <span className="text-[0.7rem] font-[family-name:var(--font-dm-mono)] text-mid/70">{project.buildPreview.designColors.primary}</span>
+                          </div>
+                        )}
+                        {project.buildPreview.designColors.surface && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-4 h-4 rounded-full border border-warm/40" style={{ backgroundColor: project.buildPreview.designColors.surface }} />
+                            <span className="text-[0.7rem] font-[family-name:var(--font-dm-mono)] text-mid/70">{project.buildPreview.designColors.surface}</span>
+                          </div>
+                        )}
+                        <span className="text-[0.7rem] text-mid/50 ml-1">
+                          {project.buildPreview.hasMascot ? "w/ mascot" : "no mascot"}
+                        </span>
+                      </div>
+                      {project.buildPreview.designTone && (
+                        <p className="text-[0.7rem] text-mid/70 mt-1.5 italic leading-snug">
+                          &ldquo;{project.buildPreview.designTone}&rdquo;
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Screens list */}
+                  {project.buildPreview.screenList && project.buildPreview.screenList.length > 0 && (
+                    <div className="flex-1 rounded-md p-2 border border-warm/30">
+                      <p className="text-[0.65rem] text-mid/60 uppercase tracking-widest mb-1.5">Screens</p>
+                      <div className="flex flex-wrap gap-1">
+                        {project.buildPreview.screenList.map((s) => (
+                          <span key={s} className="px-1.5 py-0.5 rounded text-[0.68rem] font-[family-name:var(--font-dm-mono)] text-mid/80" style={{ backgroundColor: "rgba(0,0,0,0.04)" }}>
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Launch Preview */}
+                <div className="rounded-md border border-warm/30 overflow-hidden" style={{ backgroundColor: "rgba(0,0,0,0.02)" }}>
+                  {previewState.status === "idle" && (
+                    <button
+                      onClick={launchPreview}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-3 hover:bg-warm/15 transition-colors cursor-pointer"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--olive)" stroke="none">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                      <span className="text-[0.82rem] font-medium text-charcoal">Launch Preview on Phone</span>
+                    </button>
+                  )}
+                  {previewState.status === "starting" && (
+                    <div className="flex items-center justify-center gap-2 px-3 py-4">
+                      <div className="w-4 h-4 border-2 border-olive/30 border-t-olive rounded-full animate-spin" />
+                      <span className="text-[0.8rem] text-mid/70">Starting Expo dev server...</span>
+                    </div>
+                  )}
+                  {previewState.status === "running" && previewState.qr && (
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={previewState.qr} alt="Expo QR Code" width={160} height={160} className="rounded-lg" />
+                        </div>
+                        <div className="flex-1 space-y-2 pt-1">
+                          <p className="text-[0.82rem] font-medium text-charcoal">Scan with Expo Go</p>
+                          <p className="text-[0.72rem] text-mid/70 leading-relaxed">
+                            Open <span className="font-medium">Expo Go</span> on your iPhone, tap Scan QR Code, and point at this code.
+                          </p>
+                          <code className="block text-[0.68rem] font-[family-name:var(--font-dm-mono)] text-mid/60 select-all mt-1">
+                            {previewState.url}
+                          </code>
+                          <button
+                            onClick={stopPreview}
+                            className="mt-2 text-[0.72rem] text-terracotta/70 hover:text-terracotta transition-colors cursor-pointer"
+                          >
+                            Stop server
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {previewState.status === "error" && (
+                    <div className="p-3 space-y-2">
+                      <p className="text-[0.78rem] text-terracotta">{previewState.error}</p>
+                      <button
+                        onClick={() => setPreviewState({ status: "idle" })}
+                        className="text-[0.72rem] text-mid/60 hover:text-charcoal transition-colors cursor-pointer"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -43,9 +43,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "System",
     items: [
       { label: "Dashboard", href: "/", icon: ICONS.dashboard },
+      { label: "Calendar", href: "/calendar", icon: ICONS.calendar },
       { label: "Organisation", href: "/org", icon: ICONS.org },
       { label: "Proposals", href: "/proposals", icon: ICONS.proposals },
-      // Calendar moved to Growth Ops tabs
     ],
   },
   {

@@ -20,3 +20,5 @@ export const EXPEDITIONS_DIR = join(OPS, "expeditions");
 export const KEYWORD_SIGNALS_DIR = join(WORKSPACE, "research", "keyword-signals");
 export const ORG_JSON = join(BRAIN, "ORG.json");
 export const MISSION_MD = join(WORKSPACE, "company", "mission.md");
+export const CALENDAR_EVENTS_JSON = join(OPS, "calendar-events.json");
+export const FACTORY_DIR = join(OPS, "factory");

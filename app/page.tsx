@@ -2,12 +2,10 @@
 
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import { type PulseData } from "@/app/lib/agents";
-import { MissionMapView } from "./components/MissionMapView";
-import { OperationsView } from "./components/OperationsView";
-import { TabBar } from "./components/TabBar";
+import { DashboardHome } from "./components/DashboardHome";
 import { type FactorySummaryData } from "./components/FactorySummary";
 
-// ─── Types ───────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface KPIs {
   roadmap: { done: number; total: number };
@@ -17,77 +15,45 @@ interface KPIs {
   research: { count: number; scoutScore: number };
   failures: { recent: number; daysSince: number | null };
   skills: { count: number };
-  workflows?: { active: number; approvalPending: number; completedToday: number; totalRuns: number };
 }
 
-interface InboxItem { text: string; done: boolean; }
+interface InboxItem { text: string; done: boolean; raw: string; }
 interface BriefFile { name: string; content: string; }
 
-interface GoalData {
-  id: string;
-  name: string;
-  pulseCount: number;
-  agents: { id: string; count: number }[];
-  lastPulse: string | null;
+interface WorkflowActive {
+  workflow: string; runId: string; trigger: string; startedAt: string;
+  currentStep: string | null; approvalPending: boolean;
 }
-
-interface WorkflowDef { name: string; file: string; steps: string[]; }
-interface WorkflowActive { workflow: string; runId: string; trigger: string; startedAt: string; currentStep: string | null; approvalPending: boolean; }
-interface WorkflowCompleted { workflow: string; runId: string; startedAt: string; finishedAt: string; finalStatus: string; }
+interface WorkflowCompleted {
+  workflow: string; runId: string; startedAt: string; finishedAt: string; finalStatus: string;
+}
 interface WorkflowData {
   state: { active: WorkflowActive[]; completed: WorkflowCompleted[]; blocked: unknown[] };
   stats: { totalRuns: number; completedToday: number; approvalsPending: number };
-  definitions: WorkflowDef[];
+  definitions: { name: string; file: string; steps: string[] }[];
 }
 
-interface PhaseCheck { name: string; done: boolean; }
 interface ProjectLane {
-  slug: string;
-  name: string;
-  status: string;
-  lifecyclePhase: string;
-  pulseCount7d: number;
-  activeAgents: string[];
-  staleDays: number;
-  isStalled: boolean;
-  phases: PhaseCheck[];
-  productType?: string;
-  focusAreas?: string[];
-  description?: string;
-  pipelineStage?: string;
-  client?: string;
-}
-
-interface FocusAreaConfig {
-  label: string;
-  mission: string;
-  kpis: string[];
-}
-
-interface EngineStats {
-  agents: number;
-  crons: number;
-  pulsesToday: number;
-  health: "healthy" | "degraded" | "alert";
+  slug: string; name: string; status: string; lifecyclePhase: string;
+  pulseCount7d: number; activeAgents: string[]; staleDays: number; isStalled: boolean;
+  phases: { name: string; done: boolean }[];
 }
 
 interface ExpeditionData {
-  slug: string;
-  name: string;
-  team: string[];
-  scope: string;
+  slug: string; name: string; team: string[]; scope: string;
   guardrails: { time_box: string; authority: string; model_budget: string };
-  status: string;
-  started: string | null;
-  completedAt: string | null;
-  pulseCount: number;
-  lastPulse: string | null;
-  timeRemaining: number | null;
-  isOverdue: boolean;
-  successCriteria: string[];
+  status: string; started: string | null; completedAt: string | null;
+  pulseCount: number; lastPulse: string | null; timeRemaining: number | null;
+  isOverdue: boolean; successCriteria: string[];
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────
+interface ProposalData {
+  filename: string; title: string; date: string; scope: string; priority: string;
+  kind: "proposal" | "info"; status: "pending" | "approved" | "rejected" | "deferred";
+  content: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -96,68 +62,49 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-// ─── Dashboard ───────────────────────────────────────────────────────
+// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  // View state
-  const [view, setView] = useState<"map" | "ops">("map");
-
-  // Data state
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [nowRaw, setNowRaw] = useState("");
-  const [phases, setPhases] = useState<{ name: string; total: number; done: number }[]>([]);
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [pulseData, setPulseData] = useState<PulseData | null>(null);
-  const [goals, setGoals] = useState<GoalData[]>([]);
   const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
   const [workflows, setWorkflows] = useState<WorkflowData | null>(null);
   const [projects, setProjects] = useState<ProjectLane[]>([]);
-  const [byFocusArea, setByFocusArea] = useState<Record<string, ProjectLane[]>>({});
-  const [focusAreaConfigs, setFocusAreaConfigs] = useState<Record<string, FocusAreaConfig>>({});
   const [expeditions, setExpeditions] = useState<ExpeditionData[]>([]);
   const [factoryData, setFactoryData] = useState<FactorySummaryData | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [proposals, setProposals] = useState<ProposalData[]>([]);
   const [newItem, setNewItem] = useState("");
   const [adding, setAdding] = useState(false);
 
-  // Cockpit interaction state
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
-  const [contextTab, setContextTab] = useState("inbox");
-
   const fetchAll = useCallback(async () => {
-    const [kpiRes, statusRes, inboxRes, pulseRes, goalsRes, briefsRes, workflowRes, projectsRes, expeditionsRes, factoryRes] =
-      await Promise.all([
-        fetch("/api/kpis").then(r => r.json()).catch(() => null),
-        fetch("/api/status").then(r => r.json()).catch(() => null),
-        fetch("/api/inbox").then(r => r.json()).catch(() => null),
-        fetch("/api/pulses").then(r => r.json()).catch(() => null),
-        fetch("/api/goals").then(r => r.json()).catch(() => null),
-        fetch("/api/briefs").then(r => r.json()).catch(() => null),
-        fetch("/api/workflows").then(r => r.json()).catch(() => null),
-        fetch("/api/projects").then(r => r.json()).catch(() => null),
-        fetch("/api/expeditions").then(r => r.json()).catch(() => null),
-        fetch("/api/factory").then(r => r.json()).catch(() => null),
-      ]);
+    const [
+      kpiRes, statusRes, inboxRes, pulseRes, briefsRes,
+      workflowRes, projectsRes, expeditionsRes, factoryRes, proposalsRes,
+    ] = await Promise.all([
+      fetch("/api/kpis").then((r) => r.json()).catch(() => null),
+      fetch("/api/status").then((r) => r.json()).catch(() => null),
+      fetch("/api/inbox").then((r) => r.json()).catch(() => null),
+      fetch("/api/pulses").then((r) => r.json()).catch(() => null),
+      fetch("/api/briefs").then((r) => r.json()).catch(() => null),
+      fetch("/api/workflows").then((r) => r.json()).catch(() => null),
+      fetch("/api/projects").then((r) => r.json()).catch(() => null),
+      fetch("/api/expeditions").then((r) => r.json()).catch(() => null),
+      fetch("/api/factory").then((r) => r.json()).catch(() => null),
+      fetch("/api/proposals").then((r) => r.json()).catch(() => null),
+    ]);
 
     if (kpiRes && !kpiRes.error) setKpis(kpiRes);
-    if (statusRes && !statusRes.error) {
-      setNowRaw(statusRes.now ?? "");
-      setPhases(statusRes.roadmap?.phases ?? []);
-    }
+    if (statusRes && !statusRes.error) setNowRaw(statusRes.now ?? "");
     if (inboxRes && !inboxRes.error) setInbox(inboxRes.items ?? []);
     if (pulseRes && !pulseRes.error) setPulseData(pulseRes);
-    if (goalsRes && !goalsRes.error) setGoals(goalsRes.goals ?? []);
     if (briefsRes && !briefsRes.error) setBriefs({ morning: briefsRes.morning ?? null, evening: briefsRes.evening ?? null });
     if (workflowRes && !workflowRes.error) setWorkflows(workflowRes);
-    if (projectsRes && !projectsRes.error) {
-      setProjects(projectsRes.projects ?? []);
-      setByFocusArea(projectsRes.byFocusArea ?? {});
-      setFocusAreaConfigs(projectsRes.focusAreas ?? {});
-    }
+    if (projectsRes && !projectsRes.error) setProjects(projectsRes.projects ?? []);
     if (expeditionsRes && !expeditionsRes.error) setExpeditions(expeditionsRes.expeditions ?? []);
     if (factoryRes && !factoryRes.error) setFactoryData(factoryRes);
-    setLoaded(true);
+    if (proposalsRes && !proposalsRes.error) setProposals(proposalsRes.proposals ?? []);
   }, []);
 
   useEffect(() => {
@@ -183,88 +130,67 @@ export default function Dashboard() {
     }
   }
 
-  // Derived
-  const roadmapPct = kpis ? Math.round((kpis.roadmap.done / Math.max(kpis.roadmap.total, 1)) * 100) : 0;
-  const systemHealth = kpis
-    ? kpis.cron.healthy === kpis.cron.total && kpis.failures.recent === 0
-      ? "healthy" : kpis.failures.recent > 0 ? "alert" : "degraded"
-    : "loading";
-  const healthColor = systemHealth === "healthy" ? "var(--olive)" : systemHealth === "alert" ? "var(--terracotta)" : "var(--mid)";
+  const roadmapPct = kpis
+    ? Math.round((kpis.roadmap.done / Math.max(kpis.roadmap.total, 1)) * 100)
+    : 0;
 
-  const viewTabs = [
-    { id: "map", label: "Mission Map" },
-    { id: "ops", label: "Operations" },
-  ];
+  const systemHealth = kpis
+    ? kpis.cron.healthy === kpis.cron.total && kpis.failures.recent === 0 ? "healthy"
+      : kpis.failures.recent > 0 ? "alert" : "degraded"
+    : "loading";
+
+  const healthColor =
+    systemHealth === "healthy" ? "var(--olive)"
+    : systemHealth === "alert" ? "var(--terracotta)"
+    : "var(--mid)";
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-bg overflow-y-auto">
       {/* ═══ HEADER ═══════════════════════════════════════════════════ */}
-      <header className="px-6 pt-5 pb-3 flex-shrink-0">
+      <header className="px-6 pt-5 pb-4 border-b border-warm/50 sticky top-0 bg-bg/96 backdrop-blur-sm z-10">
         <div className="flex items-center justify-between max-w-[1440px] mx-auto">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl text-charcoal tracking-tight">{getGreeting()}, Mads</h1>
-            <span className="inline-block w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: healthColor }} />
+            <h1 className="text-2xl text-charcoal tracking-tight" suppressHydrationWarning>
+              {getGreeting()}, Mads
+            </h1>
+            <span
+              className="inline-block w-2 h-2 rounded-full pulse-dot"
+              style={{ backgroundColor: healthColor }}
+            />
           </div>
-          <div className="flex items-center gap-4">
-            <TabBar tabs={viewTabs} active={view} onChange={(id) => setView(id as "map" | "ops")} />
-            {kpis && (
-              <div className="flex items-center gap-2">
-                <span className="label-caps text-mid/70">Roadmap</span>
-                <div className="w-24 h-1.5 rounded-full bg-warm overflow-hidden">
-                  <div className="h-full rounded-full bg-olive transition-all" style={{ width: `${roadmapPct}%` }} />
-                </div>
-                <span className="text-[0.8rem] text-mid tabular-nums">{roadmapPct}%</span>
-              </div>
-            )}
-            <p className="text-xs text-mid/70" suppressHydrationWarning>
-              {new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/Copenhagen" })}
-            </p>
-          </div>
+          <p className="text-xs text-mid/45" suppressHydrationWarning>
+            {new Date().toLocaleDateString("en-GB", {
+              weekday: "short", day: "numeric", month: "short", timeZone: "Europe/Copenhagen",
+            })}
+            {" · "}
+            {new Date().toLocaleTimeString("da-DK", {
+              hour: "2-digit", minute: "2-digit", timeZone: "Europe/Copenhagen",
+            })} CET
+          </p>
         </div>
       </header>
 
-      {/* ═══ MAIN CONTENT ══════════════════════════════════════════════ */}
-      <main className="flex-1 overflow-hidden px-6 pb-4">
-        <div className="max-w-[1440px] mx-auto h-full flex flex-col gap-3">
-          {view === "map" ? (
-            <MissionMapView
-              projects={projects}
-              expeditions={expeditions}
-              inbox={inbox}
-              workflows={workflows?.state.active ?? []}
-              factoryData={factoryData}
-              focusAreas={focusAreaConfigs}
-              byFocusArea={byFocusArea}
-              engineStats={{
-                agents: 6,
-                crons: kpis?.cron.total ?? 22,
-                pulsesToday: pulseData?.stats.totalToday ?? 0,
-                health: systemHealth === "healthy" ? "healthy" : systemHealth === "alert" ? "alert" : "degraded",
-              }}
-            />
-          ) : (
-            <OperationsView
-              kpis={kpis}
-              pulseData={pulseData}
-              goals={goals}
-              inbox={inbox}
-              briefs={briefs}
-              workflows={workflows}
-              nowRaw={nowRaw}
-              selectedAgent={selectedAgent}
-              setSelectedAgent={setSelectedAgent}
-              selectedGoal={selectedGoal}
-              setSelectedGoal={setSelectedGoal}
-              contextTab={contextTab}
-              setContextTab={setContextTab}
-              newItem={newItem}
-              setNewItem={setNewItem}
-              adding={adding}
-              handleAddItem={handleAddItem}
-            />
-          )}
-        </div>
-      </main>
+      {/* ═══ DASHBOARD ════════════════════════════════════════════════ */}
+      <DashboardHome
+        kpis={kpis}
+        nowRaw={nowRaw}
+        inbox={inbox}
+        pulseData={pulseData}
+        briefs={briefs}
+        workflows={workflows}
+        projects={projects}
+        expeditions={expeditions}
+        factoryData={factoryData}
+        proposals={proposals}
+        systemHealth={systemHealth}
+        healthColor={healthColor}
+        roadmapPct={roadmapPct}
+        newItem={newItem}
+        setNewItem={setNewItem}
+        adding={adding}
+        handleAddItem={handleAddItem}
+        onRefetch={fetchAll}
+      />
     </div>
   );
 }
