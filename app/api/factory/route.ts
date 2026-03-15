@@ -241,10 +241,18 @@ export async function GET() {
         if (state.status === "awaiting-approval" || state.status === "shipped" || state.status === "quality-gate") {
           buildPreview = { projectDir: `~/projects/${entry}/` };
 
-          // Build stats from state.json
+          // Build stats from state.json — support both nested (HyTrack) and flat (ChillLog) formats
           const buildPhase = state.phases?.build as unknown as Record<string, unknown> | undefined;
           if (buildPhase?.stats) {
             buildPreview.stats = buildPhase.stats as BuildPreview["stats"];
+          } else if (buildPhase?.files_created != null) {
+            // Flat format: files_created, tests_passing ("112/112")
+            const testsRaw = buildPhase.tests_passing as string | undefined;
+            const testsPassed = testsRaw ? parseInt(testsRaw.split('/')[0]) : undefined;
+            buildPreview.stats = {
+              files: buildPhase.files_created as number,
+              tests: testsPassed,
+            };
           }
 
           // Build summary from build-log.md (first 3 lines after ## Summary)
@@ -282,6 +290,34 @@ export async function GET() {
           } catch { /* no build log */ }
 
           buildPreview.testCommand = `cd ~/projects/${entry} && npx expo start`;
+
+          // Pre-approval test results
+          try {
+            const e2eRaw = await readFile(join(FACTORY, entry, "e2e-results.json"), "utf-8");
+            const e2e = JSON.parse(e2eRaw);
+            (buildPreview as Record<string, unknown>).e2eResults = e2e;
+          } catch { /* not yet run */ }
+
+          // Test credentials (for simulator sign-in instructions)
+          try {
+            const credsRaw = await readFile(join(FACTORY, entry, "test-credentials.json"), "utf-8");
+            const creds = JSON.parse(credsRaw);
+            (buildPreview as Record<string, unknown>).testCredentials = { email: creds.email };
+          } catch { /* no test account yet */ }
+
+          // PRD alignment report (L8)
+          try {
+            const alignRaw = await readFile(join(FACTORY, entry, "alignment-report.md"), "utf-8");
+            (buildPreview as Record<string, unknown>).alignmentReport = alignRaw.slice(0, 3000);
+          } catch { /* not yet run */ }
+
+          // Screenshot count (L8)
+          try {
+            const { readdir } = await import("fs/promises");
+            const screenshotFiles = await readdir(join(FACTORY, entry, "screenshots")).catch(() => []);
+            const pngCount = screenshotFiles.filter(f => f.endsWith(".png")).length;
+            if (pngCount > 0) (buildPreview as Record<string, unknown>).screenshotCount = pngCount;
+          } catch { /* no screenshots */ }
         }
 
         projects.push({ ...state, onePager, displayName, kpis, e2eResults, artifactAudit, buildPreview });

@@ -507,12 +507,12 @@ export default function FactoryPage() {
           );
         })()}
 
-        {/* ═══ SUBMITTED / IN REVIEW ═════════════════════════════════ */}
+        {/* ═══ APP STORE REVIEW ════════════════════════════════════════ */}
         {(() => {
-          const submittedProjects = projects.filter(
-            (p) => p.status === "submitted" || (p.status === "shipped" && !p.latestKPI)
+          const inReviewProjects = projects.filter(
+            (p) => p.status === "submitted" || (p.status === "shipped" && !p.latestKPI && (p.track === "mobile" || !p.track))
           );
-          if (submittedProjects.length === 0) return null;
+          if (inReviewProjects.length === 0) return null;
           return (
             <Card className="p-0 overflow-hidden">
               <div className="px-5 pt-3.5 pb-3">
@@ -524,12 +524,12 @@ export default function FactoryPage() {
                     </span>
                   </div>
                   <span className="text-[0.8rem] text-mid/60 tabular-nums">
-                    {submittedProjects.length} app{submittedProjects.length !== 1 ? "s" : ""}
+                    {inReviewProjects.length} app{inReviewProjects.length !== 1 ? "s" : ""}
                   </span>
                 </div>
               </div>
               <div className="divide-y divide-warm/60">
-                {submittedProjects.map((p) => {
+                {inReviewProjects.map((p) => {
                   const name = p.displayName ?? p.slug.replace(/-/g, " ");
                   const shippingPhase = p.phases.shipping as PhaseDetail & { notes?: string };
                   const submittedAt = (p as any).submitted_at ?? p.updated_at;
@@ -562,6 +562,36 @@ export default function FactoryPage() {
                     </div>
                   );
                 })}
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* ═══ SHIPPED PRODUCTS (SaaS / no KPI yet) ═══════════════════ */}
+        {(() => {
+          const shippedProducts = projects.filter(
+            (p) => p.status === "shipped" && !p.latestKPI && p.track && p.track !== "mobile"
+          );
+          if (shippedProducts.length === 0) return null;
+          return (
+            <Card className="p-0 overflow-hidden">
+              <div className="px-5 pt-3.5 pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <p className="label-caps text-mid/80">Shipped</p>
+                    <span className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-olive/15 text-olive">
+                      Live
+                    </span>
+                  </div>
+                  <span className="text-[0.8rem] text-mid/60 tabular-nums">
+                    {shippedProducts.length} product{shippedProducts.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+              <div className="divide-y divide-warm/60">
+                {shippedProducts.map((p) => (
+                  <ShippedProductRow key={p.slug} p={p} />
+                ))}
               </div>
             </Card>
           );
@@ -1357,6 +1387,81 @@ function LaneArrow() {
 
 // ─── Approval Panel ──────────────────────────────────────────────────
 
+function ShippedProductRow({ p }: { p: FactoryProject }) {
+  const [expanded, setExpanded] = useState(false);
+  const name = p.displayName ?? p.slug.replace(/-/g, " ");
+  const daysSince = Math.floor((Date.now() - new Date(p.updated_at).getTime()) / 86400000);
+  const qgRaw = p.phases.quality_gate;
+  const qgScore = qgRaw?.score ?? (qgRaw as unknown as Record<string, unknown> | undefined)?.design_score as number | undefined ?? null;
+  const monetizationRaw = p.phases.monetization as unknown as Record<string, unknown> | undefined;
+  const mp = (p.phases.monetization as { pricing?: { monthly?: number; annual?: number } } | undefined)?.pricing;
+  const tiersMonthly = (monetizationRaw?.tiers as Record<string,string> | undefined)?.monthly ?? '';
+  const notes = (monetizationRaw?.summary ?? monetizationRaw?.notes ?? tiersMonthly) as string | undefined;
+  const monthlyMatch = !mp && notes ? notes.match(/\$(\d+\.?\d*)/) : null;
+  const monthly = mp?.monthly ?? (monthlyMatch ? parseFloat(monthlyMatch[1]) : null);
+
+  return (
+    <div key={p.slug}>
+      <div className="px-5 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--olive)" }} />
+          <div>
+            <p className="text-sm font-medium text-charcoal">{name}</p>
+            <p className="text-[0.75rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+              {p.track?.toUpperCase()} · shipped {daysSince}d ago
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {monthly != null && (
+            <span className="text-[0.75rem] text-mid/70 tabular-nums font-[family-name:var(--font-dm-mono)]">${monthly}/mo</span>
+          )}
+          {qgScore !== null && (
+            <span className="text-[0.75rem] tabular-nums font-medium" style={{ color: qgScore >= 80 ? "#4ade80" : "#fbbf24" }}>
+              QG {qgScore}
+            </span>
+          )}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[0.72rem] text-mid/60 hover:text-charcoal transition-colors px-2 py-0.5 rounded border border-warm/40 cursor-pointer"
+          >
+            {expanded ? "Hide" : "Review"}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="px-5 pb-4 space-y-3 border-t border-warm/40">
+          {/* One-pager excerpt */}
+          {p.onePager && (
+            <div className="mt-3">
+              <p className="label-caps text-[0.65rem] text-mid/60 mb-1.5">One-Pager</p>
+              <p className="text-[0.78rem] text-mid/80 leading-relaxed font-[family-name:var(--font-dm-mono)] whitespace-pre-wrap">
+                {(p.onePager as string).slice(0, 600)}{(p.onePager as string).length > 600 ? "…" : ""}
+              </p>
+            </div>
+          )}
+          {/* Build summary */}
+          {(p.buildPreview as any)?.buildSummary && (
+            <div>
+              <p className="label-caps text-[0.65rem] text-mid/60 mb-1.5">What was built</p>
+              <p className="text-[0.78rem] text-mid/80 leading-relaxed font-[family-name:var(--font-dm-mono)]">
+                {(p.buildPreview as any).buildSummary}
+              </p>
+            </div>
+          )}
+          {/* Phase completion */}
+          <div>
+            <p className="label-caps text-[0.65rem] text-mid/60 mb-1.5">Pipeline</p>
+            <p className="text-[0.75rem] text-mid/70 font-[family-name:var(--font-dm-mono)]">
+              {p.completedPhases}/{p.totalPhases} phases complete · QG {qgScore ?? "—"}/100
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ApprovalPanel({
   project,
   onApprove,
@@ -1374,37 +1479,6 @@ function ApprovalPanel({
   const [rejectReason, setRejectReason] = useState("");
   const [showFixes, setShowFixes] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [previewState, setPreviewState] = useState<{ status: "idle" | "starting" | "running" | "error"; qr?: string; url?: string; error?: string }>({ status: "idle" });
-
-  const launchPreview = async () => {
-    setPreviewState({ status: "starting" });
-    try {
-      const res = await fetch("/api/factory/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: project.slug }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setPreviewState({ status: "error", error: data.error });
-      } else {
-        setPreviewState({ status: "running", qr: data.qr, url: data.url });
-      }
-    } catch (err) {
-      setPreviewState({ status: "error", error: String(err) });
-    }
-  };
-
-  const stopPreview = async () => {
-    try {
-      await fetch("/api/factory/preview", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: project.slug }),
-      });
-    } catch { /* ignore */ }
-    setPreviewState({ status: "idle" });
-  };
 
   const qgRaw = project.phases.quality_gate;
   // Normalize: some QG runs write design_score instead of score
@@ -1508,7 +1582,10 @@ function ApprovalPanel({
             {(() => {
               // Try structured pricing first, then parse from notes
               const mp = monetization?.pricing;
-              const notes = monetization?.summary ?? (monetization as unknown as Record<string, unknown> | undefined)?.notes as string | undefined;
+              const monetizationRaw = monetization as unknown as Record<string, unknown> | undefined;
+              // Flatten tiers object into a parseable string if present
+              const tiersMonthly = (monetizationRaw?.tiers as Record<string,string> | undefined)?.monthly ?? '';
+              const notes = monetization?.summary ?? monetizationRaw?.notes as string | undefined ?? tiersMonthly;
               const monthlyMatch = !mp && notes ? notes.match(/\$(\d+\.?\d*)\/?month/i) : null;
               const annualMatch = !mp && notes ? notes.match(/\$(\d+\.?\d*)\/?year/i) : null;
               const monthly = mp?.monthly ?? (monthlyMatch ? parseFloat(monthlyMatch[1]) : null);
@@ -1746,61 +1823,79 @@ function ApprovalPanel({
                   )}
                 </div>
 
-                {/* Launch Preview */}
-                <div className="rounded-md border border-warm/30 overflow-hidden" style={{ backgroundColor: "rgba(0,0,0,0.02)" }}>
-                  {previewState.status === "idle" && (
-                    <button
-                      onClick={launchPreview}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-3 hover:bg-warm/15 transition-colors cursor-pointer"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--olive)" stroke="none">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                      <span className="text-[0.82rem] font-medium text-charcoal">Launch Preview on Phone</span>
-                    </button>
-                  )}
-                  {previewState.status === "starting" && (
-                    <div className="flex items-center justify-center gap-2 px-3 py-4">
-                      <div className="w-4 h-4 border-2 border-olive/30 border-t-olive rounded-full animate-spin" />
-                      <span className="text-[0.8rem] text-mid/70">Starting Expo dev server...</span>
-                    </div>
-                  )}
-                  {previewState.status === "running" && previewState.qr && (
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={previewState.qr} alt="Expo QR Code" width={160} height={160} className="rounded-lg" />
+                {/* Simulator Test Instructions */}
+                <div className="rounded-md border border-warm/30 p-3 space-y-2" style={{ backgroundColor: "rgba(0,0,0,0.02)" }}>
+                  {(project.buildPreview as any)?.e2eResults ? (() => {
+                    const e2e = (project.buildPreview as any).e2eResults;
+                    const verdict = e2e.verdict ?? "UNKNOWN";
+                    const verdictColor = verdict === "PASS" ? "var(--olive)" : verdict === "WARN" ? "var(--amber)" : "var(--terracotta)";
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[0.75rem] font-medium text-charcoal">Pre-Approval Tests</p>
+                          <span className="text-[0.72rem] font-semibold px-1.5 py-0.5 rounded" style={{ color: verdictColor, backgroundColor: `color-mix(in srgb, ${verdictColor} 12%, transparent)` }}>
+                            {verdict}
+                          </span>
                         </div>
-                        <div className="flex-1 space-y-2 pt-1">
-                          <p className="text-[0.82rem] font-medium text-charcoal">Scan with Expo Go</p>
-                          <p className="text-[0.72rem] text-mid/70 leading-relaxed">
-                            Open <span className="font-medium">Expo Go</span> on your iPhone, tap Scan QR Code, and point at this code.
+                        <div className="flex gap-3 text-[0.72rem] font-[family-name:var(--font-dm-mono)]">
+                          <span className="text-olive">✓ {e2e.unit?.pass ?? 0} pass</span>
+                          {(e2e.unit?.fail ?? 0) > 0 && <span className="text-terracotta">✗ {e2e.unit.fail} fail</span>}
+                          {(e2e.unit?.warn ?? 0) > 0 && <span className="text-amber-600">⚠ {e2e.unit.warn} warn</span>}
+                          <span className="text-mid/60">E2E {e2e.e2e?.passed ?? 0}/{e2e.e2e?.total ?? 0}</span>
+                        </div>
+                        {e2e.build_installed && (
+                          <p className="text-[0.72rem] text-olive font-[family-name:var(--font-dm-mono)]">
+                            ✓ Installed on {e2e.simulator ?? "iPhone 17 Pro"}
                           </p>
-                          <code className="block text-[0.68rem] font-[family-name:var(--font-dm-mono)] text-mid/60 select-all mt-1">
-                            {previewState.url}
-                          </code>
-                          <button
-                            onClick={stopPreview}
-                            className="mt-2 text-[0.72rem] text-terracotta/70 hover:text-terracotta transition-colors cursor-pointer"
-                          >
-                            Stop server
-                          </button>
-                        </div>
+                        )}
+                        {/* L8: PRD Alignment */}
+                        {e2e.alignment && e2e.alignment !== "SKIPPED" && (() => {
+                          const al = e2e.alignment as string;
+                          const alColor = al === "ALIGNED" ? "var(--olive)" : al === "PARTIAL" ? "var(--amber)" : al === "MISALIGNED" ? "var(--terracotta)" : "var(--mid)";
+                          const alIcon = al === "ALIGNED" ? "✓" : al === "PARTIAL" ? "⚠" : al === "MISALIGNED" ? "✗" : "?";
+                          const alignReport = (project.buildPreview as any)?.alignmentReport as string | undefined;
+                          const screenshotCount = (project.buildPreview as any)?.screenshotCount as number | undefined;
+                          // Extract P0 feature checklist section from alignment report
+                          const checklistMatch = alignReport?.match(/## P0 Feature Checklist\n([\s\S]*?)(?=## |$)/);
+                          const checklist = checklistMatch?.[1]?.trim();
+                          return (
+                            <div className="mt-2 pt-2 border-t border-warm/30 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <p className="text-[0.72rem] text-mid/70">PRD Alignment {screenshotCount ? `(${screenshotCount} screenshots)` : ""}</p>
+                                <span className="text-[0.7rem] font-semibold font-[family-name:var(--font-dm-mono)] px-1.5 py-0.5 rounded"
+                                  style={{ color: alColor, backgroundColor: `color-mix(in srgb, ${alColor} 12%, transparent)` }}>
+                                  {alIcon} {al}
+                                </span>
+                              </div>
+                              {checklist && (
+                                <div className="text-[0.68rem] font-[family-name:var(--font-dm-mono)] text-mid/70 space-y-0.5 max-h-28 overflow-y-auto leading-relaxed">
+                                  {checklist.split("\n").filter(Boolean).slice(0, 10).map((line, i) => (
+                                    <p key={i} className={line.includes("❌") ? "text-terracotta/80" : line.includes("⚠️") ? "text-amber-600" : "text-olive/80"}>{line}</p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    </div>
+                    );
+                  })() : (
+                    <p className="text-[0.75rem] text-mid/60">Pre-approval tests not yet run</p>
                   )}
-                  {previewState.status === "error" && (
-                    <div className="p-3 space-y-2">
-                      <p className="text-[0.78rem] text-terracotta">{previewState.error}</p>
-                      <button
-                        onClick={() => setPreviewState({ status: "idle" })}
-                        className="text-[0.72rem] text-mid/60 hover:text-charcoal transition-colors cursor-pointer"
-                      >
-                        Try again
-                      </button>
-                    </div>
-                  )}
+                  <div className="pt-1 border-t border-warm/40 space-y-1">
+                    <p className="text-[0.72rem] font-medium text-charcoal">Open on Simulator</p>
+                    <p className="text-[0.7rem] text-mid/70 font-[family-name:var(--font-dm-mono)]">
+                      Tap the app icon on iPhone 17 Pro · these apps require a dev build, not Expo Go
+                    </p>
+                    {(project.buildPreview as any)?.testCredentials?.email && (
+                      <p className="text-[0.7rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+                        Test account: <span className="text-charcoal">{(project.buildPreview as any).testCredentials.email}</span>
+                      </p>
+                    )}
+                    <p className="text-[0.68rem] text-mid/50 font-[family-name:var(--font-dm-mono)]">
+                      password: TestFactory2026!
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
