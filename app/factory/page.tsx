@@ -154,6 +154,7 @@ const STATUS_LABELS: Record<string, string> = {
   shipped: "Shipped",
   submitted: "Submitted",
   "awaiting-approval": "Awaiting Approval",
+  "awaiting-design-approval": "Design Review",
   "needs-review": "Needs Review",
   paused: "Paused",
 };
@@ -235,6 +236,7 @@ export default function FactoryPage() {
   };
 
   const awaitingApproval = projects.filter((p) => p.status === "awaiting-approval");
+  const awaitingDesignApproval = projects.filter((p) => p.status === "awaiting-design-approval");
 
   const LIVE_THRESHOLD = 30 * 60 * 1000;
   const now = Date.now();
@@ -388,6 +390,11 @@ export default function FactoryPage() {
             )}
           </div>
         </Card>
+
+        {/* ═══ DESIGN REVIEW GATE ══════════════════════════════════════ */}
+        {awaitingDesignApproval.map((project) => (
+          <DesignReviewPanel key={project.slug} project={project} />
+        ))}
 
         {/* ═══ APPROVAL GATE ═════════════════════════════════════════ */}
         {awaitingApproval.map((project) => (
@@ -766,9 +773,11 @@ function FactoryProjectRow({
       ? "var(--olive)"
       : project.status === "awaiting-approval"
         ? "var(--amber)"
-        : project.status === "needs-review"
-          ? "var(--terracotta)"
-          : "var(--lilac)";
+        : project.status === "awaiting-design-approval"
+          ? "#0BBBD4"
+          : project.status === "needs-review"
+            ? "var(--terracotta)"
+            : "var(--lilac)";
 
   const effectivePhases = project.trackPhases ?? phaseLabels;
   const currentPhaseLabel = project.currentPhaseIdx >= 0
@@ -1458,6 +1467,68 @@ function ShippedProductRow({ p }: { p: FactoryProject }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DesignReviewPanel({ project }: { project: FactoryProject }) {
+  const slug = project.slug;
+  const displayName = project.displayName ?? slug.replace(/-/g, " ");
+
+  return (
+    <div className="rounded-xl border-2 overflow-hidden fade-up" style={{ borderColor: "#0BBBD4", boxShadow: "0 0 30px rgba(11, 187, 212, 0.1)" }}>
+      <div className="px-5 py-4 flex items-center justify-between" style={{ backgroundColor: "rgba(11, 187, 212, 0.06)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#0BBBD4" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xl text-charcoal tracking-tight" style={{ fontFamily: "var(--font-cormorant)" }}>
+              Review Design — {displayName}
+            </p>
+            <p className="text-[0.8rem] text-mid/80 font-[family-name:var(--font-dm-mono)]">
+              Design phase complete · Approve to begin build
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[0.7rem] font-[family-name:var(--font-dm-mono)] px-2 py-1 rounded" style={{ backgroundColor: "rgba(11, 187, 212, 0.12)", color: "#0BBBD4" }}>
+            design review
+          </span>
+        </div>
+      </div>
+
+      <div className="px-5 py-4 space-y-3">
+        <p className="text-sm text-mid/80">
+          Color palette, typography, mascot, and UI direction are ready. Open the preview to evaluate before committing to build.
+        </p>
+        <div className="flex gap-3">
+          <a
+            href={`/factory/${slug}/design-preview`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-center transition-opacity hover:opacity-80"
+            style={{ backgroundColor: "#0BBBD4", color: "white" }}
+          >
+            Open Design Preview →
+          </a>
+          <a
+            href={`/factory/${slug}/design-preview`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2.5 rounded-lg text-sm font-medium border transition-opacity hover:opacity-80"
+            style={{ borderColor: "#0BBBD4", color: "#0BBBD4" }}
+          >
+            Approve / Revise
+          </a>
+        </div>
+        <p className="text-[0.7rem] text-mid/50 font-[family-name:var(--font-dm-mono)]">
+          Approve and Revise buttons are inside the preview page
+        </p>
+      </div>
     </div>
   );
 }
