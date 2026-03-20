@@ -22,3 +22,4 @@ export const ORG_JSON = join(BRAIN, "ORG.json");
 export const MISSION_MD = join(WORKSPACE, "company", "mission.md");
 export const CALENDAR_EVENTS_JSON = join(OPS, "calendar-events.json");
 export const FACTORY_DIR = join(OPS, "factory");
+export const CONTENT_CALENDAR_JSON = join(OPS, "factory", "content-calendar.json");

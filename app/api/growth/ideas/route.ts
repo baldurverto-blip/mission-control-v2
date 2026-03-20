@@ -42,6 +42,41 @@ function parseKeywordSignals(markdown: string): { niche: string; tier: string; k
   return niches;
 }
 
+/** Source-specific score normalization (mirrors signal_to_idea.py) */
+const SOURCE_SCALE: Record<string, number> = {
+  reddit_app_request: 0.65,
+  appstore_reviews: 0.7,
+  kwe_discover: 1.0,
+  saas_review_miner: 0.85,
+  pain_scanner: 0.75,
+  reddit_pain: 0.8,
+  reddit_pain_scan: 0.8,
+};
+
+/** Clean up signal title for display */
+function cleanSignalTitle(title: string): string {
+  // Strip "app request: " prefix and conversational noise
+  let t = title;
+  for (const prefix of ["app request: ", "app request - ", "pain signal: "]) {
+    if (t.toLowerCase().startsWith(prefix)) {
+      t = t.slice(prefix.length).trim();
+    }
+  }
+  // Strip leading "do you use to ", "what do you use for " etc
+  for (const phrase of [
+    "do you use to ", "what do you use for ", "what app do you use for ",
+    "any recommendations for ", "anyone know a good ", "looking for a ",
+    "is there an app for ", "is there a good ",
+  ]) {
+    if (t.toLowerCase().startsWith(phrase)) {
+      t = t.slice(phrase.length).trim();
+    }
+  }
+  // Capitalize first letter
+  if (t.length > 0) t = t[0].toUpperCase() + t.slice(1);
+  return t;
+}
+
 /** Fetch high-scoring signals from GrowthOps radar */
 async function fetchHotSignals(): Promise<{ id: string; title: string; score: number; source: string; tier: string; tags: string[] }[]> {
   try {
@@ -50,14 +85,21 @@ async function fetchHotSignals(): Promise<{ id: string; title: string; score: nu
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.signals ?? []).map((s: Record<string, unknown>) => ({
-      id: s.id ?? "",
-      title: s.title ?? "",
-      score: s.final_score ?? 0,
-      source: s.source ?? "",
-      tier: s.radar_tier ?? "hot",
-      tags: s.pipeline_tags ?? [],
-    }));
+    return (data.signals ?? [])
+      .map((s: Record<string, unknown>) => {
+        const source = String(s.source ?? "");
+        const rawScore = Number(s.final_score ?? 0);
+        const scale = SOURCE_SCALE[source] ?? 0.8;
+        return {
+          id: String(s.id ?? ""),
+          title: cleanSignalTitle(String(s.title ?? "")),
+          score: Math.round(rawScore * scale),
+          source,
+          tier: String(s.radar_tier ?? "hot"),
+          tags: (s.pipeline_tags ?? []) as string[],
+        };
+      })
+      .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
   } catch {
     return [];
   }
@@ -98,7 +140,7 @@ export async function GET() {
       } catch {}
     }
 
-    // 3. Load latest keyword signals (structured)
+    // 3. Load latest keyword signals (structured) — filter out 1-keyword/brand niches
     let keywordNiches: ReturnType<typeof parseKeywordSignals> = [];
     let keywordDate: string | null = null;
     if (existsSync(SIGNALS_DIR)) {
@@ -108,7 +150,17 @@ export async function GET() {
         .reverse();
       if (files.length > 0) {
         const md = readFileSync(resolve(SIGNALS_DIR, files[0]), "utf-8");
-        keywordNiches = parseKeywordSignals(md);
+        const allNiches = parseKeywordSignals(md);
+        // Filter out niches with < 3 keywords, single-word niches (brand/navigational),
+        // and generic terms
+        const genericTerms = new Set(["app", "best", "free", "alternative", "software", "tool", "managing", "tracker"]);
+        keywordNiches = allNiches.filter((n) => {
+          if (n.keywords < 3) return false;
+          const words = n.niche.toLowerCase().split(/\s+/).filter(Boolean);
+          if (words.length < 2) return false;
+          if (words.every((w) => genericTerms.has(w))) return false;
+          return true;
+        });
         keywordDate = files[0].replace(".md", "");
       }
     }

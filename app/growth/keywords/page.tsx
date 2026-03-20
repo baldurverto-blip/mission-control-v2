@@ -514,6 +514,14 @@ export default function KeywordsPage() {
         <div>
           <p className="label-caps text-[0.75rem] text-mid/80">
             Keyword Signals {date && `\u2014 ${date}`}
+            {date && (() => {
+              const daysOld = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+              return daysOld > 7 ? (
+                <span className="ml-2 text-[0.65rem] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>
+                  {daysOld}d old — stale
+                </span>
+              ) : null;
+            })()}
           </p>
           <p className="text-[0.8rem] text-mid/60 mt-0.5">
             {parsed.credits && `${parsed.credits} credits used`}
@@ -597,11 +605,13 @@ export default function KeywordsPage() {
         </div>
       )}
 
-      {/* Product switcher */}
+      {/* Product switcher — demand-derived vs monitoring */}
       {products.length > 1 && (
-        <div className="flex gap-1 bg-warm/50 p-1 rounded-lg">
+        <div className="flex gap-1 bg-warm/50 p-1 rounded-lg flex-wrap">
           {products.map((p) => {
             const active = selectedProduct?.name === p.name;
+            const isDemand = p.name.toLowerCase().includes("demand");
+            const isPain = p.name.toLowerCase().includes("pain");
             return (
               <button
                 key={p.name}
@@ -612,7 +622,10 @@ export default function KeywordsPage() {
                     : "text-mid hover:text-charcoal"
                 }`}
               >
+                {isDemand && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: "var(--terracotta)" }} />}
+                {isPain && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: "var(--amber)" }} />}
                 {p.name}
+                {isDemand && <span className="ml-1 text-[0.6rem] opacity-60">demand</span>}
               </button>
             );
           })}
@@ -634,26 +647,37 @@ export default function KeywordsPage() {
             </div>
           )}
 
-          {/* Niches grid */}
-          {selectedProduct.niches.filter((n) => n.keywords.length > 0).length > 0 && (
-            <>
-              <p className="label-caps text-[0.75rem] text-mid/80">Niches</p>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {selectedProduct.niches
-                  .filter((n) => n.keywords.length > 0)
-                  .sort((a, b) => {
-                    const order = ["HIGH-VIABILITY", "HIGH", "MEDIUM", "LOW"];
-                    return order.indexOf(a.viability) - order.indexOf(b.viability);
-                  })
-                  .map((n, i) => (
-                    <NicheCard key={i} niche={n} linkedIdeas={linkedIdeas.filter((idea) => {
-                      const nicheKey = n.title.toLowerCase().trim();
-                      return idea.niche && (idea.niche === nicheKey || idea.niche.includes(nicheKey) || nicheKey.includes(idea.niche));
-                    })} />
-                  ))}
-              </div>
-            </>
-          )}
+          {/* Niches grid — filter out 1-keyword and navigational/generic niches */}
+          {(() => {
+            const genericTerms = new Set(["app", "best", "free", "alternative", "software", "tool", "managing", "tracker", "tracking"]);
+            const validNiches = selectedProduct.niches.filter((n) => {
+              if (n.keywords.length < 3) return false;
+              const titleWords = n.title.toLowerCase().split(/\s+/).filter(Boolean);
+              // Skip single-word niches (brand/navigational)
+              if (titleWords.length < 2) return false;
+              // Skip if all words are generic
+              if (titleWords.every((w) => genericTerms.has(w))) return false;
+              return true;
+            });
+            return validNiches.length > 0 ? (
+              <>
+                <p className="label-caps text-[0.75rem] text-mid/80">Niches</p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {validNiches
+                    .sort((a, b) => {
+                      const order = ["HIGH-VIABILITY", "HIGH", "MEDIUM", "LOW"];
+                      return order.indexOf(a.viability) - order.indexOf(b.viability);
+                    })
+                    .map((n, i) => (
+                      <NicheCard key={i} niche={n} linkedIdeas={linkedIdeas.filter((idea) => {
+                        const nicheKey = n.title.toLowerCase().trim();
+                        return idea.niche && (idea.niche === nicheKey || idea.niche.includes(nicheKey) || nicheKey.includes(idea.niche));
+                      })} />
+                    ))}
+                </div>
+              </>
+            ) : null;
+          })()}
         </>
       )}
     </div>

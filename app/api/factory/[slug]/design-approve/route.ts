@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { readFile, writeFile } from "fs/promises";
 import { spawn } from "child_process";
 import { join } from "path";
+import { resolveFactoryDir } from "@/app/lib/factory-paths";
 
-const FACTORY = join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace/ops/factory");
 const FACTORY_LOOP = join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace/tools/factory-loop.sh");
 const LOG_DIR = join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace/logs");
 
@@ -13,6 +13,7 @@ export async function POST(
 ) {
   try {
     const { slug } = await params;
+    const FACTORY = await resolveFactoryDir(slug);
 
     if (!slug) {
       return NextResponse.json({ error: "Missing slug" }, { status: 400 });

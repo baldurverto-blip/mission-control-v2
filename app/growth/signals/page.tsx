@@ -141,13 +141,36 @@ function ScoreBar({ label, value, max = 100, color }: { label: string; value: nu
 // ── Score Breakdown Card ─────────────────────────────────────────
 
 function ScoreBreakdown({ signal }: { signal: Signal }) {
+  const hasVolume = signal.volume_score > 0;
+  const hasQuality = signal.quality_score > 0;
+  const isEnriched = hasVolume || hasQuality;
+
   return (
     <div className="space-y-1.5 mt-2">
       <ScoreBar label="Pain" value={signal.pain_score} color="var(--terracotta)" />
-      <ScoreBar label="Volume" value={signal.volume_score} color="var(--lilac)" />
-      <ScoreBar label="Quality" value={signal.quality_score} color="var(--olive)" />
+      {hasVolume ? (
+        <ScoreBar label="Volume" value={signal.volume_score} color="var(--lilac)" />
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="text-[0.7rem] text-mid/70 w-12 text-right">Volume</span>
+          <span className="text-[0.65rem] text-mid/40 italic">not enriched</span>
+        </div>
+      )}
+      {hasQuality ? (
+        <ScoreBar label="Quality" value={signal.quality_score} color="var(--olive)" />
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="text-[0.7rem] text-mid/70 w-12 text-right">Quality</span>
+          <span className="text-[0.65rem] text-mid/40 italic">not enriched</span>
+        </div>
+      )}
       {(signal.approval_boost ?? 0) > 0 && (
         <ScoreBar label="Boost" value={(signal.approval_boost ?? 0) + (signal.engagement_boost ?? 0) + (signal.conversion_boost ?? 0)} max={50} color="var(--amber)" />
+      )}
+      {isEnriched && (
+        <span className="inline-block mt-1 text-[0.6rem] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: "var(--olive-soft)", color: "var(--olive)" }}>
+          Enriched
+        </span>
       )}
     </div>
   );
@@ -427,6 +450,9 @@ function SignalRow({ signal, isExpanded, onToggle, onGenerate, rank, linkedIdeas
                 {raw.keyword && <p>Keyword: <span className="text-charcoal">{raw.keyword}</span></p>}
                 <p>Discovered: <span className="text-charcoal">{new Date(signal.discovered_at).toLocaleDateString("en-GB")}</span></p>
                 <p>Status: <span className="text-charcoal capitalize">{signal.status}</span></p>
+                {signal.cross_source_count > 1 && (
+                  <p>Cross-source: <span className="font-medium" style={{ color: "var(--lilac)" }}>{signal.cross_source_count}x validated</span></p>
+                )}
                 {signal.pipeline_tags?.length > 0 && (
                   <div className="flex gap-1 flex-wrap mt-1">
                     {signal.pipeline_tags.map((tag) => (

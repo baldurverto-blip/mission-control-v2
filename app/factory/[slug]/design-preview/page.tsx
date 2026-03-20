@@ -139,7 +139,7 @@ export default function DesignPreviewPage() {
       {/* iframe */}
       <iframe
         src={`/api/factory/${slug}/design-preview`}
-        style={{ width: "100%", flex: 1, border: "none", display: "block" }}
+        style={{ width: "100%", flex: 1, border: "none", display: "block", background: "#FAF6EE", colorScheme: "light" }}
         title={`Design preview — ${slug}`}
       />
 

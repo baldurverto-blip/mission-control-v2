@@ -200,6 +200,20 @@ const TREND_ICON: Record<string, string> = {
   declining: "\u2198",
 };
 
+const SOURCE_BADGE_COLORS: Record<string, string> = {
+  reddit: "#FF4500",
+  reddit_pain: "#FF4500",
+  reddit_app_request: "#FF6B35",
+  pain_scanner: "#C05621",
+  kwe_discover: "#F4B400",
+  keywords_everywhere: "#F4B400",
+  appstore_reviews: "#0A84FF",
+  saas_review_miner: "#BC6143",
+  jobad_jtbd: "#7C6BC4",
+  google_trends: "#4285F4",
+  product_hunt: "#DA552F",
+};
+
 // ── Small Components ─────────────────────────────────────────────
 
 function ScoreRing({ score, size = 36 }: { score: number; size?: number }) {
@@ -812,7 +826,7 @@ export default function IdeasPage() {
         {hasSignalFuel && (
           <div className="card mb-5 fade-up" style={{ padding: "0.75rem 1rem" }}>
             <div className="flex items-start gap-6 overflow-x-auto custom-scroll">
-              {/* Hot signals */}
+              {/* Hot signals — normalized scores with source badge colors */}
               {hotSignals.length > 0 && (
                 <div className="flex-shrink-0">
                   <div className="flex items-center gap-1.5 mb-2">
@@ -820,15 +834,23 @@ export default function IdeasPage() {
                     <span className="text-[0.7rem] font-medium" style={{ color: "var(--terracotta)" }}>HOT SIGNALS</span>
                   </div>
                   <div className="flex gap-2">
-                    {hotSignals.slice(0, 4).map((s) => (
-                      <div key={s.id} className="w-[180px] flex-shrink-0 p-2 rounded-lg bg-warm/40 border border-warm/60">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[0.75rem] font-medium tabular-nums" style={{ color: "var(--terracotta)" }}>{s.score.toFixed(0)}</span>
-                          <span className="text-[0.8rem] text-mid/60">{s.source}</span>
+                    {hotSignals.slice(0, 4).map((s) => {
+                      const srcColor = SOURCE_BADGE_COLORS[s.source] ?? "var(--mid)";
+                      return (
+                        <div key={s.id} className="w-[180px] flex-shrink-0 p-2 rounded-lg bg-warm/40 border border-warm/60">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[0.75rem] font-medium tabular-nums" style={{ color: "var(--terracotta)" }}>{s.score.toFixed(0)}</span>
+                            <span
+                              className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-medium truncate max-w-[100px]"
+                              style={{ backgroundColor: `${srcColor}18`, color: srcColor }}
+                            >
+                              {s.source.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <p className="text-[0.75rem] text-charcoal mt-1 line-clamp-2 leading-relaxed">{s.title.length > 60 ? s.title.slice(0, 57) + "..." : s.title}</p>
                         </div>
-                        <p className="text-[0.75rem] text-charcoal mt-1 line-clamp-2 leading-relaxed">{s.title}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -836,27 +858,40 @@ export default function IdeasPage() {
               {hotSignals.length > 0 && keywordNiches.length > 0 && (
                 <div className="w-px bg-warm/60 self-stretch flex-shrink-0" />
               )}
-              {/* Keyword niches */}
-              {keywordNiches.length > 0 && (
-                <div className="flex-shrink-0">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--olive)" }} />
-                    <span className="text-[0.7rem] font-medium" style={{ color: "var(--olive)" }}>KEYWORD NICHES</span>
-                    {keywordDate && <span className="text-[0.8rem] text-mid/55">{keywordDate}</span>}
-                  </div>
-                  <div className="flex gap-2">
-                    {keywordNiches.filter((n) => n.avgIntent >= 30).slice(0, 4).map((n, i) => (
-                      <div key={i} className="w-[160px] flex-shrink-0 p-2 rounded-lg bg-warm/40 border border-warm/60">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[0.75rem] font-medium text-charcoal truncate">{n.niche}</span>
-                          <span className="text-[0.7rem] tabular-nums" style={{ color: n.avgIntent >= 50 ? "var(--olive)" : "var(--amber)" }}>{n.avgIntent}</span>
+              {/* Keyword niches — filter 1-keyword/brand niches, show stale warning */}
+              {keywordNiches.length > 0 && (() => {
+                const filteredNiches = keywordNiches.filter((n) =>
+                  n.avgIntent >= 30 &&
+                  n.keywords >= 3 &&
+                  n.niche.split(" ").length >= 2
+                );
+                const isStale = keywordDate ? (Date.now() - new Date(keywordDate).getTime()) > 7 * 86400000 : false;
+                return filteredNiches.length > 0 ? (
+                  <div className="flex-shrink-0">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--olive)" }} />
+                      <span className="text-[0.7rem] font-medium" style={{ color: "var(--olive)" }}>KEYWORD NICHES</span>
+                      {keywordDate && <span className="text-[0.8rem] text-mid/55">{keywordDate}</span>}
+                      {isStale && (
+                        <span className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>
+                          Stale
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {filteredNiches.slice(0, 4).map((n, i) => (
+                        <div key={i} className="w-[160px] flex-shrink-0 p-2 rounded-lg bg-warm/40 border border-warm/60">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[0.75rem] font-medium text-charcoal truncate">{n.niche}</span>
+                            <span className="text-[0.7rem] tabular-nums" style={{ color: n.avgIntent >= 50 ? "var(--olive)" : "var(--amber)" }}>{n.avgIntent}</span>
+                          </div>
+                          <p className="text-[0.8rem] text-mid/60 mt-1">{n.totalVolume.toLocaleString()}/mo · ${n.avgCpc.toFixed(2)}</p>
                         </div>
-                        <p className="text-[0.8rem] text-mid/60 mt-1">{n.totalVolume.toLocaleString()}/mo · ${n.avgCpc.toFixed(2)}</p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
             </div>
             <p className="text-[0.8rem] text-mid/55 mt-2">
               Discovery signals + keyword data feeding the idea pipeline. Triage runs every 2h — proposed ideas are auto-refined, refined ideas are auto-qualified.

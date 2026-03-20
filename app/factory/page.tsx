@@ -88,6 +88,10 @@ interface FactoryProject {
   buildPreview?: BuildPreview | null;
   track?: string;
   trackPhases?: string[];
+  qgReportScore?: number | null;
+  qgVerdict?: string | null;
+  crVerdict?: string | null;
+  crIssues?: { critical: number; high: number } | null;
 }
 
 interface ActivityEvent {
@@ -254,6 +258,9 @@ export default function FactoryPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl text-charcoal tracking-tight">App Factory</h1>
+            <Link href="/saas-factory" className="text-sm text-mid/60 hover:text-mid transition ml-2">
+              SaaS Factory &rarr;
+            </Link>
             {isLive ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ backgroundColor: "#16A34A" }}>
                 <span className="w-2 h-2 rounded-full pulse-dot" style={{ backgroundColor: "#4ADE80" }} />
@@ -338,12 +345,26 @@ export default function FactoryPage() {
                 const token = agentToken(event.agent);
                 const age = now - new Date(event.timestamp).getTime();
                 const isRecent = age < LIVE_THRESHOLD;
+                // Detect QG/CR events for enhanced rendering
+                const isQGCR = /quality.gate|code.review/i.test(event.action);
+                const outcomeHasFail = isQGCR && /FAIL|rework/i.test(event.outcome);
+                const outcomeHasPass = isQGCR && /PASS/i.test(event.outcome);
+                // Extract score from outcome like "Score: 88/100" or "5.20/10"
+                const scoreInOutcome = isQGCR ? event.outcome.match(/(\d+(?:\.\d+)?)\s*\/\s*(?:10|100)/i) : null;
                 return (
                   <div
                     key={`${event.timestamp}-${i}`}
                     className={`flex items-start gap-3 px-4 py-2 border-b border-white/5 transition-opacity ${
                       isRecent ? "opacity-100" : "opacity-60"
                     }`}
+                    style={{
+                      borderLeft: outcomeHasFail
+                        ? "3px solid #ef4444"
+                        : outcomeHasPass
+                          ? "3px solid #4ade80"
+                          : undefined,
+                      paddingLeft: isQGCR ? "13px" : undefined,
+                    }}
                   >
                     {/* Timestamp */}
                     <span className="text-[0.8rem] text-white/25 tabular-nums flex-shrink-0 pt-0.5 font-[family-name:var(--font-dm-mono)]">
@@ -370,12 +391,30 @@ export default function FactoryPage() {
                         {event.model && event.model !== "unknown" && (
                           <ModelBadge model={event.model} />
                         )}
+                        {isQGCR && outcomeHasPass && (
+                          <span className="text-[0.65rem] px-1.5 py-0.5 rounded font-bold tracking-wider" style={{ backgroundColor: "rgba(74, 222, 128, 0.15)", color: "#4ade80" }}>
+                            PASS
+                          </span>
+                        )}
+                        {isQGCR && outcomeHasFail && (
+                          <span className="text-[0.65rem] px-1.5 py-0.5 rounded font-bold tracking-wider" style={{ backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}>
+                            FAIL
+                          </span>
+                        )}
                         <span className="text-[0.7rem] text-white/15 tabular-nums font-[family-name:var(--font-dm-mono)]">
                           {relTime(event.timestamp)}
                         </span>
                       </div>
-                      <p className="text-[0.8rem] text-white/50 mt-0.5 leading-relaxed font-[family-name:var(--font-dm-mono)]">
-                        {event.outcome}
+                      <p className={`text-[0.8rem] mt-0.5 leading-relaxed font-[family-name:var(--font-dm-mono)] ${isQGCR ? "text-white/70" : "text-white/50"}`}>
+                        {isQGCR && scoreInOutcome ? (
+                          <>
+                            {event.outcome.slice(0, scoreInOutcome.index)}
+                            <span className="font-bold text-white/90">{scoreInOutcome[0]}</span>
+                            {event.outcome.slice((scoreInOutcome.index ?? 0) + scoreInOutcome[0].length)}
+                          </>
+                        ) : (
+                          event.outcome
+                        )}
                       </p>
                     </div>
                   </div>
@@ -934,7 +973,49 @@ function FactoryProjectRow({
                 }}
               />
             </div>
-            {project.qualityScore !== null ? (
+            {/* QG + CR report badges */}
+            {project.qgReportScore != null ? (
+              <div className="flex flex-col items-end gap-0.5">
+                <span
+                  className="text-[0.72rem] font-medium tabular-nums"
+                  style={{
+                    color: (() => {
+                      const s = project.qgReportScore!;
+                      const isScale10 = s <= 10;
+                      const good = isScale10 ? 8 : 80;
+                      const ok = isScale10 ? 6 : 60;
+                      return s >= good ? "var(--olive)" : s >= ok ? "var(--amber)" : "var(--terracotta)";
+                    })(),
+                  }}
+                >
+                  QG {project.qgReportScore}{project.qgReportScore <= 10 ? "/10" : "/100"}
+                  {project.qgVerdict && (
+                    <span
+                      className="ml-1 text-[0.65rem] px-1 py-0 rounded font-semibold"
+                      style={{
+                        backgroundColor: project.qgVerdict === "PASS" ? "rgba(118, 135, 90, 0.15)" : "rgba(183, 110, 121, 0.15)",
+                        color: project.qgVerdict === "PASS" ? "var(--olive)" : "var(--terracotta)",
+                      }}
+                    >
+                      {project.qgVerdict}
+                    </span>
+                  )}
+                </span>
+                {project.crVerdict != null && (
+                  <span
+                    className="text-[0.68rem] font-medium tabular-nums"
+                    style={{ color: project.crVerdict === "PASS" ? "var(--olive)" : "var(--terracotta)" }}
+                  >
+                    CR: {project.crVerdict}
+                    {project.crIssues && (project.crIssues.critical > 0 || project.crIssues.high > 0) && (
+                      <span className="text-[0.62rem] text-mid/60 ml-0.5">
+                        ({project.crIssues.critical}C/{project.crIssues.high}H)
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+            ) : project.qualityScore !== null ? (
               <span
                 className="text-[0.72rem] font-medium tabular-nums"
                 style={{
@@ -947,6 +1028,18 @@ function FactoryProjectRow({
                 }}
               >
                 QG {project.qualityScore}/100
+              </span>
+            ) : project.crVerdict != null ? (
+              <span
+                className="text-[0.68rem] font-medium tabular-nums"
+                style={{ color: project.crVerdict === "PASS" ? "var(--olive)" : "var(--terracotta)" }}
+              >
+                CR: {project.crVerdict}
+                {project.crIssues && (project.crIssues.critical > 0 || project.crIssues.high > 0) && (
+                  <span className="text-[0.62rem] text-mid/60 ml-0.5">
+                    ({project.crIssues.critical}C/{project.crIssues.high}H)
+                  </span>
+                )}
               </span>
             ) : project.qualityAttempt > 0 ? (
               <span className="text-[0.72rem] text-terracotta tabular-nums">
@@ -978,10 +1071,45 @@ function FactoryProjectRow({
         <div className="px-5 pb-4 fade-up">
           <div className="bg-warm/30 rounded-lg p-4 border border-warm/50">
             {project.onePager ? (
-              <div className="prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap text-xs text-mid leading-relaxed font-[family-name:var(--font-dm-mono)]">
-                  {project.onePager}
-                </pre>
+              <div className="space-y-3">
+                {/* Core Features — extracted from one-pager */}
+                {(() => {
+                  const text = project.onePager as string;
+                  const featMatch = text.match(/##\s+Core Features[^\n]*\n([\s\S]*?)(?=\n##|\n---|\n\n##|$)/i);
+                  const features: string[] = [];
+                  if (featMatch) {
+                    const block = featMatch[1];
+                    for (const line of block.split("\n")) {
+                      const m = line.match(/^\s*(?:\d+\.|[-*])\s+\*\*([^*]+)\*\*\s*(?:—|-)\s*(.*)/);
+                      if (m) features.push(`${m[1].trim()} — ${m[2].trim()}`);
+                      else {
+                        const m2 = line.match(/^\s*(?:\d+\.|[-*])\s+(.+)/);
+                        if (m2 && m2[1].trim()) features.push(m2[1].trim());
+                      }
+                    }
+                  }
+                  if (features.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="label-caps text-[0.7rem] mb-2">Core Features</p>
+                      <div className="space-y-1.5">
+                        {features.map((f, i) => (
+                          <div key={i} className="flex items-start gap-2 text-[0.78rem] text-charcoal/90 leading-snug">
+                            <span className="mt-[3px] flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[0.65rem] font-semibold text-white" style={{ background: "var(--lilac)" }}>{i + 1}</span>
+                            <span>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+                {/* Rest of one-pager */}
+                <details>
+                  <summary className="text-[0.75rem] text-mid/70 cursor-pointer select-none hover:text-mid transition-colors">Full one-pager</summary>
+                  <pre className="mt-2 whitespace-pre-wrap text-xs text-mid leading-relaxed font-[family-name:var(--font-dm-mono)]">
+                    {project.onePager}
+                  </pre>
+                </details>
               </div>
             ) : (
               <p className="text-sm text-mid/70 text-center py-4">
@@ -1073,6 +1201,18 @@ function FactoryProjectRow({
                             {audit.missing.length > 0 && (
                               <div className="mt-2 pt-2 border-t border-warm/40 text-[0.72rem] text-mid/70">
                                 Missing: {audit.missing.map((m) => audit.labels?.[m] ?? m).join(", ")}
+                              </div>
+                            )}
+                            {phaseName === "design" && audit.delivered.includes("design-brief.md") && (
+                              <div className="mt-2 pt-2 border-t border-warm/40">
+                                <Link
+                                  href={`/factory/${project.slug}/design-preview`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 text-[0.75rem] font-medium px-2.5 py-1 rounded-md transition-colors"
+                                  style={{ color: "var(--amber)", background: "rgba(196,160,72,0.10)" }}
+                                >
+                                  View Design Brief →
+                                </Link>
                               </div>
                             )}
                           </div>

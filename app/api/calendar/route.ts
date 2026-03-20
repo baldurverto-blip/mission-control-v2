@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync, readdirSync, existsSync, statSync } from "fs";
 import { join } from "path";
-import { CONTENT_DIR, SCHEDULE_JSON } from "../../lib/paths";
+import { CONTENT_DIR, SCHEDULE_JSON, CONTENT_CALENDAR_JSON } from "../../lib/paths";
 
 const GROWTHOPS_URL = process.env.GROWTHOPS_URL || "http://localhost:3002";
 

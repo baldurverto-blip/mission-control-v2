@@ -106,6 +106,110 @@ interface ArtifactAudit {
   artifacts: Record<string, ArtifactPhaseAudit>;
 }
 
+interface QGCRData {
+  qgScore: number | null;       // e.g. 88 (normalised to /100) or 8.8 (if /10 scale)
+  qgVerdict: string | null;     // "PASS" or "FAIL"
+  crVerdict: string | null;     // "PASS" or "FAIL"
+  crIssues: { critical: number; high: number } | null;
+}
+
+/** Parse quality-gate-report.md for score + verdict */
+async function parseQGReport(projectDir: string): Promise<Pick<QGCRData, "qgScore" | "qgVerdict">> {
+  try {
+    const text = await readFile(join(projectDir, "quality-gate-report.md"), "utf-8");
+
+    // Verdict: look for PASS or FAIL
+    let qgVerdict: string | null = null;
+    const verdictMatch = text.match(/Verdict[:\s]*\*{0,2}\s*(PASS|FAIL)/i);
+    if (verdictMatch) qgVerdict = verdictMatch[1].toUpperCase();
+    // Fallback: "### PASS" or "### FAIL"
+    if (!qgVerdict) {
+      const headingMatch = text.match(/^###?\s+(PASS|FAIL)/mi);
+      if (headingMatch) qgVerdict = headingMatch[1].toUpperCase();
+    }
+    // Fallback: "Recommendation: PASS"
+    if (!qgVerdict) {
+      const recMatch = text.match(/Recommendation[:\s]*\*{0,2}\s*(PASS|FAIL)/i);
+      if (recMatch) qgVerdict = recMatch[1].toUpperCase();
+    }
+
+    // Score: multiple formats
+    let qgScore: number | null = null;
+    // "Score: 89/100" or "Score:** 88/100" or "Score Achieved:** 88/100"
+    const score100Match = text.match(/Score(?:\s+Achieved)?[:\s]*\*{0,2}\s*(\d+(?:\.\d+)?)\s*\/\s*100/i);
+    if (score100Match) {
+      qgScore = parseFloat(score100Match[1]);
+    }
+    // "FAIL (5.20/10)" or "Score: 8.2/10"
+    if (qgScore === null) {
+      const score10Match = text.match(/(?:Score|Verdict)[^)]*?(\d+(?:\.\d+)?)\s*\/\s*10(?:\)|\s|\*|$)/i);
+      if (score10Match) {
+        qgScore = parseFloat(score10Match[1]); // keep in /10 scale
+      }
+    }
+    // "Weighted Average" row in table: "| **Weighted Average** | | | **5.20** |"
+    if (qgScore === null) {
+      const waMatch = text.match(/Weighted\s+Average[^|]*\|[^|]*\|[^|]*\|\s*\*{0,2}(\d+(?:\.\d+)?)\*{0,2}\s*\|/i);
+      if (waMatch) {
+        qgScore = parseFloat(waMatch[1]);
+      }
+    }
+    // "### PASS — Score 88/100"
+    if (qgScore === null) {
+      const dashMatch = text.match(/(PASS|FAIL)\s*(?:—|-)\s*Score\s+(\d+(?:\.\d+)?)\s*\/\s*100/i);
+      if (dashMatch) {
+        qgScore = parseFloat(dashMatch[2]);
+      }
+    }
+
+    return { qgScore, qgVerdict };
+  } catch {
+    return { qgScore: null, qgVerdict: null };
+  }
+}
+
+/** Parse code-review-report.md for verdict + issue counts */
+async function parseCRReport(projectDir: string): Promise<Pick<QGCRData, "crVerdict" | "crIssues">> {
+  try {
+    const text = await readFile(join(projectDir, "code-review-report.md"), "utf-8");
+
+    // Verdict
+    let crVerdict: string | null = null;
+    const verdictMatch = text.match(/(?:Verdict|Recommendation)[:\s]*\*{0,2}\s*(PASS|FAIL)/i);
+    if (verdictMatch) crVerdict = verdictMatch[1].toUpperCase();
+
+    // Issue counts — look for "N CRITICAL" and "N HIGH" patterns
+    let critical = 0;
+    let high = 0;
+    // "3 CRITICAL issues" or "3 CRITICAL"
+    const critMatch = text.match(/(\d+)\s+CRITICAL/i);
+    if (critMatch) critical = parseInt(critMatch[1]);
+    const highMatch = text.match(/(\d+)\s+HIGH/i);
+    if (highMatch) high = parseInt(highMatch[1]);
+
+    // Also count ### CRITICAL section entries (table rows with C1, C2 etc.)
+    if (critical === 0) {
+      const critSection = text.match(/### CRITICAL[\s\S]*?(?=###\s|$)/i);
+      if (critSection) {
+        const rows = critSection[0].match(/\|\s*C\d+\s*\|/g);
+        if (rows) critical = rows.length;
+      }
+    }
+    if (high === 0) {
+      const highSection = text.match(/### HIGH[\s\S]*?(?=###\s|$)/i);
+      if (highSection) {
+        const rows = highSection[0].match(/\|\s*H\d+\s*\|/g);
+        if (rows) high = rows.length;
+      }
+    }
+
+    const crIssues = (critical > 0 || high > 0) ? { critical, high } : null;
+    return { crVerdict, crIssues };
+  } catch {
+    return { crVerdict: null, crIssues: null };
+  }
+}
+
 interface KPISnapshot {
   week: string;
   date: string;
@@ -182,7 +286,7 @@ export async function GET() {
       projectDir?: string;
     }
 
-    const projects: (ProjectState & { onePager?: string; displayName?: string; kpis?: KPIData; e2eResults?: { status: string; tests: number; passed: number; failed: number }; artifactAudit?: ArtifactAudit; buildPreview?: BuildPreview })[] = [];
+    const projects: (ProjectState & { onePager?: string; displayName?: string; kpis?: KPIData; e2eResults?: { status: string; tests: number; passed: number; failed: number }; artifactAudit?: ArtifactAudit; buildPreview?: BuildPreview; qgReportScore?: number | null; qgVerdict?: string | null; crVerdict?: string | null; crIssues?: { critical: number; high: number } | null })[] = [];
 
     // Read all project state files
     const entries = await readdir(FACTORY).catch(() => []);
@@ -320,7 +424,12 @@ export async function GET() {
           } catch { /* no screenshots */ }
         }
 
-        projects.push({ ...state, onePager, displayName, kpis, e2eResults, artifactAudit, buildPreview });
+        // Parse QG and CR reports for dashboard badges
+        const projectDir = join(FACTORY, entry);
+        const { qgScore: qgReportScore, qgVerdict } = await parseQGReport(projectDir);
+        const { crVerdict, crIssues } = await parseCRReport(projectDir);
+
+        projects.push({ ...state, onePager, displayName, kpis, e2eResults, artifactAudit, buildPreview, qgReportScore, qgVerdict, crVerdict, crIssues });
       } catch { /* skip non-project dirs or missing state */ }
     }
 
