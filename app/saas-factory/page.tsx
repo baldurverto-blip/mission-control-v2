@@ -6,6 +6,8 @@ import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { relTime } from "@/app/lib/agents";
 
+type ExpandedPhases = Record<string, boolean>;
+
 // ─── Types ───────────────────────────────────────────────────────────
 
 interface PhaseState {
@@ -14,6 +16,20 @@ interface PhaseState {
   attempt?: number;
   summary?: string;
   result?: string;
+}
+
+interface ArtifactPhaseAudit {
+  required: string[];
+  delivered: string[];
+  missing: string[];
+  labels?: Record<string, string>;
+}
+
+interface ArtifactAudit {
+  slug: string;
+  phase: string;
+  phase_state?: string;
+  artifacts: Record<string, ArtifactPhaseAudit>;
 }
 
 interface Project {
@@ -34,11 +50,7 @@ interface Project {
   updated_at: string;
   onePager?: string;
   product_type?: string;
-  artifactAudit?: {
-    slug: string;
-    phase: string;
-    artifacts: Record<string, { required: string[]; delivered: string[]; missing: string[] }>;
-  };
+  artifactAudit?: ArtifactAudit;
 }
 
 interface IdeaEntry {
@@ -94,6 +106,7 @@ function statusColor(status: string): string {
   switch (status) {
     case "shipped": return "#16A34A";
     case "rejected": case "paused": case "parked": return "#9CA3AF";
+    case "awaiting-design-approval": return "#0BBBD4";
     case "build": case "design": return "#D97706";
     case "research": case "validation": return "#2563EB";
     default: return "#6B7280";
@@ -114,6 +127,11 @@ export default function SaaSFactoryPage() {
   const [data, setData] = useState<SaaSFactoryData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
+  const [expandedPhases, setExpandedPhases] = useState<ExpandedPhases>({});
+
+  const onTogglePhase = useCallback((key: string) => {
+    setExpandedPhases((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -164,6 +182,11 @@ export default function SaaSFactoryPage() {
             </Card>
           ))}
         </div>
+
+        {/* Design Review Gate */}
+        {projects.filter((p) => p.status === "awaiting-design-approval").map((p) => (
+          <DesignReviewPanel key={p.slug} project={p} />
+        ))}
 
         {/* Projects table */}
         <section>
@@ -258,26 +281,6 @@ export default function SaaSFactoryPage() {
                       {expandedSlug === p.slug && (
                         <div className="mt-4 pt-4 border-t border-warm fade-up">
                           <div className="bg-warm/30 rounded-lg p-4 border border-warm/50 space-y-4">
-                            {/* Design Review Gate */}
-                            {p.status === "awaiting-design-approval" && (
-                              <div className="rounded-lg border-2 p-4 mb-2" style={{ borderColor: "#0BBBD4", backgroundColor: "rgba(11,187,212,0.06)" }}>
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="text-sm font-medium text-charcoal">Design Review Required</p>
-                                    <p className="text-xs text-mid/70 mt-0.5">Review the design brief before build begins.</p>
-                                  </div>
-                                  <Link
-                                    href={`/factory/${p.slug}/design-preview`}
-                                    className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-                                    style={{ backgroundColor: "#0BBBD4" }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    Open Design Preview
-                                  </Link>
-                                </div>
-                              </div>
-                            )}
-
                             {/* One-Pager with core features extraction */}
                             {p.onePager ? (
                               <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
@@ -435,28 +438,76 @@ export default function SaaSFactoryPage() {
 
                             {/* Phase Agreement Checklist */}
                             {p.artifactAudit?.artifacts && (
-                              <div className="pt-3 border-t border-warm/50">
-                                <p className="label-caps text-[0.72rem] mb-3">Phase Agreement Checklist</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                  {Object.entries(p.artifactAudit.artifacts).map(([phase, audit]) => {
+                              <div className="pt-3 border-t border-warm/50 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <p className="label-caps text-[0.72rem]">Phase Agreement Checklist</p>
+                                  <span className="text-[0.75rem] text-mid/65">
+                                    {p.artifactAudit.phase_state ? p.artifactAudit.phase_state.replace(/-/g, " ") : "audit active"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {Object.entries(p.artifactAudit.artifacts).map(([phaseName, audit]) => {
                                     const complete = audit.required.length > 0 && audit.missing.length === 0;
+                                    const isActive = p.artifactAudit?.phase === phaseName;
+                                    const phaseKey = `${p.slug}:${phaseName}`;
+                                    const isExpanded = expandedPhases[phaseKey] ?? false;
                                     return (
                                       <div
-                                        key={phase}
-                                        className="rounded-lg border p-2.5 text-xs"
+                                        key={phaseName}
+                                        className="rounded-lg border transition-colors overflow-hidden"
                                         style={{
-                                          borderColor: complete ? "rgba(118,135,90,0.35)" : audit.missing.length > 0 ? "rgba(196,160,72,0.35)" : "rgba(201,183,159,0.55)",
-                                          backgroundColor: complete ? "rgba(118,135,90,0.08)" : "rgba(255,255,255,0.45)",
+                                          borderColor: complete ? "rgba(118, 135, 90, 0.35)" : isActive ? "rgba(183, 110, 121, 0.35)" : audit.missing.length > 0 ? "rgba(196, 160, 72, 0.35)" : "rgba(201, 183, 159, 0.55)",
+                                          backgroundColor: complete ? "rgba(118, 135, 90, 0.08)" : isActive ? "rgba(183, 110, 121, 0.06)" : "rgba(255,255,255,0.45)",
                                         }}
                                       >
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-medium text-charcoal capitalize">{(PHASE_LABELS[phase] || phase)}</span>
-                                          <span className="text-mid/60 tabular-nums">{audit.delivered.length}/{audit.required.length}</span>
+                                        <div
+                                          className="flex items-center justify-between p-3 cursor-pointer hover:bg-warm/10 transition-colors"
+                                          onClick={(e) => { e.stopPropagation(); onTogglePhase(phaseKey); }}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <svg
+                                              width="10" height="10" viewBox="0 0 24 24" fill="none"
+                                              stroke="var(--mid)" strokeWidth="2" strokeLinecap="round"
+                                              className={`transition-transform flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`}
+                                            >
+                                              <path d="M9 18l6-6-6-6" />
+                                            </svg>
+                                            <p className="text-[0.8rem] font-medium text-charcoal capitalize">
+                                              {(PHASE_LABELS[phaseName] || phaseName.replace(/_/g, " "))}
+                                            </p>
+                                            {complete ? (
+                                              <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(118, 135, 90, 0.14)", color: "var(--olive)" }}>ready</span>
+                                            ) : isActive ? (
+                                              <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(183, 110, 121, 0.12)", color: "var(--terracotta)" }}>active</span>
+                                            ) : audit.missing.length > 0 ? (
+                                              <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(196, 160, 72, 0.12)", color: "var(--amber)" }}>pending</span>
+                                            ) : null}
+                                          </div>
+                                          <span className="text-[0.72rem] text-mid/70 tabular-nums">
+                                            {audit.delivered.length}/{audit.required.length}
+                                          </span>
                                         </div>
-                                        {audit.missing.length > 0 && (
-                                          <p className="text-[0.68rem] mt-1" style={{ color: "var(--terracotta)" }}>
-                                            Missing: {audit.missing.join(", ")}
-                                          </p>
+                                        {isExpanded && (
+                                          <div className="px-3 pb-3">
+                                            <div className="space-y-1.5">
+                                              {audit.required.map((item) => {
+                                                const delivered = audit.delivered.includes(item);
+                                                const displayLabel = audit.labels?.[item] ?? item;
+                                                return (
+                                                  <div
+                                                    key={item}
+                                                    className="flex items-start gap-2 text-[0.76rem] rounded-md px-2 py-1"
+                                                    style={{ backgroundColor: delivered ? "rgba(118, 135, 90, 0.06)" : "rgba(0,0,0,0.02)" }}
+                                                  >
+                                                    <span className="mt-[2px] font-medium" style={{ color: delivered ? "var(--olive)" : "var(--mid)" }}>
+                                                      {delivered ? "☑" : "☐"}
+                                                    </span>
+                                                    <span className={delivered ? "text-charcoal" : "text-mid/70"}>{displayLabel}</span>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
                                         )}
                                       </div>
                                     );
@@ -560,6 +611,68 @@ export default function SaaSFactoryPage() {
             </div>
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+// ─── Design Review Panel ───────────────────────────────────────────────
+
+function DesignReviewPanel({ project }: { project: Project }) {
+  const slug = project.slug;
+  const displayName = project.displayName ?? project.name ?? slug.replace(/-/g, " ");
+
+  return (
+    <div className="rounded-xl border-2 overflow-hidden fade-up" style={{ borderColor: "#0BBBD4", boxShadow: "0 0 30px rgba(11, 187, 212, 0.1)" }}>
+      <div className="px-5 py-4 flex items-center justify-between" style={{ backgroundColor: "rgba(11, 187, 212, 0.06)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#0BBBD4" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xl text-charcoal tracking-tight" style={{ fontFamily: "var(--font-cormorant)" }}>
+              Review Design — {displayName}
+            </p>
+            <p className="text-[0.8rem] text-mid/80 font-[family-name:var(--font-dm-mono)]">
+              Design phase complete · Approve to begin build
+            </p>
+          </div>
+        </div>
+        <span className="text-[0.7rem] font-[family-name:var(--font-dm-mono)] px-2 py-1 rounded" style={{ backgroundColor: "rgba(11, 187, 212, 0.12)", color: "#0BBBD4" }}>
+          design review
+        </span>
+      </div>
+
+      <div className="px-5 py-4 space-y-3">
+        <p className="text-sm text-mid/80">
+          Color palette, typography, and UI direction are ready. Open the design brief to evaluate before committing to build.
+        </p>
+        <div className="flex gap-3">
+          <a
+            href={`/saas-factory/${slug}/design-preview`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-center transition-opacity hover:opacity-80"
+            style={{ backgroundColor: "#0BBBD4", color: "white" }}
+          >
+            Open Design Preview →
+          </a>
+          <a
+            href={`/saas-factory/${slug}/design-preview`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2.5 rounded-lg text-sm font-medium border transition-opacity hover:opacity-80"
+            style={{ borderColor: "#0BBBD4", color: "#0BBBD4" }}
+          >
+            Approve / Revise
+          </a>
+        </div>
+        <p className="text-[0.7rem] text-mid/50 font-[family-name:var(--font-dm-mono)]">
+          Approve and Revise buttons are inside the preview page
+        </p>
       </div>
     </div>
   );

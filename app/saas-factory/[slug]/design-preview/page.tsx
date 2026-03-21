@@ -5,12 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Cormorant_Garamond } from "next/font/google";
 
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
+const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
-export default function DesignPreviewPage() {
+export default function SaaSDesignPreviewPage() {
   const params = useParams();
   const router = useRouter();
   const slug = typeof params.slug === "string" ? params.slug : Array.isArray(params.slug) ? params.slug[0] : "";
@@ -18,30 +15,27 @@ export default function DesignPreviewPage() {
   const [approving, setApproving] = useState(false);
   const [revisioning, setRevisioning] = useState(false);
   const [showRevisionInput, setShowRevisionInput] = useState(false);
-  const [showApproveNotes, setShowApproveNotes] = useState(false);
-  const [approveNotes, setApproveNotes] = useState("");
   const [feedback, setFeedback] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
   function showToast(msg: string) {
     setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   }
 
   async function handleApprove() {
     setApproving(true);
     try {
-      const payload: Record<string, string> = { action: "approve" };
-      if (approveNotes.trim()) payload.notes = approveNotes.trim();
+      // Update state.json status to "build" via the existing design-approve route
       const res = await fetch(`/api/factory/${slug}/design-approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ action: "approve", track: "saas" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Approval failed");
-      showToast("Build phase starting...");
-      setTimeout(() => router.push("/factory"), 2000);
+      showToast("Design approved — build phase queued.");
+      setTimeout(() => router.push("/saas-factory"), 2000);
     } catch (err) {
       showToast(String(err));
       setApproving(false);
@@ -54,12 +48,12 @@ export default function DesignPreviewPage() {
       const res = await fetch(`/api/factory/${slug}/design-approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "revise", feedback }),
+        body: JSON.stringify({ action: "revise", feedback, track: "saas" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Request failed");
       showToast("Revision requested. Design will regenerate.");
-      setTimeout(() => router.push("/factory"), 2000);
+      setTimeout(() => router.push("/saas-factory"), 2000);
     } catch (err) {
       showToast(String(err));
       setRevisioning(false);
@@ -73,50 +67,31 @@ export default function DesignPreviewPage() {
         className="flex items-center justify-between px-5 shrink-0 border-b border-white/10"
         style={{ height: 60, background: "#1C1917" }}
       >
-        {/* Left */}
-        <Link
-          href="/factory"
-          className="text-sm text-stone-400 hover:text-stone-200 transition-colors font-mono"
-        >
-          ← Back to Factory
+        <Link href="/saas-factory" className="text-sm text-stone-400 hover:text-stone-200 transition-colors font-mono">
+          ← SaaS Factory
         </Link>
-
-        {/* Center */}
-        <span
-          className={`${cormorant.className} text-xl text-stone-100 tracking-wide`}
-        >
+        <span className={`${cormorant.className} text-xl text-stone-100 tracking-wide`}>
           {slug}
         </span>
-
-        {/* Right */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => {
-              setShowRevisionInput((v) => !v);
-            }}
+            onClick={() => setShowRevisionInput((v) => !v)}
             disabled={approving || revisioning}
             className="text-sm px-3 py-1.5 rounded border border-stone-600 text-stone-300 hover:border-stone-400 hover:text-stone-100 transition-colors disabled:opacity-40"
           >
             Request Revision
           </button>
           <button
-            onClick={() => {
-              if (showApproveNotes) {
-                handleApprove();
-              } else {
-                setShowApproveNotes(true);
-                setShowRevisionInput(false);
-              }
-            }}
+            onClick={handleApprove}
             disabled={approving || revisioning}
             className="text-sm px-4 py-1.5 rounded bg-green-700 text-white hover:bg-green-600 transition-colors disabled:opacity-50 font-medium"
           >
-            {approving ? "Approving..." : showApproveNotes ? "Confirm Approval →" : "Approve Design →"}
+            {approving ? "Approving..." : "Approve Design →"}
           </button>
         </div>
       </div>
 
-      {/* Revision input panel */}
+      {/* Revision input */}
       {showRevisionInput && (
         <div className="shrink-0 bg-[#1C1917] border-b border-white/10 px-5 py-4 flex flex-col gap-3">
           <label className="text-sm text-stone-300 font-mono">
@@ -126,7 +101,7 @@ export default function DesignPreviewPage() {
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             rows={4}
-            placeholder="Describe what needs to change in the design..."
+            placeholder="Describe what needs to change in the design direction..."
             className="w-full bg-[#0C0A09] border border-stone-700 rounded text-stone-200 text-sm px-3 py-2 placeholder-stone-600 focus:outline-none focus:border-stone-500 resize-none font-mono"
           />
           <div className="flex gap-3">
@@ -147,38 +122,10 @@ export default function DesignPreviewPage() {
         </div>
       )}
 
-      {/* Approval notes panel (optional) */}
-      {showApproveNotes && (
-        <div className="shrink-0 bg-[#1C1917] border-b border-white/10 px-5 py-4 flex flex-col gap-3">
-          <label className="text-sm text-stone-300 font-mono">
-            Notes for builder <span className="text-stone-500">(optional — will be read during build phase)</span>
-          </label>
-          <textarea
-            value={approveNotes}
-            onChange={(e) => setApproveNotes(e.target.value)}
-            rows={3}
-            placeholder="E.g. &quot;Core-action mockup is low fidelity — builder should reference design-brief Section 8 for that screen.&quot;"
-            className="w-full bg-[#0C0A09] border border-stone-700 rounded text-stone-200 text-sm px-3 py-2 placeholder-stone-600 focus:outline-none focus:border-green-700 resize-none font-mono"
-          />
-          <div className="flex gap-3 items-center">
-            <p className="text-[0.7rem] text-stone-500 font-mono">
-              Click &quot;Confirm Approval&quot; above to approve{approveNotes.trim() ? " with notes" : ""}.
-              Notes are saved to design-approval-notes.md and read by the builder.
-            </p>
-            <button
-              onClick={() => { setShowApproveNotes(false); setApproveNotes(""); }}
-              className="text-sm px-3 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors shrink-0"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* iframe */}
+      {/* Pitch deck iframe */}
       <iframe
-        src={`/api/factory/${slug}/design-preview`}
-        style={{ width: "100%", flex: 1, border: "none", display: "block", background: "#FAF6EE", colorScheme: "light" }}
+        src={`/api/saas-factory/design-preview?slug=${slug}`}
+        style={{ width: "100%", flex: 1, border: "none", display: "block", background: "#FAFAF9", colorScheme: "light" }}
         title={`Design preview — ${slug}`}
       />
 

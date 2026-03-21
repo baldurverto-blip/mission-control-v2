@@ -178,28 +178,40 @@ async function parseCRReport(projectDir: string): Promise<Pick<QGCRData, "crVerd
     const verdictMatch = text.match(/(?:Verdict|Recommendation)[:\s]*\*{0,2}\s*(PASS|FAIL)/i);
     if (verdictMatch) crVerdict = verdictMatch[1].toUpperCase();
 
-    // Issue counts — look for "N CRITICAL" and "N HIGH" patterns
+    // Issue counts — only count OPEN (unfixed) critical/high issues
     let critical = 0;
     let high = 0;
-    // "3 CRITICAL issues" or "3 CRITICAL"
-    const critMatch = text.match(/(\d+)\s+CRITICAL/i);
-    if (critMatch) critical = parseInt(critMatch[1]);
-    const highMatch = text.match(/(\d+)\s+HIGH/i);
-    if (highMatch) high = parseInt(highMatch[1]);
 
-    // Also count ### CRITICAL section entries (table rows with C1, C2 etc.)
-    if (critical === 0) {
-      const critSection = text.match(/### CRITICAL[\s\S]*?(?=###\s|$)/i);
-      if (critSection) {
-        const rows = critSection[0].match(/\|\s*C\d+\s*\|/g);
-        if (rows) critical = rows.length;
+    // If verdict is PASS, only look in "New Issues Found" section for open issues
+    if (crVerdict === "PASS") {
+      const newSection = text.match(/## New Issues Found[\s\S]*?(?=\n## [^N]|$)/i);
+      if (newSection) {
+        const critInNew = newSection[0].match(/### CRITICAL/gi);
+        if (critInNew) critical = critInNew.length;
+        const highInNew = newSection[0].match(/### HIGH/gi);
+        if (highInNew) high = highInNew.length;
       }
-    }
-    if (high === 0) {
-      const highSection = text.match(/### HIGH[\s\S]*?(?=###\s|$)/i);
-      if (highSection) {
-        const rows = highSection[0].match(/\|\s*H\d+\s*\|/g);
-        if (rows) high = rows.length;
+    } else {
+      // FAIL verdict — count all issues
+      const critMatch = text.match(/(\d+)\s+CRITICAL/i);
+      if (critMatch) critical = parseInt(critMatch[1]);
+      const highMatch = text.match(/(\d+)\s+HIGH/i);
+      if (highMatch) high = parseInt(highMatch[1]);
+
+      // Also count ### CRITICAL section entries (table rows with C1, C2 etc.)
+      if (critical === 0) {
+        const critSection = text.match(/### CRITICAL[\s\S]*?(?=###\s|$)/i);
+        if (critSection) {
+          const rows = critSection[0].match(/\|\s*C\d+\s*\|/g);
+          if (rows) critical = rows.length;
+        }
+      }
+      if (high === 0) {
+        const highSection = text.match(/### HIGH[\s\S]*?(?=###\s|$)/i);
+        if (highSection) {
+          const rows = highSection[0].match(/\|\s*H\d+\s*\|/g);
+          if (rows) high = rows.length;
+        }
       }
     }
 
@@ -490,8 +502,10 @@ export async function GET() {
       const date = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
       try {
         const raw = await readFile(join(PULSES_DIR, `${date}.jsonl`), "utf-8");
-        const parsed = raw.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-        allPulses.push(...parsed);
+        const lines = raw.trim().split("\n").filter(Boolean);
+        for (const line of lines) {
+          try { allPulses.push(JSON.parse(line)); } catch { /* skip malformed line */ }
+        }
       } catch { /* no pulses for this date */ }
     }
 

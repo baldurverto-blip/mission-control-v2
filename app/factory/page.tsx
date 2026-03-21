@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
@@ -159,6 +159,7 @@ const STATUS_LABELS: Record<string, string> = {
   submitted: "Submitted",
   "awaiting-approval": "Awaiting Approval",
   "awaiting-design-approval": "Design Review",
+  "awaiting-uat": "UAT Testing",
   "needs-review": "Needs Review",
   paused: "Paused",
 };
@@ -172,6 +173,7 @@ const PHASE_ABBREV: Record<string, string> = {
   "code review": "CR",
   quality_gate: "QG",
   "quality gate": "QG",
+  uat: "UAT",
   monetization: "Mon",
   packaging: "Pkg",
   shipping: "Ship",
@@ -179,6 +181,9 @@ const PHASE_ABBREV: Record<string, string> = {
   marketing: "Mkt",
   promo: "Promo",
 };
+
+// Human gates: vertical line AFTER these phases to indicate approval required before next phase
+const GATE_AFTER_PHASE = new Set(["design", "quality_gate"]);
 
 const TRACK_BADGES: Record<string, { label: string; color: string; bg: string }> = {
   mobile: { label: "Mobile", color: "#5B6FA8", bg: "rgba(91, 111, 168, 0.12)" },
@@ -195,6 +200,49 @@ export default function FactoryPage() {
   const [approvalLoading, setApprovalLoading] = useState<string | null>(null);
   const [approvalResult, setApprovalResult] = useState<{ slug: string; status: string; message: string } | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
+  const [uatLoading, setUatLoading] = useState<string | null>(null);
+  const [uatResult, setUatResult] = useState<{ slug: string; status: string; message: string } | null>(null);
+  const [uatFeedback, setUatFeedback] = useState("");
+  const [uatRejectMode, setUatRejectMode] = useState(false);
+  const [simStatus, setSimStatus] = useState<Record<string, "idle" | "building" | "done" | "error">>({});
+  const [simMessage, setSimMessage] = useState<Record<string, string>>({});
+  const [resetLoading, setResetLoading] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<{ slug: string; status: string; message: string } | null>(null);
+
+  const handleSimulatorLaunch = async (slug: string) => {
+    setSimStatus((s) => ({ ...s, [slug]: "building" }));
+    setSimMessage((s) => ({ ...s, [slug]: "Building and installing on simulator..." }));
+    try {
+      const res = await fetch(`/api/factory/${slug}/simulator`, { method: "POST" });
+      const result = await res.json();
+      if (result.error) {
+        setSimStatus((s) => ({ ...s, [slug]: "error" }));
+        setSimMessage((s) => ({ ...s, [slug]: result.error }));
+      } else {
+        setSimMessage((s) => ({ ...s, [slug]: result.message }));
+        // Poll for completion
+        const poll = setInterval(async () => {
+          try {
+            const check = await fetch(`/api/factory/${slug}/simulator`).then((r) => r.json());
+            if (check.status === "complete") {
+              setSimStatus((s) => ({ ...s, [slug]: "done" }));
+              setSimMessage((s) => ({ ...s, [slug]: "App installed and launched on simulator" }));
+              clearInterval(poll);
+            } else if (check.status === "error") {
+              setSimStatus((s) => ({ ...s, [slug]: "error" }));
+              setSimMessage((s) => ({ ...s, [slug]: check.lastLine ?? "Build failed" }));
+              clearInterval(poll);
+            }
+          } catch { /* keep polling */ }
+        }, 5000);
+        // Stop polling after 10 min
+        setTimeout(() => clearInterval(poll), 600000);
+      }
+    } catch {
+      setSimStatus((s) => ({ ...s, [slug]: "error" }));
+      setSimMessage((s) => ({ ...s, [slug]: "Failed to start simulator build" }));
+    }
+  };
 
   const fetchData = useCallback(async () => {
     const res = await fetch("/api/factory").then((r) => r.json()).catch(() => null);
@@ -239,8 +287,49 @@ export default function FactoryPage() {
     }
   };
 
+  const handleUATApproval = async (slug: string, action: "approve" | "reject", feedback?: string) => {
+    setUatLoading(slug);
+    setUatResult(null);
+    try {
+      const res = await fetch(`/api/factory/${slug}/uat-approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, feedback }),
+      });
+      const result = await res.json();
+      setUatResult({ slug, status: result.status ?? "error", message: result.message ?? result.error });
+      setTimeout(fetchData, 2000);
+    } catch {
+      setUatResult({ slug, status: "error", message: "Failed to submit UAT decision" });
+    } finally {
+      setUatLoading(slug);
+      setTimeout(() => setUatLoading(null), 500);
+    }
+  };
+
   const awaitingApproval = projects.filter((p) => p.status === "awaiting-approval");
   const awaitingDesignApproval = projects.filter((p) => p.status === "awaiting-design-approval");
+  const awaitingUAT = projects.filter((p) => p.status === "awaiting-uat");
+  const needsReviewProjects = projects.filter((p) => p.status === "needs-review" || p.status === "needs_review");
+
+  const handleReset = async (slug: string, action: "resume" | "park" | "restart-phase") => {
+    setResetLoading(slug);
+    setResetResult(null);
+    try {
+      const res = await fetch(`/api/factory/${slug}/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const result = await res.json();
+      setResetResult({ slug, status: result.status ?? "error", message: result.message ?? result.error });
+      setTimeout(fetchData, 2000);
+    } catch {
+      setResetResult({ slug, status: "error", message: "Failed to submit reset action" });
+    } finally {
+      setResetLoading(null);
+    }
+  };
 
   const LIVE_THRESHOLD = 30 * 60 * 1000;
   const now = Date.now();
@@ -435,6 +524,158 @@ export default function FactoryPage() {
           <DesignReviewPanel key={project.slug} project={project} />
         ))}
 
+        {/* ═══ UAT TESTING GATE ══════════════════════════════════════ */}
+        {awaitingUAT.map((project) => {
+          const slug = project.slug;
+          const displayName = project.displayName ?? slug.replace(/-/g, " ");
+          const qg = project.phases.quality_gate;
+          const result = uatResult?.slug === slug ? uatResult : null;
+
+          if (result) {
+            return (
+              <div
+                key={slug}
+                className="rounded-xl border-2 p-5 text-center fade-up"
+                style={{
+                  borderColor: result.status === "approved" ? "var(--olive)" : "var(--terracotta)",
+                  backgroundColor: result.status === "approved" ? "rgba(118, 135, 90, 0.06)" : "rgba(196, 107, 72, 0.06)",
+                }}
+              >
+                <p className="text-lg" style={{ fontFamily: "var(--font-cormorant)", color: result.status === "approved" ? "var(--olive)" : "var(--terracotta)" }}>
+                  {result.status === "approved" ? "UAT Approved — proceeding to monetization" : "UAT Rejected — bouncing back to build"}
+                </p>
+                <p className="text-xs text-mid/80 mt-1 font-[family-name:var(--font-dm-mono)]">{result.message}</p>
+              </div>
+            );
+          }
+
+          return (
+            <div key={slug} className="rounded-xl border-2 overflow-hidden fade-up" style={{ borderColor: "#16A34A", boxShadow: "0 0 30px rgba(22, 163, 74, 0.1)" }}>
+              <div className="px-5 py-4 flex items-center justify-between" style={{ backgroundColor: "rgba(22, 163, 74, 0.06)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#16A34A" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                      <line x1="12" y1="18" x2="12.01" y2="18" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xl text-charcoal tracking-tight" style={{ fontFamily: "var(--font-cormorant)" }}>
+                      UAT Testing — {displayName}
+                    </p>
+                    <p className="text-[0.8rem] text-mid/80 font-[family-name:var(--font-dm-mono)]">
+                      Quality gate passed{qg?.score ? ` (${qg.score}/10)` : ""} · Test on simulator before shipping
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[0.7rem] font-[family-name:var(--font-dm-mono)] px-2 py-1 rounded" style={{ backgroundColor: "rgba(22, 163, 74, 0.12)", color: "#16A34A" }}>
+                  uat gate
+                </span>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-mid/80">
+                  Build, code review, and quality gate all passed. Test the app on your iOS simulator — if it works as expected, approve to proceed to monetization and packaging.
+                </p>
+
+                {/* Simulator launch section */}
+                <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: "rgba(22, 163, 74, 0.25)", backgroundColor: "rgba(22, 163, 74, 0.03)" }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                        <line x1="12" y1="18" x2="12.01" y2="18" />
+                      </svg>
+                      <span className="text-sm font-medium text-charcoal">iPhone 17 Pro Simulator</span>
+                    </div>
+                    <button
+                      onClick={() => handleSimulatorLaunch(slug)}
+                      disabled={simStatus[slug] === "building"}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                      style={{ backgroundColor: simStatus[slug] === "done" ? "var(--olive)" : simStatus[slug] === "error" ? "var(--terracotta)" : "#16A34A" }}
+                    >
+                      {simStatus[slug] === "building" ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Building...
+                        </span>
+                      ) : simStatus[slug] === "done" ? (
+                        "Rebuild & Launch"
+                      ) : simStatus[slug] === "error" ? (
+                        "Retry Build"
+                      ) : (
+                        "Build & Launch on Simulator"
+                      )}
+                    </button>
+                  </div>
+                  {simMessage[slug] && (
+                    <p className={`text-xs font-[family-name:var(--font-dm-mono)] ${simStatus[slug] === "error" ? "text-terracotta" : simStatus[slug] === "done" ? "text-olive" : "text-mid/70"}`}>
+                      {simMessage[slug]}
+                    </p>
+                  )}
+                  {simStatus[slug] === "building" && (
+                    <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(22, 163, 74, 0.15)" }}>
+                      <div className="h-full rounded-full animate-pulse" style={{ backgroundColor: "#16A34A", width: "60%", transition: "width 2s" }} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Approve / Reject buttons */}
+                {!uatRejectMode ? (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleUATApproval(slug, "approve")}
+                      disabled={uatLoading === slug}
+                      className="flex-1 py-2.5 rounded-lg text-sm font-medium text-center text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                      style={{ backgroundColor: "#16A34A" }}
+                    >
+                      {uatLoading === slug ? "Approving..." : "Approve — Proceed to Monetization"}
+                    </button>
+                    <button
+                      onClick={() => setUatRejectMode(true)}
+                      className="px-4 py-2.5 rounded-lg text-sm font-medium border transition-opacity hover:opacity-80"
+                      style={{ borderColor: "var(--terracotta)", color: "var(--terracotta)" }}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <textarea
+                      value={uatFeedback}
+                      onChange={(e) => setUatFeedback(e.target.value)}
+                      placeholder="What needs to change? Be specific so the builder knows exactly what to fix..."
+                      className="w-full border rounded-lg p-3 text-sm bg-warm/50 focus:outline-none focus:ring-2"
+                      style={{ borderColor: "var(--terracotta)", minHeight: "80px" }}
+                      rows={3}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { handleUATApproval(slug, "reject", uatFeedback); setUatRejectMode(false); setUatFeedback(""); }}
+                        disabled={!uatFeedback.trim() || uatLoading === slug}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                        style={{ backgroundColor: "var(--terracotta)" }}
+                      >
+                        Reject & Send Back to Build
+                      </button>
+                      <button
+                        onClick={() => { setUatRejectMode(false); setUatFeedback(""); }}
+                        className="px-4 py-2 rounded-lg text-sm border border-mid/20 text-mid/60 hover:border-mid/40"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[0.7rem] text-mid/50 font-[family-name:var(--font-dm-mono)]">
+                  Press Build & Launch to install the app on the simulator, then test core features, payments, and onboarding
+                </p>
+              </div>
+            </div>
+          );
+        })}
+
         {/* ═══ APPROVAL GATE ═════════════════════════════════════════ */}
         {awaitingApproval.map((project) => (
           <ApprovalPanel
@@ -446,6 +687,81 @@ export default function FactoryPage() {
             result={approvalResult?.slug === project.slug ? approvalResult : null}
           />
         ))}
+
+        {/* ═══ NEEDS REVIEW ══════════════════════════════════════════ */}
+        {needsReviewProjects.length > 0 && (
+          <Card className="border-[#C4725A]/40 bg-[#C4725A]/[0.08] mb-6">
+            <div className="px-5 pt-4 pb-2 flex items-center gap-2">
+              <h3 className="text-xl tracking-tight" style={{ fontFamily: "var(--font-cormorant)", color: "#C4725A" }}>
+                Needs Review ({needsReviewProjects.length})
+              </h3>
+            </div>
+            <div className="px-5 pb-2">
+              <p className="label-caps text-mid/60 mb-4">
+                These projects hit the circuit breaker and need manual intervention.
+              </p>
+              {resetResult && (
+                <div
+                  className="rounded-lg px-4 py-2.5 mb-3 text-sm font-[family-name:var(--font-dm-mono)]"
+                  style={{
+                    backgroundColor: resetResult.status === "error" ? "rgba(196, 114, 90, 0.1)" : "rgba(118, 139, 90, 0.1)",
+                    color: resetResult.status === "error" ? "#C4725A" : "var(--olive)",
+                  }}
+                >
+                  {resetResult.message}
+                </div>
+              )}
+              <div className="space-y-3">
+                {needsReviewProjects.map((p) => {
+                  const failureCount = p.phases[p.status]?.attempt ?? (p as unknown as Record<string, unknown>).failure_count ?? "?";
+                  return (
+                    <div
+                      key={p.slug}
+                      className="flex items-center justify-between rounded-lg border px-4 py-3"
+                      style={{ borderColor: "rgba(196, 114, 90, 0.25)", backgroundColor: "rgba(196, 114, 90, 0.04)" }}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: "#C4725A" }} />
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-charcoal">{p.displayName || p.slug.replace(/-/g, " ")}</span>
+                          <span className="text-sm text-mid/60 ml-2 font-[family-name:var(--font-dm-mono)]">
+                            stuck at {p.status} &middot; {String(failureCount)} failure{failureCount !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleReset(p.slug, "resume")}
+                          disabled={resetLoading === p.slug}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                          style={{ backgroundColor: "var(--olive)" }}
+                        >
+                          {resetLoading === p.slug ? "..." : "Resume"}
+                        </button>
+                        <button
+                          onClick={() => handleReset(p.slug, "restart-phase")}
+                          disabled={resetLoading === p.slug}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50 border"
+                          style={{ borderColor: "var(--lilac)", color: "var(--lilac)" }}
+                        >
+                          Restart Phase
+                        </button>
+                        <button
+                          onClick={() => handleReset(p.slug, "park")}
+                          disabled={resetLoading === p.slug}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50 border"
+                          style={{ borderColor: "var(--terracotta)", color: "var(--terracotta)" }}
+                        >
+                          Park
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* ═══ ACTIVE PROJECTS — grouped by track ═══════════════════ */}
         {(() => {
@@ -513,16 +829,27 @@ export default function FactoryPage() {
                     {/* Phase header row */}
                     <div className="flex items-center gap-3 px-5 pt-2 pb-1.5">
                       <div className="w-48 flex-shrink-0" />
-                      <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${trackPhaseList.length}, minmax(0, 1fr))` }}>
-                        {trackPhaseList.map((label) => (
-                          <div key={label} className="text-center">
-                            <span
-                              className="text-[0.65rem] text-mid/70 uppercase tracking-wider font-semibold font-[family-name:var(--font-dm-mono)]"
-                              title={label.replace(/_/g, " ")}
-                            >
-                              {PHASE_ABBREV[label] ?? label.slice(0, 3)}
-                            </span>
-                          </div>
+                      <div className="flex-1 flex gap-0.5">
+                        {trackPhaseList.map((label, i) => (
+                          <React.Fragment key={label}>
+                            <div className="flex-1 text-center">
+                              <span
+                                className="text-[0.65rem] text-mid/70 uppercase tracking-wider font-semibold font-[family-name:var(--font-dm-mono)]"
+                                title={label.replace(/_/g, " ")}
+                              >
+                                {PHASE_ABBREV[label] ?? label.slice(0, 3)}
+                              </span>
+                            </div>
+                            {GATE_AFTER_PHASE.has(label) && i < trackPhaseList.length - 1 && (
+                              <div className="flex flex-col items-center justify-center w-3 flex-shrink-0" title="Human approval gate">
+                                <div className="w-px h-3" style={{ backgroundColor: "var(--amber)" }} />
+                                <svg width="7" height="7" viewBox="0 0 10 10" className="my-0.5">
+                                  <circle cx="5" cy="5" r="4" fill="none" stroke="var(--amber)" strokeWidth="1.5" />
+                                </svg>
+                                <div className="w-px h-3" style={{ backgroundColor: "var(--amber)" }} />
+                              </div>
+                            )}
+                          </React.Fragment>
                         ))}
                       </div>
                       <div className="w-32 flex-shrink-0" />
@@ -921,7 +1248,7 @@ function FactoryProjectRow({
         </div>
 
         {/* Phase progress bar */}
-        <div className={`flex-1 grid gap-0.5`} style={{ gridTemplateColumns: `repeat(${(project.trackPhases ?? phaseLabels).length}, minmax(0, 1fr))` }}>
+        <div className="flex-1 flex gap-0.5">
           {(project.trackPhases ?? phaseLabels).map((label, i) => {
             const phaseKey = label.replace(" ", "_");
             const phaseState = project.phases[phaseKey];
@@ -929,33 +1256,40 @@ function FactoryProjectRow({
             const isCurrent = project.currentPhaseIdx >= 0 && i === project.currentPhaseIdx;
             const phaseAgent = PHASE_AGENTS[label];
             const agentColor = phaseAgent ? agentToken(phaseAgent).color : "var(--mid)";
+            const phases = project.trackPhases ?? phaseLabels;
 
             return (
-              <div
-                key={label}
-                className="relative h-7 rounded flex items-center justify-center overflow-hidden transition-all"
-                style={{
-                  backgroundColor: isCurrent
-                    ? `${agentColor}25`
-                    : isComplete
-                      ? "var(--olive-soft, rgba(118, 135, 90, 0.22))"
-                      : "var(--warm)",
-                  borderBottom: isCurrent ? `2px solid ${agentColor}` : undefined,
-                }}
-                title={`${label}: ${phaseState?.status ?? "pending"}`}
-              >
-                {isComplete && (
-                  <span className="text-[0.7rem] text-olive font-bold">&#10003;</span>
+              <React.Fragment key={label}>
+                <div
+                  className="relative flex-1 h-7 rounded flex items-center justify-center overflow-hidden transition-all"
+                  style={{
+                    backgroundColor: isCurrent
+                      ? `${agentColor}25`
+                      : isComplete
+                        ? "var(--olive-soft, rgba(118, 135, 90, 0.22))"
+                        : "var(--warm)",
+                    borderBottom: isCurrent ? `2px solid ${agentColor}` : undefined,
+                  }}
+                  title={`${label}: ${phaseState?.status ?? "pending"}`}
+                >
+                  {isComplete && (
+                    <span className="text-[0.7rem] text-olive font-bold">&#10003;</span>
+                  )}
+                  {isCurrent && (
+                    <span
+                      className="text-[0.6rem] font-bold uppercase tracking-wide pulse-dot"
+                      style={{ color: agentColor }}
+                    >
+                      {PHASE_ABBREV[label] ?? label.slice(0, 3)}
+                    </span>
+                  )}
+                </div>
+                {GATE_AFTER_PHASE.has(phaseKey) && i < phases.length - 1 && (
+                  <div className="flex items-center justify-center w-3 flex-shrink-0">
+                    <div className="w-px h-full" style={{ backgroundColor: "var(--amber)" }} />
+                  </div>
                 )}
-                {isCurrent && (
-                  <span
-                    className="text-[0.6rem] font-bold uppercase tracking-wide pulse-dot"
-                    style={{ color: agentColor }}
-                  >
-                    {PHASE_ABBREV[label] ?? label.slice(0, 3)}
-                  </span>
-                )}
-              </div>
+              </React.Fragment>
             );
           })}
         </div>

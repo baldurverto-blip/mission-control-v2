@@ -20,10 +20,9 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { action, feedback, notes } = body as {
-      action: "approve" | "revise";
+    const { action, feedback } = body as {
+      action: "approve" | "reject";
       feedback?: string;
-      notes?: string;
     };
 
     if (!action) {
@@ -36,34 +35,25 @@ export async function POST(
 
     const now = new Date().toISOString();
     if (!state.phases) state.phases = {};
-    if (!state.phases.design) state.phases.design = {};
+    if (!state.phases.uat) state.phases.uat = {};
 
     const env = { ...process.env } as NodeJS.ProcessEnv;
     delete env.CLAUDECODE;
 
     if (action === "approve") {
-      state.status = "build";
-      state.phases.design.approved_at = now;
-      state.phases.design.status = "complete";
-      if (notes) state.phases.design.approval_notes = notes;
+      state.status = "monetization";
+      state.phases.uat.status = "complete";
+      state.phases.uat.approved_at = now;
+      state.phases.uat.tester = "mads";
       state.updated_at = now;
 
       await writeFile(stateFile, JSON.stringify(state, null, 2) + "\n");
 
-      if (notes) {
-        const notesPath = join(FACTORY, slug, "design-approval-notes.md");
-        await writeFile(
-          notesPath,
-          `# Design Approval Notes\n\n_Approved at: ${now}_\n\n${notes}\n`,
-          "utf-8"
-        );
-      }
-
-      const logFile = join(LOG_DIR, `factory-design-${slug}-${Date.now()}.log`);
+      const logFile = join(LOG_DIR, `factory-uat-${slug}-${Date.now()}.log`);
 
       const child = spawn(
         "bash",
-        [FACTORY_LOOP, slug, "build"],
+        [FACTORY_LOOP, slug, "monetization"],
         {
           detached: true,
           stdio: ["ignore", "pipe", "pipe"],
@@ -76,61 +66,54 @@ export async function POST(
       const logStream = createWriteStream(logFile, { flags: "a" });
       child.stdout?.pipe(logStream);
       child.stderr?.pipe(logStream);
-
       child.unref();
 
       return NextResponse.json({
         status: "approved",
-        message: "Design approved. Build phase starting.",
+        message: "UAT approved. Proceeding to monetization.",
         pid: child.pid,
-        log: logFile,
       });
     } else {
-      // revise
-      state.status = "design";
-      state.phases.design.status = "revision-requested";
-      state.phases.design.revision_feedback = feedback ?? "";
+      // Reject — bounce back to build with UAT feedback
+      state.status = "build";
+      state.phases.uat.status = "rejected";
+      state.phases.uat.rejected_at = now;
+      state.phases.build.status = "pending";
+      state.phases.code_review.status = "pending";
+      state.phases.quality_gate.status = "pending";
       state.updated_at = now;
 
       await writeFile(stateFile, JSON.stringify(state, null, 2) + "\n");
 
+      // Write UAT feedback as rework-brief so builder knows what to fix
       if (feedback) {
-        const notesPath = join(FACTORY, slug, "design-revision-notes.md");
-        await writeFile(
-          notesPath,
-          `# Design Revision Notes\n\n_Requested at: ${now}_\n\n${feedback}\n`,
-          "utf-8"
-        );
+        const reworkPath = join(FACTORY, slug, "rework-brief.md");
+        const reworkContent = `# Rework Brief — UAT Rejection by Mads
+
+> ${now}
+
+## What needs to change
+
+${feedback}
+
+## Rules
+- Fix ONLY the issues Mads identified above
+- Do not refactor or rebuild — targeted fixes only
+- Run \`npx tsc --noEmit\` after fixes
+`;
+        await writeFile(reworkPath, reworkContent);
       }
 
-      const logFile = join(LOG_DIR, `factory-design-${slug}-${Date.now()}.log`);
-
-      const child = spawn(
-        "bash",
-        [FACTORY_LOOP, slug, "design"],
-        {
-          detached: true,
-          stdio: ["ignore", "pipe", "pipe"],
-          env,
-          cwd: join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace"),
-        }
-      );
-
-      const { createWriteStream } = await import("fs");
-      const logStream = createWriteStream(logFile, { flags: "a" });
-      child.stdout?.pipe(logStream);
-      child.stderr?.pipe(logStream);
-
-      child.unref();
-
       return NextResponse.json({
-        status: "revision-requested",
-        message: "Revision requested. Design phase restarting.",
-        pid: child.pid,
-        log: logFile,
+        status: "rejected",
+        message: "UAT rejected. Bouncing back to build with feedback.",
       });
     }
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("UAT approve error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

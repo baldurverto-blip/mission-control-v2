@@ -142,19 +142,21 @@ export async function GET() {
         let artifactAudit: Record<string, unknown> | undefined;
         const agreements = await loadPhaseAgreements();
         if (agreements?.saas) {
-          const artifacts: Record<string, { required: string[]; delivered: string[]; missing: string[] }> = {};
+          const artifacts: Record<string, { required: string[]; delivered: string[]; missing: string[]; labels: Record<string, string> }> = {};
           for (const [phaseName, phaseDef] of Object.entries(agreements.saas)) {
             const required = phaseDef.artifacts.map((a) => a.file);
             const delivered: string[] = [];
             const missing: string[] = [];
+            const labels: Record<string, string> = {};
             for (const art of phaseDef.artifacts) {
+              labels[art.file] = art.label;
               if (await fileExists(join(FACTORY, entry, art.file))) {
                 delivered.push(art.file);
               } else {
                 missing.push(art.file);
               }
             }
-            artifacts[phaseName] = { required, delivered, missing };
+            artifacts[phaseName] = { required, delivered, missing, labels };
           }
           artifactAudit = { slug: entry, phase: state.status, artifacts };
         }
