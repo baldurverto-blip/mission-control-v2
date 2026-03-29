@@ -22,4 +22,16 @@ export const ORG_JSON = join(BRAIN, "ORG.json");
 export const MISSION_MD = join(WORKSPACE, "company", "mission.md");
 export const CALENDAR_EVENTS_JSON = join(OPS, "calendar-events.json");
 export const FACTORY_DIR = join(OPS, "factory");
+export const SAAS_FACTORY_DIR = join(OPS, "saas-factory");
 export const CONTENT_CALENDAR_JSON = join(OPS, "factory", "content-calendar.json");
+export const LOGS_DIR = join(OPS, "logs");
+export const LEARNING_DIR = join(BRAIN, "learning");
+export const TASKS_JSON = join(OPS, "tasks.json");
+export const BRAIN_MEMORY_MD = join(BRAIN, "MEMORY.md");
+export const BRAIN_CONTEXT_MD = join(BRAIN, "CONTEXT.md");
+export const BRAIN_PRINCIPLES_MD = join(BRAIN, "PRINCIPLES.md");
+export const BRAIN_NOW_MD = join(BRAIN, "NOW.md");
+export const CLAUDE_MEMORY_DIR = join(
+  process.env.HOME ?? "/Users/baldurclaw",
+  ".claude", "projects", "-Users-baldurclaw", "memory"
+);

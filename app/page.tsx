@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, FormEvent } from "react";
 import { type PulseData } from "@/app/lib/agents";
 import { DashboardHome } from "./components/DashboardHome";
 import { type FactorySummaryData } from "./components/FactorySummary";
+import { type PortfolioKPIData } from "./components/PortfolioKPIs";
+import type { Task } from "@/app/lib/tasks";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,7 @@ function getGreeting(): string {
 export default function Dashboard() {
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [nowRaw, setNowRaw] = useState("");
+  const [nowModifiedAt, setNowModifiedAt] = useState<string | null>(null);
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [pulseData, setPulseData] = useState<PulseData | null>(null);
   const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
@@ -74,14 +77,16 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<ProjectLane[]>([]);
   const [expeditions, setExpeditions] = useState<ExpeditionData[]>([]);
   const [factoryData, setFactoryData] = useState<FactorySummaryData | null>(null);
+  const [portfolioKPIs, setPortfolioKPIs] = useState<PortfolioKPIData | null>(null);
   const [proposals, setProposals] = useState<ProposalData[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [newItem, setNewItem] = useState("");
   const [adding, setAdding] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const [
       kpiRes, statusRes, inboxRes, pulseRes, briefsRes,
-      workflowRes, projectsRes, expeditionsRes, factoryRes, proposalsRes,
+      workflowRes, projectsRes, expeditionsRes, factoryRes, portfolioKPIRes, proposalsRes, tasksRes,
     ] = await Promise.all([
       fetch("/api/kpis").then((r) => r.json()).catch(() => null),
       fetch("/api/status").then((r) => r.json()).catch(() => null),
@@ -92,11 +97,16 @@ export default function Dashboard() {
       fetch("/api/projects").then((r) => r.json()).catch(() => null),
       fetch("/api/expeditions").then((r) => r.json()).catch(() => null),
       fetch("/api/factory").then((r) => r.json()).catch(() => null),
+      fetch("/api/portfolio-kpis").then((r) => r.json()).catch(() => null),
       fetch("/api/proposals").then((r) => r.json()).catch(() => null),
+      fetch("/api/tasks").then((r) => r.json()).catch(() => null),
     ]);
 
     if (kpiRes && !kpiRes.error) setKpis(kpiRes);
-    if (statusRes && !statusRes.error) setNowRaw(statusRes.now ?? "");
+    if (statusRes && !statusRes.error) {
+      setNowRaw(statusRes.now ?? "");
+      setNowModifiedAt(statusRes.nowModifiedAt ?? null);
+    }
     if (inboxRes && !inboxRes.error) setInbox(inboxRes.items ?? []);
     if (pulseRes && !pulseRes.error) setPulseData(pulseRes);
     if (briefsRes && !briefsRes.error) setBriefs({ morning: briefsRes.morning ?? null, evening: briefsRes.evening ?? null });
@@ -104,7 +114,9 @@ export default function Dashboard() {
     if (projectsRes && !projectsRes.error) setProjects(projectsRes.projects ?? []);
     if (expeditionsRes && !expeditionsRes.error) setExpeditions(expeditionsRes.expeditions ?? []);
     if (factoryRes && !factoryRes.error) setFactoryData(factoryRes);
+    if (portfolioKPIRes && !portfolioKPIRes.error) setPortfolioKPIs(portfolioKPIRes);
     if (proposalsRes && !proposalsRes.error) setProposals(proposalsRes.proposals ?? []);
+    if (tasksRes && !tasksRes.error) setTasks(tasksRes.tasks ?? []);
   }, []);
 
   useEffect(() => {
@@ -146,11 +158,18 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-bg overflow-y-auto">
-      {/* ═══ HEADER ═══════════════════════════════════════════════════ */}
-      <header className="px-6 pt-5 pb-4 border-b border-warm/50 sticky top-0 bg-bg/96 backdrop-blur-sm z-10">
-        <div className="flex items-center justify-between max-w-[1440px] mx-auto">
+      {/* ═══ HEADER (dark, integrated with command bar) ════════════════ */}
+      <header
+        className="sticky top-0 z-10 border-b"
+        style={{ backgroundColor: "var(--dark-bg)", borderColor: "var(--dark-border)" }}
+      >
+        <div className="flex items-center justify-between max-w-[1440px] mx-auto px-6 py-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl text-charcoal tracking-tight" suppressHydrationWarning>
+            <h1
+              className="text-xl tracking-tight"
+              style={{ fontFamily: "var(--font-cormorant)", color: "var(--dark-text)" }}
+              suppressHydrationWarning
+            >
               {getGreeting()}, Mads
             </h1>
             <span
@@ -158,7 +177,7 @@ export default function Dashboard() {
               style={{ backgroundColor: healthColor }}
             />
           </div>
-          <p className="text-xs text-mid/45" suppressHydrationWarning>
+          <p className="text-xs" style={{ color: "var(--dark-dim)" }} suppressHydrationWarning>
             {new Date().toLocaleDateString("en-GB", {
               weekday: "short", day: "numeric", month: "short", timeZone: "Europe/Copenhagen",
             })}
@@ -174,6 +193,7 @@ export default function Dashboard() {
       <DashboardHome
         kpis={kpis}
         nowRaw={nowRaw}
+        nowModifiedAt={nowModifiedAt}
         inbox={inbox}
         pulseData={pulseData}
         briefs={briefs}
@@ -181,7 +201,9 @@ export default function Dashboard() {
         projects={projects}
         expeditions={expeditions}
         factoryData={factoryData}
+        portfolioKPIs={portfolioKPIs}
         proposals={proposals}
+        tasks={tasks}
         systemHealth={systemHealth}
         healthColor={healthColor}
         roadmapPct={roadmapPct}

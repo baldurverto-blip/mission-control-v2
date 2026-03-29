@@ -8,6 +8,12 @@ import { StatusDot } from "./StatusDot";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+
+  // Widget route renders in a sandboxed iframe — no nav chrome needed.
+  if (pathname.startsWith("/widget")) {
+    return <>{children}</>;
+  }
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [growthStatus, setGrowthStatus] = useState<string>("loading");

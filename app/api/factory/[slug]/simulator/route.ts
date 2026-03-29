@@ -69,6 +69,14 @@ export LC_ALL=en_US.UTF-8
 
 echo "[simulator] Starting build for ${slug} at $(date)"
 
+# Kill any running Expo/Metro dev servers to prevent bundle conflicts
+# (Debug builds connect to Metro on port 8081; if another project's server
+#  is running, the app loads the wrong JS bundle and crashes)
+echo "[simulator] Killing stale Expo/Metro servers..."
+pkill -f "expo start" 2>/dev/null || true
+pkill -f "react-native start" 2>/dev/null || true
+sleep 1
+
 cd "${projectDir}"
 
 # Step 0: Ensure react-native-worklets is installed (reanimated 4.x requirement)
@@ -101,10 +109,11 @@ echo "[simulator] Building scheme: $SCHEME from $WORKSPACE"
 DERIVED_DATA="${logDir}/build/DerivedData"
 mkdir -p "$DERIVED_DATA"
 echo "[simulator] Building with xcodebuild (this may take a few minutes)..."
+export RCT_NO_LAUNCH_PACKAGER=1
 xcodebuild \\
   -workspace "$WORKSPACE" \\
   -scheme "$SCHEME" \\
-  -configuration Debug \\
+  -configuration Release \\
   -destination "id=${SIM_UDID}" \\
   -derivedDataPath "$DERIVED_DATA" \\
   COMPILER_INDEX_STORE_ENABLE=NO \\
@@ -128,7 +137,11 @@ xcrun simctl launch ${SIM_UDID} "${bundleId}"
 
 echo "[simulator] Done! ${appName} is running on iPhone 17 Pro simulator."
 
-# Cleanup DerivedData to save disk
+# Keep .app for reinstalls, clean the rest of DerivedData
+APP_CACHE="${logDir}/build/latest.app"
+rm -rf "$APP_CACHE"
+cp -R "$APP_PATH" "$APP_CACHE"
+echo "[simulator] Cached .app at $APP_CACHE"
 echo "[simulator] Cleaning up DerivedData..."
 rm -rf "$DERIVED_DATA"
 echo "[simulator] Build complete at $(date)"

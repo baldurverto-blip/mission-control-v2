@@ -81,5 +81,20 @@ export function formatDuration(ms: number): string {
 }
 
 export function goalLabel(g: string): string {
+  if (g.startsWith("factory:")) {
+    const slug = g.slice("factory:".length);
+    // "tether-0317" → "Tether", "firsthour-0317" → "FirstHour"
+    const name = slug.replace(/-\d{4}$/, "").replace(/-/g, "");
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
   return g.replace(/-/g, " ");
+}
+
+export function isFactoryGoal(g: string): boolean {
+  return g.startsWith("factory:");
+}
+
+export function factoryProjectName(g: string): string {
+  if (!g.startsWith("factory:")) return "";
+  return goalLabel(g);
 }

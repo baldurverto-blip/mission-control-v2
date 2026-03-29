@@ -60,7 +60,7 @@ interface SEOLearnings {
 interface KPIState {
   slug: string;
   last_ingested: string | null;
-  signals: string[];
+  signals: (string | { type?: string; severity?: string; message?: string })[];
   reddit?: { total_comments: number; posted_comments: number; latest_karma: number; subreddits: Record<string, number> };
   waitlist?: { signup_count: number; landing_page_url: string };
   distribution?: { engine_status: string; active_layers: number };
@@ -241,7 +241,7 @@ export async function GET() {
     };
 
     // Feedback
-    const allSignals: { slug: string; signals: string[] }[] = [];
+    const allSignals: { slug: string; signals: KPIState["signals"] }[] = [];
     let totalBlogs = 0;
     let lastIngest: string | null = null;
     for (const p of projects) {
@@ -329,7 +329,8 @@ export async function GET() {
     // KPI signals
     for (const s of allSignals) {
       for (const sig of s.signals) {
-        attentionItems.push({ type: "kpi-signal", slug: s.slug, message: `${s.slug}: ${sig}`, severity: "warning" });
+        const sigMsg = typeof sig === 'string' ? sig : (sig as any).message || (sig as any).type || String(sig);
+        attentionItems.push({ type: "kpi-signal", slug: s.slug, message: `${s.slug}: ${sigMsg}`, severity: (typeof sig === 'object' && (sig as any).severity) || "warning" });
       }
     }
 

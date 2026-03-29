@@ -1,31 +1,88 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #ECE7D9;
-  --paper: #F3EEE3;
-  --warm: #E8E1D2;
+  /* ── SURFACE SYSTEM — three visible depth levels ── */
+  --canvas: #C4BAA4;   /* desk surface — dark warm stone */
+  --chrome: #E2DBD0;   /* nav bar / panel chrome — mid warm */
+  --paper:  #F5F0E6;   /* card surface — floats on canvas */
+  --raised: #FAF7F1;   /* active rows / elevated states */
+  --bg: var(--canvas); /* alias: keep --bg working in existing code */
+  --warm: #DDD6C8;     /* borders and dividers */
+
+  /* ── TYPOGRAPHY ── */
   --charcoal: #2A2927;
-  --mid: #48453F;
+  --mid:      #5A554D;
+  --muted:    #90897F;  /* truly secondary / placeholder text */
+
+  /* ── SHADOW ── */
+  --shadow-card: 0 1px 4px rgba(42,41,39,0.14), 0 0 0 1px rgba(42,41,39,0.09);
+
   --terracotta: #BC6143;
-  --terracotta-soft: #bc614320;
+  --terracotta-soft: #bc614318;
+  --terracotta-bg: #BC614312;
+  --terracotta-border: #BC614330;
+  --terracotta-strong: #bc614338;
   --olive: #76875A;
-  --olive-soft: #76875a20;
+  --olive-soft: #76875a18;
+  --olive-bg: #76875a10;
+  --olive-border: #76875a30;
+  --olive-strong: #76875a38;
   --lilac: #9899C1;
-  --lilac-soft: #9899c120;
-  --amber: #C9A227;
+  --lilac-soft: #9899c118;
+  --lilac-bg: #9899c110;
+  --lilac-border: #9899c130;
+  --lilac-strong: #9899c138;
+  --amber: #C9A227;          /* gold — decorative / badge dots */
+  --amber-text: #8B6200;     /* dark golden brown — readable on warm bg */
   --amber-soft: #C9A22720;
+  --amber-bg: #C9A22720;
+  --amber-border: #C9A22742;
+  --amber-strong: #C9A22752;
+  --danger: #D94F3D;
+  --danger-bg: #D94F3D10;
+  --danger-border: #D94F3D28;
+  --danger-strong: #D94F3D35;
+
+  /* ─── Dark Zone (Command Bar) ─── */
+  --dark-bg: #0F172A;
+  --dark-surface: #1E293B;
+  --dark-border: #334155;
+  --dark-text: #F8FAFC;
+  --dark-muted: #94A3B8;
+  --dark-dim: #475569;
+  --glow-green: #22C55E;
+
+  /* ─── Task Board Zone ─── */
+  --board-bg: #EDEEF2;
+  --board-column: #FFFFFF;
+  --board-border: #D4D6DE;
+
+  /* ─── Action Zone ─── */
+  --action-bg: #FAFAF8;
 }
 
 @theme inline {
-  --color-bg: var(--bg);
+  --color-canvas: var(--canvas);
+  --color-chrome: var(--chrome);
   --color-paper: var(--paper);
+  --color-raised: var(--raised);
+  --color-bg: var(--bg);
   --color-warm: var(--warm);
   --color-charcoal: var(--charcoal);
   --color-mid: var(--mid);
+  --color-muted: var(--muted);
   --color-terracotta: var(--terracotta);
   --color-olive: var(--olive);
   --color-lilac: var(--lilac);
   --color-amber: var(--amber);
+  --color-amber-text: var(--amber-text);
+  --color-dark-bg: var(--dark-bg);
+  --color-dark-surface: var(--dark-surface);
+  --color-dark-border: var(--dark-border);
+  --color-dark-text: var(--dark-text);
+  --color-dark-muted: var(--dark-muted);
+  --color-board-bg: var(--board-bg);
+  --color-board-column: var(--board-column);
   --font-heading: var(--font-cormorant);
   --font-mono: var(--font-dm-mono);
 }
@@ -35,7 +92,7 @@
 }
 
 body {
-  background: var(--bg);
+  background: var(--canvas);
   color: var(--charcoal);
   font-family: var(--font-dm-mono), ui-monospace, monospace;
   font-weight: 300;
@@ -64,15 +121,14 @@ h1, h2, h3, h4, h5, h6 {
 /* Card system */
 .card {
   background: var(--paper);
-  border: 1px solid var(--warm);
-  border-radius: 12px;
+  border-radius: 6px;
   padding: 1.25rem 1.5rem;
-  transition: box-shadow 0.3s ease, transform 0.3s ease;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: 0 2px 12px rgba(42, 41, 39, 0.06);
-  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(42,41,39,0.18), 0 0 0 1px rgba(42,41,39,0.09);
 }
 
 /* Scrollbar styling */
@@ -216,9 +272,110 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0.6;
 }
 
+/* Agent glow — active agent indicator in dark zone */
+@keyframes agent-glow {
+  0%, 100% { box-shadow: 0 0 8px 2px var(--glow-color, rgba(34, 197, 94, 0.4)); }
+  50% { box-shadow: 0 0 16px 4px var(--glow-color, rgba(34, 197, 94, 0.5)); }
+}
+.agent-glow {
+  animation: agent-glow 3s ease-in-out infinite;
+}
+
+/* Orchestrator ring pulse — Baldur's hub indicator */
+@keyframes orchestrator-ring {
+  0%, 100% { stroke-opacity: 0.3; }
+  50% { stroke-opacity: 0.7; }
+}
+.orchestrator-ring {
+  animation: orchestrator-ring 4s ease-in-out infinite;
+}
+
+/* Connection line draw animation */
+@keyframes line-draw {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+.connection-line {
+  stroke-dasharray: 100;
+  animation: line-draw 1.5s ease-out both;
+}
+
+/* Task detail panel slide-in */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Task card drag state */
+.task-card-dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+.column-drag-over {
+  background-color: rgba(152, 153, 193, 0.08);
+  outline: 2px dashed var(--lilac);
+  outline-offset: -2px;
+}
+
+/* ─── Section accent borders ─── */
+.section-accent-left {
+  border-left: 3px solid var(--accent-color, var(--mid));
+}
+
+/* Blocker card treatment */
+.blocker-card {
+  background: linear-gradient(135deg, var(--danger-bg), transparent 60%);
+  border: 1px solid var(--danger-border);
+  position: relative;
+}
+.blocker-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--danger);
+  border-radius: 3px 0 0 3px;
+}
+
+/* Status card treatment */
+.status-card {
+  background: linear-gradient(135deg, var(--terracotta-bg), transparent 60%);
+  border: 1px solid var(--terracotta-border);
+  position: relative;
+}
+.status-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--terracotta);
+  border-radius: 3px 0 0 3px;
+}
+
+/* Focus card treatment */
+.focus-card {
+  background: linear-gradient(135deg, var(--olive-bg), transparent 60%);
+  border: 1px solid var(--olive-border);
+  position: relative;
+}
+.focus-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--olive);
+  border-radius: 3px 0 0 3px;
+}
+
 /* Respect user motion preferences (UX guideline #9) */
 @media (prefers-reduced-motion: reduce) {
-  .breathe, .pulse-dot, .pulse-dot-subtle, .gauge-arc, .ring-arc, .attention-pulse, .fade-up, .halo-ring, .band-fill > div, .lane-fill, .countdown-tick {
+  .breathe, .pulse-dot, .pulse-dot-subtle, .gauge-arc, .ring-arc, .attention-pulse, .fade-up, .halo-ring, .band-fill > div, .lane-fill, .countdown-tick, .agent-glow, .orchestrator-ring, .connection-line {
     animation: none !important;
   }
 }

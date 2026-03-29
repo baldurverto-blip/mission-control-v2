@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import { NOW_MD, ROADMAP_MD } from "@/app/lib/paths";
 
 interface PhaseProgress {
@@ -36,12 +36,19 @@ export async function GET() {
       readFile(ROADMAP_MD, "utf-8").catch(() => ""),
     ]);
 
+    let nowModifiedAt: string | null = null;
+    try {
+      const s = await stat(NOW_MD);
+      nowModifiedAt = s.mtime.toISOString();
+    } catch { /* ignore */ }
+
     const phases = parseRoadmapPhases(roadmapContent);
     const totalCheckpoints = phases.reduce((s, p) => s + p.total, 0);
     const doneCheckpoints = phases.reduce((s, p) => s + p.done, 0);
 
     return NextResponse.json({
       now: nowContent,
+      nowModifiedAt,
       roadmap: {
         phases,
         totalCheckpoints,

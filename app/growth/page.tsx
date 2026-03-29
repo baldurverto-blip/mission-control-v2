@@ -560,7 +560,7 @@ export default function GrowthOverview() {
               {feedback.activeSignals.map((s) => (
                 <div key={s.slug} className="text-[0.75rem]">
                   <span className="text-mid/80">{s.slug}:</span>{" "}
-                  <span style={{ color: "var(--amber)" }}>{s.signals.join(", ")}</span>
+                  <span style={{ color: "var(--amber)" }}>{s.signals.map((sig: any) => typeof sig === 'string' ? sig : sig.message || sig.type || String(sig)).join(", ")}</span>
                 </div>
               ))}
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { agent, isAttention, clockTime, formatDuration, goalLabel, type PulseEvent } from "@/app/lib/agents";
+import { agent, isAttention, clockTime, formatDuration, goalLabel, isFactoryGoal, type PulseEvent } from "@/app/lib/agents";
 
 interface ActivityTimelineProps {
   pulses: PulseEvent[];
@@ -15,6 +15,10 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
 
   const filteredPulses = useMemo(() => {
     let list = pulses;
+    // Suppress bare factory-tick heartbeats unless explicitly filtered to an agent/goal
+    if (!selectedAgent && !selectedGoal) {
+      list = list.filter(p => p.action !== "factory-tick");
+    }
     if (selectedAgent) list = list.filter(p => p.agent === selectedAgent);
     if (selectedGoal) list = list.filter(p => p.goal === selectedGoal);
     return list.slice(0, expanded ? 50 : 15);
@@ -91,12 +95,17 @@ export function ActivityTimeline({ pulses, selectedAgent, selectedGoal }: Activi
                 <span className={`text-[0.85rem] flex-1 min-w-0 truncate ${
                   attention ? "text-terracotta font-medium" : "text-charcoal"
                 }`}>
+                  {isFactoryGoal(pulse.goal) && (
+                    <span className="text-mid/60 mr-1">{goalLabel(pulse.goal)} —</span>
+                  )}
                   {pulse.outcome}
                 </span>
 
-                <span className="text-[0.85rem] text-mid/60 bg-warm/60 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
-                  {goalLabel(pulse.goal)}
-                </span>
+                {!isFactoryGoal(pulse.goal) && (
+                  <span className="text-[0.85rem] text-mid/60 bg-warm/60 rounded px-1.5 py-0.5 flex-shrink-0 hidden sm:inline">
+                    {goalLabel(pulse.goal)}
+                  </span>
+                )}
 
                 {dur && (
                   <span className="text-[0.75rem] text-mid/55 tabular-nums flex-shrink-0 w-8 text-right">

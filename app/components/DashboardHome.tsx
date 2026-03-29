@@ -2,6 +2,9 @@
 
 import { useState, useMemo, useCallback, type FormEvent } from "react";
 import { FactorySummary, type FactorySummaryData } from "./FactorySummary";
+import { PortfolioKPIs, type PortfolioKPIData } from "./PortfolioKPIs";
+import { CommandBar } from "./CommandBar";
+import { TaskBoard } from "./TaskBoard";
 import {
   agent,
   ALL_AGENT_IDS,
@@ -10,6 +13,7 @@ import {
   type PulseData,
   type PulseEvent,
 } from "@/app/lib/agents";
+import type { Task } from "@/app/lib/tasks";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -533,7 +537,7 @@ function CommandQueue({ items, onRefetch }: { items: QueueItem[]; onRefetch: () 
   }, [onRefetch]);
 
   return (
-    <div className="bg-paper border border-warm rounded-xl overflow-hidden fade-up">
+    <div className="bg-white border border-warm rounded-xl overflow-hidden fade-up shadow-sm">
       {/* Header with type counters */}
       <div className="px-5 py-3 flex items-center gap-3 border-b border-warm/50">
         <div className="flex items-center gap-2.5">
@@ -710,41 +714,100 @@ function AgentStatusPanel({
 
 // ─── Today strip ─────────────────────────────────────────────────────────────
 
-function TodayStrip({ nowRaw }: { nowRaw: string }) {
+function TodayStrip({ nowRaw, nowModifiedAt }: { nowRaw: string; nowModifiedAt?: string | null }) {
   const now = parseMdSections(nowRaw);
-  if (!now.status && now.focus.length === 0) return null;
+  if (!now.status && now.focus.length === 0 && now.blockers.length === 0) return null;
+
+  const isStale = nowModifiedAt
+    ? (Date.now() - new Date(nowModifiedAt).getTime()) > 48 * 3600_000
+    : false;
+  const staleDays = nowModifiedAt
+    ? Math.floor((Date.now() - new Date(nowModifiedAt).getTime()) / 86_400_000)
+    : 0;
+
   return (
-    <div className="bg-paper border border-warm rounded-xl px-5 py-4 fade-up">
-      <div className="flex items-start gap-5">
+    <div className="fade-up space-y-2.5">
+      {/* Stale warning */}
+      {isStale && (
+        <div
+          className="flex items-center gap-2.5 px-4 py-2 rounded-lg text-[0.72rem]"
+          style={{ backgroundColor: "var(--amber-strong)", border: "1px solid var(--amber-border)" }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1L15 14H1L8 1Z" stroke="var(--amber)" strokeWidth="1.5" fill="var(--amber-bg)" />
+            <text x="8" y="12" textAnchor="middle" fontSize="8" fill="var(--amber)" fontFamily="monospace">!</text>
+          </svg>
+          <span style={{ color: "var(--amber)" }} className="font-medium">
+            NOW.md is {staleDays}d stale
+          </span>
+          <span className="text-mid/55">
+            Last updated {new Date(nowModifiedAt!).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </span>
+        </div>
+      )}
+
+      {/* Cards row */}
+      <div className="grid grid-cols-12 gap-2.5">
+        {/* ── Status card ── */}
         {now.status && (
-          <div className="flex-shrink-0">
-            <p className="label-caps text-mid/50 mb-1.5">Status</p>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.72rem]" style={{ backgroundColor: "var(--terracotta-soft)", color: "var(--terracotta)" }}>
+          <div className="col-span-3 status-card rounded-xl px-4 py-3.5">
+            <p className="label-caps text-[0.62rem] mb-2" style={{ color: "var(--terracotta)" }}>
+              Status
+            </p>
+            <p
+              className="text-lg leading-tight tracking-tight"
+              style={{ fontFamily: "var(--font-cormorant)", color: "var(--charcoal)" }}
+            >
               {now.status}
-            </span>
+            </p>
           </div>
         )}
+
+        {/* ── Focus card ── */}
         {now.focus.length > 0 && (
-          <div className="flex-1 min-w-0">
-            <p className="label-caps text-mid/50 mb-1.5">This week</p>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+          <div className={`${now.blockers.length > 0 ? "col-span-5" : "col-span-9"} ${!now.status ? "col-start-1" : ""} focus-card rounded-xl px-4 py-3.5`}>
+            <p className="label-caps text-[0.62rem] mb-2" style={{ color: "var(--olive)" }}>
+              This week
+            </p>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-1">
               {now.focus.slice(0, 6).map((item, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <span className="mt-1.5 w-1 h-1 rounded-full bg-terracotta flex-shrink-0" />
-                  <span className="text-[0.82rem] text-charcoal/75 leading-snug">{item}</span>
+                  <span
+                    className="mt-[7px] w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: "var(--olive)" }}
+                  />
+                  <span className="text-[0.78rem] text-charcoal/80 leading-snug">{item}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* ── Blockers card ── */}
         {now.blockers.length > 0 && (
-          <div className="flex-shrink-0 border-l border-warm pl-5">
-            <p className="label-caps text-amber mb-1.5">Blockers</p>
+          <div className={`${now.focus.length > 0 ? "col-span-4" : "col-span-9"} blocker-card rounded-xl px-4 py-3.5`}>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="label-caps text-[0.62rem]" style={{ color: "var(--danger)" }}>
+                Needs attention
+              </p>
+              <span
+                className="inline-flex items-center justify-center w-[16px] h-[16px] rounded-full text-[0.55rem] text-white font-medium attention-pulse"
+                style={{ backgroundColor: "var(--danger)" }}
+              >
+                {now.blockers.length}
+              </span>
+            </div>
             <div className="space-y-1.5">
-              {now.blockers.slice(0, 3).map((item, i) => (
-                <div key={i} className="flex items-start gap-2 text-[0.8rem] text-mid">
-                  <span className="flex-shrink-0 text-amber font-medium mt-0.5">!</span>
-                  <span className="leading-snug">{item}</span>
+              {now.blockers.slice(0, 4).map((item, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <svg
+                    width="12" height="12" viewBox="0 0 12 12" fill="none"
+                    className="flex-shrink-0 mt-[3px]"
+                  >
+                    <circle cx="6" cy="6" r="5" stroke="var(--danger)" strokeWidth="1.2" fill="var(--danger-bg)" />
+                    <text x="6" y="9" textAnchor="middle" fontSize="8" fill="var(--danger)" fontFamily="monospace">!</text>
+                  </svg>
+                  <span className="text-[0.75rem] text-charcoal/75 leading-snug">{item}</span>
                 </div>
               ))}
             </div>
@@ -762,28 +825,34 @@ function BriefPanel({ briefs }: { briefs: { morning: BriefFile | null; evening: 
   const [tab, setTab] = useState<"morning" | "evening">(hour < 14 ? "morning" : "evening");
   const active = tab === "morning" ? briefs.morning : briefs.evening;
   return (
-    <div className="bg-paper border border-warm rounded-xl flex flex-col overflow-hidden" style={{ maxHeight: "280px" }}>
-      <div className="flex items-center justify-between px-5 py-3 border-b border-warm/50 flex-shrink-0">
+    <div className="rounded-xl flex flex-col overflow-hidden border" style={{ maxHeight: "320px", backgroundColor: "#FAFAF6", borderColor: "var(--warm)" }}>
+      <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{ backgroundColor: "var(--charcoal)" }}>
         <div>
-          <p className="label-caps text-mid/80">Briefs</p>
-          <p className="text-[0.68rem] text-mid/38 mt-0.5">What agents reported</p>
+          <p className="text-[0.68rem] font-medium tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Briefs
+          </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 rounded-md p-0.5" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
           {(["morning", "evening"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-2.5 py-1 rounded text-[0.72rem] capitalize transition-all cursor-pointer ${tab === t ? "bg-charcoal text-paper" : "text-mid hover:text-charcoal hover:bg-warm"}`}>
+              className="px-3 py-1 rounded text-[0.72rem] capitalize transition-all cursor-pointer"
+              style={{
+                backgroundColor: tab === t ? "rgba(255,255,255,0.15)" : "transparent",
+                color: tab === t ? "#F3EEE3" : "rgba(255,255,255,0.35)",
+              }}
+            >
               {t}
             </button>
           ))}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto custom-scroll px-5 py-3">
+      <div className="flex-1 overflow-y-auto custom-scroll px-5 py-3.5">
         {active ? (
-          <pre className="text-[0.75rem] whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-relaxed text-mid/80">
+          <pre className="text-[0.74rem] whitespace-pre-wrap font-[family-name:var(--font-dm-mono)] leading-[1.7] text-charcoal/70">
             {active.content.replace(/^---[\s\S]*?---\n*/m, "").trim()}
           </pre>
         ) : (
-          <p className="text-sm text-mid/35">No {tab} brief yet.</p>
+          <p className="text-sm text-mid/40">No {tab} brief yet.</p>
         )}
       </div>
     </div>
@@ -796,38 +865,51 @@ function ActivityFeed({ pulses }: { pulses: PulseEvent[] }) {
   const [filter, setFilter] = useState<string | null>(null);
   const recent = useMemo(() => {
     const sorted = [...pulses].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    return (filter ? sorted.filter((p) => p.agent === filter) : sorted).slice(0, 10);
+    return (filter ? sorted.filter((p) => p.agent === filter) : sorted).slice(0, 12);
   }, [pulses, filter]);
 
-  // Agents that have pulses today
   const activeInFeed = useMemo(() => {
     const ids = new Set(pulses.map((p) => p.agent));
     return ALL_AGENT_IDS.filter((id) => ids.has(id));
   }, [pulses]);
 
   return (
-    <div className="rounded-xl overflow-hidden flex flex-col" style={{ backgroundColor: "#1C1B19", maxHeight: "280px" }}>
-      <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between flex-shrink-0">
-        <div>
-          <p className="label-caps text-white/30 leading-none">Agent log</p>
-          <p className="text-[0.6rem] text-white/18 mt-0.5">What they did — not decisions</p>
+    <div className="rounded-xl overflow-hidden flex flex-col border" style={{ backgroundColor: "#111110", maxHeight: "300px", borderColor: "#2A2927" }}>
+      <div className="px-4 py-2.5 flex items-center justify-between flex-shrink-0" style={{ borderBottom: "1px solid #2A2927" }}>
+        <div className="flex items-center gap-3">
+          <p className="text-[0.68rem] font-medium tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Activity stream
+          </p>
+          <span className="text-[0.6rem] tabular-nums" style={{ color: "rgba(255,255,255,0.18)" }}>
+            {pulses.length} today
+          </span>
         </div>
         {activeInFeed.length > 0 && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setFilter(null)}
-              className="w-4 h-4 rounded-full cursor-pointer transition-opacity"
-              style={{ backgroundColor: filter === null ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)" }}
-              title="All agents"
-            />
+              className="px-2 py-0.5 rounded text-[0.6rem] cursor-pointer transition-all"
+              style={{
+                backgroundColor: filter === null ? "rgba(255,255,255,0.12)" : "transparent",
+                color: filter === null ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)",
+              }}
+            >
+              All
+            </button>
             {activeInFeed.map((id) => {
               const a = agent(id);
+              const isActive = filter === id;
               return (
-                <button key={id} onClick={() => setFilter(filter === id ? null : id)}
-                  className="w-4 h-4 rounded-full cursor-pointer transition-all"
-                  style={{ backgroundColor: filter === id ? a.color : `${a.color}50`, outline: filter === id ? `1.5px solid ${a.color}` : "none", outlineOffset: "1px" }}
-                  title={a.name}
-                />
+                <button key={id} onClick={() => setFilter(isActive ? null : id)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[0.6rem] cursor-pointer transition-all"
+                  style={{
+                    backgroundColor: isActive ? `${a.color}30` : "transparent",
+                    color: isActive ? a.color : "rgba(255,255,255,0.2)",
+                  }}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: a.color, opacity: isActive ? 1 : 0.4 }} />
+                  {a.name}
+                </button>
               );
             })}
           </div>
@@ -835,23 +917,40 @@ function ActivityFeed({ pulses }: { pulses: PulseEvent[] }) {
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-hide">
         {recent.length === 0 ? (
-          <p className="text-[0.7rem] text-white/18 text-center py-8">No activity today</p>
+          <p className="text-[0.7rem] text-center py-8" style={{ color: "rgba(255,255,255,0.15)" }}>No activity today</p>
         ) : (
           recent.map((p, i) => {
             const a = agent(p.agent);
             const err = isAttention(p);
             return (
-              <div key={`${p.timestamp}-${i}`} className="flex items-start gap-2.5 px-4 py-2 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-                <span className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[0.55rem] text-white font-medium mt-0.5"
-                  style={{ backgroundColor: err ? "#BC6143" : a.color }}>
+              <div
+                key={`${p.timestamp}-${i}`}
+                className="flex items-start gap-2.5 px-4 py-2 transition-colors"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.03)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+              >
+                <span
+                  className={`w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center text-[0.55rem] text-white font-medium mt-0.5 ${err ? "attention-pulse" : ""}`}
+                  style={{ backgroundColor: err ? "var(--danger)" : `${a.color}40`, border: `1px solid ${err ? "var(--danger)" : a.color}50` }}
+                >
                   {a.label}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[0.68rem] font-medium" style={{ color: a.color }}>{a.name}</span>
-                    <span className="text-[0.6rem] text-white/22 tabular-nums">{relTime(p.timestamp)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[0.7rem] font-medium" style={{ color: a.color }}>{a.name}</span>
+                    <span className="text-[0.58rem] tabular-nums" style={{ color: "rgba(255,255,255,0.2)" }}>
+                      {relTime(p.timestamp)}
+                    </span>
+                    {p.action && (
+                      <span className="text-[0.55rem] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.25)" }}>
+                        {p.action}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-[0.67rem] text-white/42 truncate leading-snug">{p.outcome}</p>
+                  <p className="text-[0.68rem] truncate leading-snug mt-0.5" style={{ color: err ? "#E8705A" : "rgba(255,255,255,0.38)" }}>
+                    {p.outcome}
+                  </p>
                 </div>
               </div>
             );
@@ -867,6 +966,7 @@ function ActivityFeed({ pulses }: { pulses: PulseEvent[] }) {
 export interface DashboardHomeProps {
   kpis: KPIs | null;
   nowRaw: string;
+  nowModifiedAt: string | null;
   inbox: InboxItem[];
   pulseData: PulseData | null;
   briefs: { morning: BriefFile | null; evening: BriefFile | null };
@@ -874,7 +974,9 @@ export interface DashboardHomeProps {
   projects: ProjectLane[];
   expeditions: ExpeditionData[];
   factoryData: FactorySummaryData | null;
+  portfolioKPIs: PortfolioKPIData | null;
   proposals: ProposalData[];
+  tasks: Task[];
   systemHealth: string;
   healthColor: string;
   roadmapPct: number;
@@ -886,9 +988,9 @@ export interface DashboardHomeProps {
 }
 
 export function DashboardHome({
-  kpis, nowRaw, inbox, pulseData, briefs,
-  projects, expeditions, factoryData, proposals,
-  roadmapPct, onRefetch,
+  kpis, nowRaw, nowModifiedAt, inbox, pulseData, briefs,
+  projects, expeditions, factoryData, portfolioKPIs, proposals, tasks,
+  systemHealth, healthColor, roadmapPct, onRefetch,
 }: DashboardHomeProps) {
 
   const queueItems = useMemo<QueueItem[]>(() => {
@@ -931,35 +1033,38 @@ export function DashboardHome({
     return items;
   }, [factoryData, proposals, inbox, projects, expeditions]);
 
-  const todayPulses = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return pulseData?.pulses.filter((p) => p.timestamp.startsWith(today)) ?? [];
-  }, [pulseData]);
-
-  const factoryActiveCount = factoryData
-    ? factoryData.projects.filter((p) => !["shipped", "paused", "rejected"].includes(p.status)).length
-    : 0;
-
   return (
-    <div className="px-6 py-5 max-w-[1440px] mx-auto flex flex-col gap-3 pb-10">
+    <div className="flex flex-col pb-10">
 
-      {/* ① Agent status panel */}
-      <AgentStatusPanel
-        pulseData={pulseData} kpis={kpis}
-        factoryActiveCount={factoryActiveCount} roadmapPct={roadmapPct}
+      {/* ═══ ZONE 1 — Command Bar (dark) ═══════════════════════════════ */}
+      <CommandBar
+        pulseData={pulseData}
+        kpis={kpis}
+        systemHealth={systemHealth}
+        healthColor={healthColor}
+        roadmapPct={roadmapPct}
       />
 
-      {/* ② Command queue */}
-      <CommandQueue items={queueItems} onRefetch={onRefetch} />
+      {/* Command Queue removed — approvals and decisions now flow through the Task Board */}
 
-      {/* ③ Today focus */}
-      <TodayStrip nowRaw={nowRaw} />
+      {/* ═══ ZONE 3 — Task Board (cool gray) ═══════════════════════════ */}
+      <div className="max-w-[1440px] mx-auto w-full px-6 pt-4 pb-3">
+        <TaskBoard tasks={tasks} onRefetch={onRefetch} />
+      </div>
 
-      {/* ④ Briefs + Factory + Agent log */}
-      <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-5"><BriefPanel briefs={briefs} /></div>
-        <div className="col-span-4"><FactorySummary data={factoryData} /></div>
-        <div className="col-span-3"><ActivityFeed pulses={todayPulses} /></div>
+      {/* ═══ ZONE 4 — Context (warm paper) ═════════════════════════════ */}
+      <div className="max-w-[1440px] mx-auto w-full px-6 pt-1 flex flex-col gap-3">
+        {/* Today focus */}
+        <TodayStrip nowRaw={nowRaw} nowModifiedAt={nowModifiedAt} />
+
+        {/* Portfolio KPIs + Briefs */}
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-7"><BriefPanel briefs={briefs} /></div>
+          <div className="col-span-5"><PortfolioKPIs data={portfolioKPIs} /></div>
+        </div>
+
+        {/* Activity stream */}
+        <ActivityFeed pulses={pulseData?.pulses ?? []} />
       </div>
 
     </div>
