@@ -84,6 +84,7 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
               const activityAgent = hasActivity ? agentToken(activity!.agent) : null;
 
               const isAwaitingApproval = p.status === "awaiting-approval";
+              const isRejectedFixing = p.status === "rejected_fixing";
 
               return (
                 <div key={p.slug} className="flex items-center gap-2">
@@ -93,12 +94,19 @@ export function FactorySummary({ data }: { data: FactorySummaryData | null }) {
                       className="h-full rounded-full transition-all"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: isAwaitingApproval ? "var(--amber)" : hasActivity ? activityAgent!.color : "var(--lilac)",
+                        backgroundColor: isRejectedFixing ? "var(--terracotta)" : isAwaitingApproval ? "var(--amber)" : hasActivity ? activityAgent!.color : "var(--lilac)",
                       }}
                     />
                   </div>
                   <span className="text-[0.7rem] text-mid/80 tabular-nums w-6 text-right">{pct}%</span>
-                  {isAwaitingApproval ? (
+                  {isRejectedFixing ? (
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[0.65rem] font-semibold tracking-wide text-white flex-shrink-0"
+                      style={{ backgroundColor: "var(--terracotta)" }}
+                    >
+                      FIXING
+                    </span>
+                  ) : isAwaitingApproval ? (
                     <a
                       href="/factory"
                       className="px-1.5 py-0.5 rounded text-[0.8rem] font-bold tracking-wider text-white flex-shrink-0 attention-pulse"

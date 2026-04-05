@@ -14,7 +14,7 @@ interface OrgAgent {
   name: string;
   title: string;
   tier: "board" | "orchestrator" | "specialist";
-  type: "human" | "ai-openclaw" | "ai-claude";
+  type: "human" | "ai-openclaw" | "ai-claude" | "ai-gemini-cli";
   role: string;
   capabilities: string;
   goals: Goal[];
@@ -138,8 +138,8 @@ export async function GET() {
       },
       {
         name: "Idea → Shipped App",
-        steps: ["Factory tick", "One-pager", "Build (Builder+Mimir)", "QG Opus", "Bastion scan", "Ship"],
-        agents: ["main", "builder", "bastion", "mimir"],
+        steps: ["Factory tick", "One-pager", "Prism pressure-test", "Build (Builder+Mimir)", "QG Opus", "Bastion scan", "Ship"],
+        agents: ["main", "prism", "builder", "bastion", "mimir"],
       },
       {
         name: "Ship → Distribution",
@@ -150,6 +150,11 @@ export async function GET() {
         name: "Security Posture",
         steps: ["Bastion scan", "Risk register", "Fix (Builder)", "Verify", "Score update"],
         agents: ["bastion", "builder"],
+      },
+      {
+        name: "Product Strategy Loop",
+        steps: ["Scout evidence", "Prism synthesis", "Baldur recommendation", "Mads decision", "Builder execution"],
+        agents: ["scout", "prism", "main", "builder"],
       },
       {
         name: "Governance Loop",

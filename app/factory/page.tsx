@@ -161,6 +161,7 @@ const STATUS_LABELS: Record<string, string> = {
   "awaiting-design-approval": "Design Review",
   "awaiting-uat": "UAT Testing",
   "needs-review": "Needs Review",
+  "rejected_fixing": "Rejected \u2014 Fixing",
   paused: "Paused",
 };
 
@@ -1141,7 +1142,7 @@ function FactoryProjectRow({
         ? "var(--amber)"
         : project.status === "awaiting-design-approval"
           ? "#0BBBD4"
-          : project.status === "needs-review"
+          : project.status === "needs-review" || project.status === "rejected_fixing"
             ? "var(--terracotta)"
             : "var(--lilac)";
 

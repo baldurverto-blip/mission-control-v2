@@ -37,6 +37,7 @@ const AGENTS: Record<string, { color: string; soft: string; gradient: string; la
   bastion: { color: "#48453F", soft: "#48453f12", gradient: "from-[#48453F] to-[#6B675F]", label: "Ba", name: "Bastion" },
   vibe:    { color: "#C9A227", soft: "#C9A22715", gradient: "from-[#C9A227] to-[#DDB94A]", label: "V",  name: "Vibe" },
   frigg:   { color: "#7A8B8A", soft: "#7A8B8A15", gradient: "from-[#7A8B8A] to-[#9AABA9]", label: "F",  name: "Frigg" },
+  prism:   { color: "#4C8BF5", soft: "#4C8BF515", gradient: "from-[#4C8BF5] to-[#7AA8FF]", label: "P",  name: "Prism" },
 };
 
 function agent(id: string) {
@@ -230,7 +231,7 @@ export function PulseStream({ pulses, stats, loaded }: PulseStreamProps) {
 
   const attentionPulses = useMemo(() => todayPulses.filter(isAttention), [todayPulses]);
 
-  const allAgentIds = ["baldur", "scout", "builder", "bastion", "vibe", "frigg"];
+  const allAgentIds = ["baldur", "scout", "builder", "bastion", "vibe", "frigg", "prism"];
   const agentActivity = stats.activeAgents.length / allAgentIds.length;
   const pulseRate = Math.min(stats.totalToday / 30, 1); // normalize: 30 pulses/day = full ring
 

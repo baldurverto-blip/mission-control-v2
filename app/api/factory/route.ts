@@ -492,7 +492,7 @@ export async function GET() {
     const shipping = projects.filter((p) => p.status === "shipping").length;
     const shipped = projects.filter((p) => p.status === "shipped" || p.status === "submitted").length + ideaQueue.shipped.length;
     const attention = projects.filter((p) =>
-      p.status === "needs-review" || p.status === "awaiting-approval" || (p.phases.quality_gate?.attempt ?? 0) >= 2
+      p.status === "needs-review" || p.status === "awaiting-approval" || p.status === "rejected_fixing" || (p.phases.quality_gate?.attempt ?? 0) >= 2
     ).length;
     const queued = ideaQueue.queue.length;
 
@@ -531,13 +531,14 @@ export async function GET() {
       // Read track from state for track-aware phase calculation
       const track = (p as any).track ?? "mobile";
       const trackPhases = getPhasesForTrack(track);
+      const DONE_STATUSES = ["complete", "passed", "drafted", "shipped"];
       const completedPhases = trackPhases.filter(
-        (ph) => p.phases[ph]?.status === "complete"
+        (ph) => DONE_STATUSES.includes(p.phases[ph]?.status)
       ).length;
       // Derive current phase from actual phase data, not top-level status
       // "submitted" means app is in review but distribution phases (marketing/promo) may still be active
       const isTerminal = TERMINAL_STATUSES.includes(p.status);
-      const nextIncompleteIdx = trackPhases.findIndex((ph) => p.phases[ph]?.status !== "complete");
+      const nextIncompleteIdx = trackPhases.findIndex((ph) => !DONE_STATUSES.includes(p.phases[ph]?.status));
       const currentPhaseIdx = isTerminal
         ? -1  // fully done
         : nextIncompleteIdx === -1 ? -1 : nextIncompleteIdx;

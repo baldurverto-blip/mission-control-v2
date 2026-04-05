@@ -12,7 +12,7 @@ interface Agent {
   id: string; name: string; title: string; role: string;
   capabilities: string; goals: Goal[];
   tier: "board" | "orchestrator" | "specialist";
-  type: "human" | "ai-openclaw" | "ai-claude";
+  type: "human" | "ai-openclaw" | "ai-claude" | "ai-gemini-cli";
   model: string; adapter: string; invoke: string | null;
   reportsTo: string | null; escalatesTo: string | null;
   color: string; cronCount: number; crons: string[];
@@ -35,23 +35,24 @@ interface PulseEvent {
   duration_ms: number; timestamp: string;
 }
 
-// ─── Geometry — manual hexagonal layout, guaranteed no overlaps ───────────────
-// Board at center (440, 390). Baldur top. 5 specialists in hex positions.
+// ─── Geometry — manual constellation layout, guaranteed no overlaps ──────────
+// Board at center (480, 420). Baldur top. 6 specialists in orbital positions.
 
-const W = 880, H = 760;
+const W = 960, H = 820;
 
 // Exact pixel centers for each orbital node (verified: no card overlaps)
 const NP: Record<string, { x: number; y: number }> = {
-  main:    { x: 440, y: 162 },   // top center
-  scout:   { x: 720, y: 242 },   // upper right
-  builder: { x: 720, y: 490 },   // lower right
-  bastion: { x: 440, y: 638 },   // bottom center
-  vibe:    { x: 160, y: 490 },   // lower left
-  frigg:   { x: 160, y: 242 },   // upper left
+  main:    { x: 480, y: 156 },
+  scout:   { x: 770, y: 244 },
+  prism:   { x: 770, y: 420 },
+  builder: { x: 640, y: 640 },
+  bastion: { x: 320, y: 640 },
+  vibe:    { x: 190, y: 420 },
+  frigg:   { x: 190, y: 244 },
 };
 
 // Board nucleus
-const BCX = 440, BCY = 390;
+const BCX = 480, BCY = 420;
 const BW = 212, BH = 106;
 
 // Node card size
@@ -68,15 +69,17 @@ const CONNS = [
     color: "#BC6143", dash: "none", width: 1.5, escalation: false, delay: 0,
   },
   // Baldur → Specialists (delegation arcs, flow outward)
-  { d: `M${NP.main.x},${NP.main.y} C546,148 678,196 ${NP.scout.x},${NP.scout.y}`,   color: "#76875A", dash: "8 5", width: 1.1, escalation: false, delay: 0.1 },
-  { d: `M${NP.main.x},${NP.main.y} C582,212 710,374 ${NP.builder.x},${NP.builder.y}`, color: "#9899C1", dash: "8 5", width: 1.1, escalation: false, delay: 0.2 },
-  { d: `M${NP.main.x},${NP.main.y} C462,342 462,472 ${NP.bastion.x},${NP.bastion.y}`, color: "#C9A227", dash: "8 5", width: 1.1, escalation: false, delay: 0.3 },
-  { d: `M${NP.main.x},${NP.main.y} C298,212 170,374 ${NP.vibe.x},${NP.vibe.y}`,    color: "#B07AA1", dash: "8 5", width: 1.1, escalation: false, delay: 0.4 },
-  { d: `M${NP.main.x},${NP.main.y} C334,148 202,196 ${NP.frigg.x},${NP.frigg.y}`,  color: "#7A8B8A", dash: "8 5", width: 1.1, escalation: false, delay: 0.5 },
-  // Mimir escalation paths (inward, blue, faint — Builder/Bastion/Vibe → board)
-  { d: `M${NP.builder.x},${NP.builder.y} C660,440 598,408 ${BCX + BW / 2},${BCY}`, color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.6 },
-  { d: `M${NP.bastion.x},${NP.bastion.y} L${BCX},${BCY + BH / 2}`,                 color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.7 },
-  { d: `M${NP.vibe.x},${NP.vibe.y} C220,440 282,408 ${BCX - BW / 2},${BCY}`,       color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.8 },
+  { d: `M${NP.main.x},${NP.main.y} C594,150 718,196 ${NP.scout.x},${NP.scout.y}`,     color: "#76875A", dash: "8 5", width: 1.1, escalation: false, delay: 0.1 },
+  { d: `M${NP.main.x},${NP.main.y} C646,204 760,306 ${NP.prism.x},${NP.prism.y}`,     color: "#4C8BF5", dash: "8 5", width: 1.1, escalation: false, delay: 0.2 },
+  { d: `M${NP.main.x},${NP.main.y} C590,276 640,486 ${NP.builder.x},${NP.builder.y}`, color: "#9899C1", dash: "8 5", width: 1.1, escalation: false, delay: 0.3 },
+  { d: `M${NP.main.x},${NP.main.y} C448,310 392,504 ${NP.bastion.x},${NP.bastion.y}`, color: "#C9A227", dash: "8 5", width: 1.1, escalation: false, delay: 0.4 },
+  { d: `M${NP.main.x},${NP.main.y} C314,204 200,306 ${NP.vibe.x},${NP.vibe.y}`,       color: "#B07AA1", dash: "8 5", width: 1.1, escalation: false, delay: 0.5 },
+  { d: `M${NP.main.x},${NP.main.y} C366,150 242,196 ${NP.frigg.x},${NP.frigg.y}`,     color: "#7A8B8A", dash: "8 5", width: 1.1, escalation: false, delay: 0.6 },
+  // Mimir escalation paths (inward, blue, faint — Builder/Bastion/Vibe/Prism → board)
+  { d: `M${NP.prism.x},${NP.prism.y} C720,420 644,420 ${BCX + BW / 2},${BCY}`,        color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.7 },
+  { d: `M${NP.builder.x},${NP.builder.y} C620,552 604,470 ${BCX + BW / 2},${BCY + 16}`, color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.8 },
+  { d: `M${NP.bastion.x},${NP.bastion.y} C340,552 356,470 ${BCX - BW / 2},${BCY + 16}`, color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.9 },
+  { d: `M${NP.vibe.x},${NP.vibe.y} C240,420 316,420 ${BCX - BW / 2},${BCY}`,          color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 1.0 },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

@@ -31,14 +31,15 @@ interface CommandBarProps {
 
 const SPECIALIST_IDS = ALL_AGENT_IDS.filter((id) => id !== "baldur");
 
-// Orbital positions for 5 specialists around Baldur (center at 90,44)
-// Semi-arc above: evenly spaced
+// Orbital positions for 6 specialists around Baldur (center at 90,44)
+// Semi-arc above: evenly spaced with a second shoulder position
 const ORBITAL_POSITIONS: Record<string, { x: number; y: number }> = {
-  scout:   { x: 30,  y: 18 },
-  builder: { x: 55,  y: 6 },
-  bastion: { x: 90,  y: 0 },
-  vibe:    { x: 125, y: 6 },
-  frigg:   { x: 150, y: 18 },
+  scout:   { x: 22,  y: 20 },
+  prism:   { x: 46,  y: 8 },
+  builder: { x: 72,  y: 2 },
+  bastion: { x: 108, y: 2 },
+  vibe:    { x: 134, y: 8 },
+  frigg:   { x: 158, y: 20 },
 };
 
 const BALDUR_POS = { x: 90, y: 44 };
