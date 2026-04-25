@@ -26,6 +26,19 @@ interface KPIs {
 
 interface InboxItem { text: string; done: boolean; raw: string; }
 interface BriefFile { name: string; content: string; }
+interface AgentMailStatus {
+  monitoredInboxes: number;
+  latestCheckedAt: string | null;
+  latestDigest: string | null;
+  latestDigestPath: string | null;
+  latestDigestHref: string | null;
+  latestDigestCheckedAt: string | null;
+  latestNewMessages: number;
+  latestTrustedMessages: number;
+  latestUntrustedMessages: number;
+  allowlistCount: number;
+  inboxes: { inboxId: string; checkedAt: string | null; seenCount: number }[];
+}
 
 interface WorkflowActive {
   workflow: string; runId: string; currentStep: string | null; approvalPending: boolean;
@@ -120,7 +133,7 @@ function inboxDateFromText(text: string): string | null {
 const TYPE_META = {
   factory:  { label: "FACTORY",  bg: "var(--lilac-soft)",      text: "var(--lilac)"      },
   proposal: { label: "PROPOSAL", bg: "var(--amber-soft)",      text: "var(--amber)"      },
-  inbox:    { label: "INBOX",    bg: "rgba(72,69,63,0.07)",    text: "var(--mid)"        },
+  inbox:    { label: "PARKING LOT", bg: "rgba(72,69,63,0.07)", text: "var(--mid)"        },
   stalled:  { label: "STALLED",  bg: "var(--terracotta-soft)", text: "var(--terracotta)" },
   overdue:  { label: "OVERDUE",  bg: "var(--terracotta-soft)", text: "var(--terracotta)" },
 } as const;
@@ -714,7 +727,7 @@ function AgentStatusPanel({
 
 // ─── Today strip ─────────────────────────────────────────────────────────────
 
-function TodayStrip({ nowRaw, nowModifiedAt }: { nowRaw: string; nowModifiedAt?: string | null }) {
+function TodayStrip({ nowRaw, nowModifiedAt, agentmail }: { nowRaw: string; nowModifiedAt?: string | null; agentmail?: AgentMailStatus | null }) {
   const now = parseMdSections(nowRaw);
   if (!now.status && now.focus.length === 0 && now.blockers.length === 0) return null;
 
@@ -760,6 +773,56 @@ function TodayStrip({ nowRaw, nowModifiedAt }: { nowRaw: string; nowModifiedAt?:
             >
               {now.status}
             </p>
+          </div>
+        )}
+
+        {/* ── AgentMail card ── */}
+        {agentmail && agentmail.monitoredInboxes > 0 && (
+          <div className={`${now.status ? "col-span-3" : "col-span-4"} rounded-xl px-4 py-3.5 border`} style={{ backgroundColor: "#FAFAF6", borderColor: "var(--warm)" }}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="label-caps text-[0.62rem]" style={{ color: "var(--lilac)" }}>AgentMail</p>
+              <span className="text-[0.68rem] text-mid/50">{agentmail.monitoredInboxes} inbox{agentmail.monitoredInboxes === 1 ? "" : "es"}</span>
+            </div>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[1.15rem] leading-none font-medium text-charcoal">
+                  {agentmail.latestNewMessages}
+                </p>
+                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-mid/55 mt-1">new mail in latest digest</p>
+              </div>
+              <p className="text-[0.72rem] text-right text-mid/55 leading-snug">
+                Last check {agentmail.latestCheckedAt ? `${ageLabel(agentmail.latestCheckedAt)} ago` : "not yet"}
+              </p>
+            </div>
+            <p className="text-[0.72rem] text-mid/55 mt-2">
+              Allowlist: {agentmail.allowlistCount} sender{agentmail.allowlistCount === 1 ? "" : "s"}
+              {agentmail.latestTrustedMessages || agentmail.latestUntrustedMessages
+                ? ` • ${agentmail.latestTrustedMessages} trusted • ${agentmail.latestUntrustedMessages} untrusted`
+                : ""}
+            </p>
+            <div className="mt-2 text-[0.72rem] leading-snug">
+              {agentmail.latestDigestPath ? (
+                <a
+                  href={agentmail.latestDigestHref ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-charcoal/75 underline decoration-mid/30 underline-offset-2 hover:text-charcoal"
+                  title={agentmail.latestDigestPath}
+                >
+                  Digest: {agentmail.latestDigestPath}
+                </a>
+              ) : (
+                <span className="text-mid/50">Digest: none yet</span>
+              )}
+            </div>
+            <div className="mt-2.5 space-y-1">
+              {agentmail.inboxes.slice(0, 3).map((item) => (
+                <div key={item.inboxId} className="flex items-center justify-between gap-2 text-[0.72rem]">
+                  <span className="text-charcoal/70 truncate">{item.inboxId}</span>
+                  <span className="text-mid/45 tabular-nums">{item.seenCount} seen</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -968,6 +1031,7 @@ export interface DashboardHomeProps {
   nowRaw: string;
   nowModifiedAt: string | null;
   inbox: InboxItem[];
+  agentmail?: AgentMailStatus | null;
   pulseData: PulseData | null;
   briefs: { morning: BriefFile | null; evening: BriefFile | null };
   workflows: WorkflowData | null;
@@ -988,7 +1052,7 @@ export interface DashboardHomeProps {
 }
 
 export function DashboardHome({
-  kpis, nowRaw, nowModifiedAt, inbox, pulseData, briefs,
+  kpis, nowRaw, nowModifiedAt, inbox, agentmail, pulseData, briefs,
   projects, expeditions, factoryData, portfolioKPIs, proposals, tasks,
   systemHealth, healthColor, roadmapPct, onRefetch,
 }: DashboardHomeProps) {
@@ -1043,6 +1107,7 @@ export function DashboardHome({
         systemHealth={systemHealth}
         healthColor={healthColor}
         roadmapPct={roadmapPct}
+        agentmail={agentmail}
       />
 
       {/* Command Queue removed — approvals and decisions now flow through the Task Board */}
@@ -1055,7 +1120,7 @@ export function DashboardHome({
       {/* ═══ ZONE 4 — Context (warm paper) ═════════════════════════════ */}
       <div className="max-w-[1440px] mx-auto w-full px-6 pt-1 flex flex-col gap-3">
         {/* Today focus */}
-        <TodayStrip nowRaw={nowRaw} nowModifiedAt={nowModifiedAt} />
+        <TodayStrip nowRaw={nowRaw} nowModifiedAt={nowModifiedAt} agentmail={agentmail} />
 
         {/* Portfolio KPIs + Briefs */}
         <div className="grid grid-cols-12 gap-3">

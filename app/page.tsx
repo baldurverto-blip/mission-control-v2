@@ -19,6 +19,20 @@ interface KPIs {
   skills: { count: number };
 }
 
+interface AgentMailStatus {
+  monitoredInboxes: number;
+  latestCheckedAt: string | null;
+  latestDigest: string | null;
+  latestDigestPath: string | null;
+  latestDigestHref: string | null;
+  latestDigestCheckedAt: string | null;
+  latestNewMessages: number;
+  latestTrustedMessages: number;
+  latestUntrustedMessages: number;
+  allowlistCount: number;
+  inboxes: { inboxId: string; checkedAt: string | null; seenCount: number }[];
+}
+
 interface InboxItem { text: string; done: boolean; raw: string; }
 interface BriefFile { name: string; content: string; }
 
@@ -71,6 +85,7 @@ export default function Dashboard() {
   const [nowRaw, setNowRaw] = useState("");
   const [nowModifiedAt, setNowModifiedAt] = useState<string | null>(null);
   const [inbox, setInbox] = useState<InboxItem[]>([]);
+  const [agentmail, setAgentmail] = useState<AgentMailStatus | null>(null);
   const [pulseData, setPulseData] = useState<PulseData | null>(null);
   const [briefs, setBriefs] = useState<{ morning: BriefFile | null; evening: BriefFile | null }>({ morning: null, evening: null });
   const [workflows, setWorkflows] = useState<WorkflowData | null>(null);
@@ -106,6 +121,7 @@ export default function Dashboard() {
     if (statusRes && !statusRes.error) {
       setNowRaw(statusRes.now ?? "");
       setNowModifiedAt(statusRes.nowModifiedAt ?? null);
+      setAgentmail(statusRes.agentmail ?? null);
     }
     if (inboxRes && !inboxRes.error) setInbox(inboxRes.items ?? []);
     if (pulseRes && !pulseRes.error) setPulseData(pulseRes);
@@ -195,6 +211,7 @@ export default function Dashboard() {
         nowRaw={nowRaw}
         nowModifiedAt={nowModifiedAt}
         inbox={inbox}
+        agentmail={agentmail}
         pulseData={pulseData}
         briefs={briefs}
         workflows={workflows}

@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
-import { execFile } from "child_process";
-import { promisify } from "util";
 import {
-  ROADMAP_MD,
   INBOX_MD,
   RESEARCH,
   FAILURES_DIR,
   SKILLS_DIR,
+  TASKS_JSON,
 } from "@/app/lib/paths";
-import { parseCheckboxes, getWeekNumber } from "@/app/lib/helpers";
-
-const execFileAsync = promisify(execFile);
+import { getWeekNumber } from "@/app/lib/helpers";
+import { getCronList } from "@/app/lib/openclaw-cache";
 
 async function countFiles(dir: string): Promise<number> {
   try {
@@ -60,14 +57,11 @@ export async function GET() {
       "verto-workspace/ops/workflow-state.json"
     );
 
-    const [roadmapContent, inboxContent, cronResult, researchCount, failureCount, skillsCount, scoutScore, workflowState] =
+    const [tasksContent, inboxContent, cronResult, researchCount, failureCount, skillsCount, scoutScore, workflowState] =
       await Promise.all([
-        readFile(ROADMAP_MD, "utf-8").catch(() => ""),
+        readFile(TASKS_JSON, "utf-8").catch(() => "[]"),
         readFile(INBOX_MD, "utf-8").catch(() => ""),
-        execFileAsync("/opt/homebrew/bin/openclaw", ["cron", "list", "--json"], {
-          timeout: 15_000,
-          maxBuffer: 2 * 1024 * 1024,
-        }).catch(() => ({ stdout: '{"jobs":[]}' })),
+        getCronList().catch(() => ({ jobs: [], raw: '{"jobs":[]}' })),
         countFiles(RESEARCH),
         recentFailures(),
         countFiles(SKILLS_DIR),
@@ -75,22 +69,27 @@ export async function GET() {
         readFile(WORKFLOW_STATE, "utf-8").catch(() => '{"stats":{}}'),
       ]);
 
-    // Roadmap
-    const roadmap = parseCheckboxes(roadmapContent);
+    let tasks: Array<{ status?: string }> = [];
+    try {
+      const parsed = JSON.parse(tasksContent);
+      tasks = Array.isArray(parsed) ? parsed : parsed.tasks ?? [];
+    } catch {
+      tasks = [];
+    }
 
-    // Inbox
-    const inboxOpen = (inboxContent.match(/^-\s*\[ \]/gm) ?? []).length;
+    const inboxOpen = (inboxContent.match(/^\s*-\s*\[ \]/gm) ?? []).length;
+    const taskDone = tasks.filter((task) => task.status === "done").length;
+    const taskOpen = tasks.length > 0
+      ? tasks.filter((task) => task.status && task.status !== "done").length
+      : inboxOpen;
 
-    // Cron health
-    const cronData = JSON.parse(cronResult.stdout);
-    const cronJobs = cronData.jobs ?? [];
+    const cronJobs = cronResult.jobs ?? [];
     const cronTotal = cronJobs.length;
     const cronHealthy = cronJobs.filter(
       (j: { enabled: boolean; state?: { lastRunStatus?: string } }) =>
         j.enabled && j.state?.lastRunStatus === "ok"
     ).length;
 
-    // Heartbeat age
     const heartbeat = cronJobs.find(
       (j: { name: string }) => j.name === "heartbeat"
     );
@@ -98,15 +97,13 @@ export async function GET() {
       ? Date.now() - heartbeat.state.lastRunAtMs
       : null;
 
-    // Week progress
     const now = new Date();
     const weekNum = getWeekNumber(now);
     const dayOfWeek = now.getDay() || 7;
 
-    // Days since failure
     let daysSinceFailure: number | null = null;
     if (failureCount === 0) {
-      daysSinceFailure = 7; // clean week
+      daysSinceFailure = 7;
     } else {
       try {
         const files = await readdir(FAILURES_DIR);
@@ -122,17 +119,17 @@ export async function GET() {
       }
     }
 
-    // Workflow stats
     const wfState = JSON.parse(workflowState);
     const wfStats = wfState.stats ?? {};
     const wfActive = (wfState.active ?? []).length;
     const wfApproval = wfStats.approvalsPending ?? 0;
 
     return NextResponse.json({
-      roadmap: { done: roadmap.done, total: roadmap.total },
+      roadmap: { done: taskDone, total: Math.max(tasks.length, 1) },
+      taskboard: { open: taskOpen, done: taskDone, total: tasks.length > 0 ? tasks.length : inboxOpen, source: tasks.length > 0 ? "ops/tasks.json" : "brain/INBOX.md (fallback)" },
       week: { number: weekNum, day: dayOfWeek },
       cron: { healthy: cronHealthy, total: cronTotal, heartbeatAgeMs: heartbeatAge },
-      inbox: { open: inboxOpen },
+      inbox: { open: inboxOpen, role: "parking_lot", source: "brain/INBOX.md" },
       research: { count: researchCount, scoutScore },
       failures: { recent: failureCount, daysSince: daysSinceFailure },
       skills: { count: skillsCount },

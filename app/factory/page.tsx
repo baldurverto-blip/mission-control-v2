@@ -12,6 +12,7 @@ interface PhaseState {
   status: string;
   score?: number;
   attempt?: number;
+  stale_since?: string; // ISO timestamp — set when build restarts after this phase was complete
 }
 
 interface KPISnapshot {
@@ -23,6 +24,29 @@ interface KPISnapshot {
   churn: { active_subs: number; cancellations: number; churn_rate: number | null; refund_rate: number | null };
 }
 
+interface RejectionEntry {
+  rejected_at: string;
+  guideline: string;
+  reason: string;
+  build?: number;
+  fix?: string;
+  resubmitted_at?: string;
+}
+
+interface AppleReworkState {
+  initiated_at?: string;
+  guideline?: string;
+  message?: string;
+  severity?: string;
+  pattern_match?: string;
+  is_new_pattern?: boolean;
+  fix_plan?: string;
+  checklist_status?: string;
+  guardrail_draft?: string;
+  guardrail_confirmed?: boolean;
+  resolved_at?: string;
+}
+
 interface PhaseDetail extends PhaseState {
   fixes_applied?: string[];
   summary?: string;
@@ -31,11 +55,22 @@ interface PhaseDetail extends PhaseState {
   model?: string;
   trial_days?: number;
   free_trial_scans?: number;
-  pricing?: { monthly: number; annual: number };
+  pricing?: { monthly?: number | { price?: number; product_id?: string }; annual?: number | { price?: number; product_id?: string } };
   changes?: string[];
   operator_tasks?: string[];
   metadata_verified?: Record<string, boolean>;
   outputs?: string[];
+  rejections?: RejectionEntry[];
+  apple_rework?: AppleReworkState;
+}
+
+interface SubCheck {
+  id: string;
+  label: string;
+  score?: string;
+  weight?: string;
+  status: "pass" | "fail" | "warn";
+  detail?: string;
 }
 
 interface ArtifactPhaseAudit {
@@ -43,6 +78,7 @@ interface ArtifactPhaseAudit {
   delivered: string[];
   missing: string[];
   labels?: Record<string, string>;
+  subChecks?: SubCheck[];
 }
 
 interface ArtifactAudit {
@@ -92,6 +128,7 @@ interface FactoryProject {
   qgVerdict?: string | null;
   crVerdict?: string | null;
   crIssues?: { critical: number; high: number } | null;
+  current_action?: string | null;
 }
 
 interface ActivityEvent {
@@ -157,6 +194,7 @@ const STATUS_LABELS: Record<string, string> = {
   promo: "Promo",
   shipped: "Shipped",
   submitted: "Submitted",
+  "in_review": "In Review",
   "awaiting-approval": "Awaiting Approval",
   "awaiting-design-approval": "Design Review",
   "awaiting-uat": "UAT Testing",
@@ -209,6 +247,12 @@ export default function FactoryPage() {
   const [simMessage, setSimMessage] = useState<Record<string, string>>({});
   const [resetLoading, setResetLoading] = useState<string | null>(null);
   const [resetResult, setResetResult] = useState<{ slug: string; status: string; message: string } | null>(null);
+  const [rejectionLoading, setRejectionLoading] = useState<string | null>(null);
+  const [rejectionResult, setRejectionResult] = useState<{ slug: string; status: string; message: string } | null>(null);
+  const [rejectionMode, setRejectionMode] = useState<string | null>(null);
+  const [rejectionInput, setRejectionInput] = useState({ guideline: "", message: "" });
+  const [appleApproveLoading, setAppleApproveLoading] = useState<string | null>(null);
+  const [appleApproveResult, setAppleApproveResult] = useState<{ slug: string; status: string; message: string } | null>(null);
 
   const handleSimulatorLaunch = async (slug: string) => {
     setSimStatus((s) => ({ ...s, [slug]: "building" }));
@@ -332,6 +376,68 @@ export default function FactoryPage() {
     }
   };
 
+  const handleRejection = async (slug: string, guideline?: string, message?: string) => {
+    setRejectionLoading(slug);
+    setRejectionResult(null);
+    try {
+      const res = await fetch(`/api/factory/${slug}/rejection`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "initiate", guideline, message }),
+      });
+      const result = await res.json();
+      setRejectionResult({ slug, status: result.status ?? "error", message: result.message ?? result.error });
+      setRejectionMode(null);
+      setRejectionInput({ guideline: "", message: "" });
+      setTimeout(fetchData, 2000);
+    } catch {
+      setRejectionResult({ slug, status: "error", message: "Failed to initiate rejection handling" });
+    } finally {
+      setRejectionLoading(null);
+    }
+  };
+
+  const handleAppleApproval = async (slug: string) => {
+    setAppleApproveLoading(slug);
+    setAppleApproveResult(null);
+    try {
+      const res = await fetch(`/api/factory/${slug}/apple-approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      const result = await res.json();
+      setAppleApproveResult({ slug, status: result.status ?? "error", message: result.message ?? result.error });
+      setTimeout(fetchData, 2000);
+    } catch {
+      setAppleApproveResult({ slug, status: "error", message: "Failed to mark as approved" });
+    } finally {
+      setAppleApproveLoading(null);
+    }
+  };
+
+  const appleRejectedProjects = projects.filter((p) => p.status === "rejected_fixing");
+
+  const handlePromote = async (slug: string) => {
+    if (!confirm(`Promote "${slug}" into the factory lanes?`)) return;
+    try {
+      const res = await fetch("/api/factory/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        alert(`Promote failed: ${result.error ?? "unknown error"}`);
+        return;
+      }
+      alert(`Promoted as ${result.factorySlug} (track: ${result.track}).\n\nRun the loop manually when factory is unpaused:\n~/verto-workspace/tools/factory-loop.sh ${result.factorySlug}`);
+      setTimeout(fetchData, 500);
+    } catch (err) {
+      alert(`Promote failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
   const LIVE_THRESHOLD = 30 * 60 * 1000;
   const now = Date.now();
   // LIVE = a factory-loop process is actually running right now
@@ -435,12 +541,19 @@ export default function FactoryPage() {
                 const token = agentToken(event.agent);
                 const age = now - new Date(event.timestamp).getTime();
                 const isRecent = age < LIVE_THRESHOLD;
-                // Detect QG/CR events for enhanced rendering
+                // Detect event types for enhanced rendering
                 const isQGCR = /quality.gate|code.review/i.test(event.action);
-                const outcomeHasFail = isQGCR && /FAIL|rework/i.test(event.outcome);
-                const outcomeHasPass = isQGCR && /PASS/i.test(event.outcome);
+                const isRejection = /rejection/i.test(event.action);
+                const isHighlight = isQGCR || isRejection;
+                // PASS/FAIL detection on ALL events, not just QG/CR
+                const outcomeHasFail = /FAIL|BLOCKED|HALTED|crashed|failed|error/i.test(event.outcome);
+                const outcomeHasPass = /PASS|complete|passed|success/i.test(event.outcome) && !outcomeHasFail;
                 // Extract score from outcome like "Score: 88/100" or "5.20/10"
-                const scoreInOutcome = isQGCR ? event.outcome.match(/(\d+(?:\.\d+)?)\s*\/\s*(?:10|100)/i) : null;
+                const scoreInOutcome = event.outcome.match(/(\d+(?:\.\d+)?)\s*\/\s*(?:10|100)/i);
+                // Extract app name from goal "factory:<slug>"
+                const slugFromGoal = event.goal?.match(/factory:(.+)/)?.[1]?.replace(/-/g, " ") ?? "";
+                // Clean up the outcome for display — strip "PASS: " / "FAIL: " prefix since we show badges
+                const cleanOutcome = event.outcome.replace(/^(PASS|FAIL|BLOCKED|HALTED):\s*/i, "");
                 return (
                   <div
                     key={`${event.timestamp}-${i}`}
@@ -452,8 +565,10 @@ export default function FactoryPage() {
                         ? "3px solid #ef4444"
                         : outcomeHasPass
                           ? "3px solid #4ade80"
-                          : undefined,
-                      paddingLeft: isQGCR ? "13px" : undefined,
+                          : isRejection
+                            ? "3px solid var(--terracotta)"
+                            : undefined,
+                      paddingLeft: isHighlight || outcomeHasFail ? "13px" : undefined,
                     }}
                   >
                     {/* Timestamp */}
@@ -471,7 +586,7 @@ export default function FactoryPage() {
                     </span>
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[0.8rem] font-medium font-[family-name:var(--font-dm-mono)]" style={{ color: token.color }}>
                           {token.name}
                         </span>
@@ -481,12 +596,12 @@ export default function FactoryPage() {
                         {event.model && event.model !== "unknown" && (
                           <ModelBadge model={event.model} />
                         )}
-                        {isQGCR && outcomeHasPass && (
+                        {outcomeHasPass && (
                           <span className="text-[0.65rem] px-1.5 py-0.5 rounded font-bold tracking-wider" style={{ backgroundColor: "rgba(74, 222, 128, 0.15)", color: "#4ade80" }}>
                             PASS
                           </span>
                         )}
-                        {isQGCR && outcomeHasFail && (
+                        {outcomeHasFail && (
                           <span className="text-[0.65rem] px-1.5 py-0.5 rounded font-bold tracking-wider" style={{ backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}>
                             FAIL
                           </span>
@@ -495,15 +610,18 @@ export default function FactoryPage() {
                           {relTime(event.timestamp)}
                         </span>
                       </div>
-                      <p className={`text-[0.8rem] mt-0.5 leading-relaxed font-[family-name:var(--font-dm-mono)] ${isQGCR ? "text-white/70" : "text-white/50"}`}>
-                        {isQGCR && scoreInOutcome ? (
+                      <p className={`text-[0.8rem] mt-0.5 leading-relaxed font-[family-name:var(--font-dm-mono)] ${outcomeHasFail ? "text-red-400/80" : isHighlight || outcomeHasPass ? "text-white/70" : "text-white/50"}`}>
+                        {slugFromGoal && (
+                          <span className="text-white/30 mr-1">[{slugFromGoal}]</span>
+                        )}
+                        {scoreInOutcome ? (
                           <>
-                            {event.outcome.slice(0, scoreInOutcome.index)}
+                            {cleanOutcome.slice(0, scoreInOutcome.index ? scoreInOutcome.index - (event.outcome.length - cleanOutcome.length) : 0)}
                             <span className="font-bold text-white/90">{scoreInOutcome[0]}</span>
-                            {event.outcome.slice((scoreInOutcome.index ?? 0) + scoreInOutcome[0].length)}
+                            {cleanOutcome.slice((scoreInOutcome.index ? scoreInOutcome.index - (event.outcome.length - cleanOutcome.length) : 0) + scoreInOutcome[0].length)}
                           </>
                         ) : (
-                          event.outcome
+                          cleanOutcome
                         )}
                       </p>
                     </div>
@@ -767,7 +885,7 @@ export default function FactoryPage() {
         {/* ═══ ACTIVE PROJECTS — grouped by track ═══════════════════ */}
         {(() => {
           // Separate active pipeline projects from terminal/submitted ones
-          const INACTIVE_STATUSES = ["shipped", "submitted", "paused", "parked", "rejected"];
+          const INACTIVE_STATUSES = ["shipped", "submitted", "in_review", "paused", "parked", "rejected", "archived"];
           const activeProjects = projects.filter((p) => !INACTIVE_STATUSES.includes(p.status));
 
           // Group active projects by track
@@ -884,7 +1002,7 @@ export default function FactoryPage() {
         {/* ═══ APP STORE REVIEW ════════════════════════════════════════ */}
         {(() => {
           const inReviewProjects = projects.filter(
-            (p) => p.status === "submitted" || (p.status === "shipped" && !p.latestKPI && (p.track === "mobile" || !p.track))
+            (p) => p.status === "submitted" || p.status === "in_review"
           );
           if (inReviewProjects.length === 0) return null;
           return (
@@ -911,28 +1029,112 @@ export default function FactoryPage() {
                     (Date.now() - new Date(submittedAt).getTime()) / 86400000
                   );
                   return (
-                    <div key={p.slug} className="px-5 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                        <div>
-                          <p className="text-sm font-medium text-charcoal">{name}</p>
-                          <p className="text-[0.75rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
-                            {shippingPhase?.notes
-                              ? (shippingPhase.notes as string).slice(0, 80) + ((shippingPhase.notes as string).length > 80 ? "..." : "")
-                              : `Submitted ${daysSince}d ago`}
-                          </p>
+                    <div key={p.slug} className="px-5 py-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                          <div>
+                            <p className="text-sm font-medium text-charcoal">{name}</p>
+                            <p className="text-[0.75rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+                              {shippingPhase?.notes
+                                ? (shippingPhase.notes as string).slice(0, 80) + ((shippingPhase.notes as string).length > 80 ? "..." : "")
+                                : `Submitted ${daysSince}d ago`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[0.75rem] text-mid/50 tabular-nums font-[family-name:var(--font-dm-mono)]">
+                            {p.completedPhases}/{p.totalPhases} phases
+                          </span>
+                          {p.qualityScore !== null && (
+                            <span className="text-[0.75rem] tabular-nums font-medium" style={{ color: p.qualityScore >= 80 ? "#4ade80" : "#fbbf24" }}>
+                              QG {p.qualityScore}
+                            </span>
+                          )}
+                          {(p.status === "submitted" || p.status === "in_review") && (
+                            <>
+                              <button
+                                onClick={() => handleAppleApproval(p.slug)}
+                                disabled={appleApproveLoading === p.slug}
+                                className="px-2 py-1 rounded text-[0.7rem] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                                style={{ backgroundColor: "rgba(74, 222, 128, 0.15)", color: "#16a34a" }}
+                              >
+                                {appleApproveLoading === p.slug ? (
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-3 h-3 border-2 border-green-600/30 border-t-green-600 rounded-full animate-spin" />
+                                  </span>
+                                ) : (
+                                  "Approved"
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setRejectionMode(rejectionMode === p.slug ? null : p.slug)}
+                                className="px-2 py-1 rounded text-[0.7rem] font-medium transition-opacity hover:opacity-80"
+                                style={{ backgroundColor: "rgba(183, 110, 121, 0.12)", color: "var(--terracotta)" }}
+                              >
+                                Rejected?
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[0.75rem] text-mid/50 tabular-nums font-[family-name:var(--font-dm-mono)]">
-                          {p.completedPhases}/{p.totalPhases} phases
-                        </span>
-                        {p.qualityScore !== null && (
-                          <span className="text-[0.75rem] tabular-nums font-medium" style={{ color: p.qualityScore >= 80 ? "#4ade80" : "#fbbf24" }}>
-                            QG {p.qualityScore}
-                          </span>
-                        )}
-                      </div>
+
+                      {/* Rejection input form — expands when "Rejected?" is clicked */}
+                      {rejectionMode === p.slug && (
+                        <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: "rgba(183, 110, 121, 0.25)", backgroundColor: "rgba(183, 110, 121, 0.03)" }}>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Guideline (e.g. 2.1(b))"
+                              value={rejectionInput.guideline}
+                              onChange={(e) => setRejectionInput((prev) => ({ ...prev, guideline: e.target.value }))}
+                              className="flex-shrink-0 w-36 px-2 py-1.5 rounded border text-xs font-[family-name:var(--font-dm-mono)]"
+                              style={{ borderColor: "rgba(183, 110, 121, 0.3)", backgroundColor: "rgba(255,255,255,0.5)" }}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Apple's rejection message..."
+                              value={rejectionInput.message}
+                              onChange={(e) => setRejectionInput((prev) => ({ ...prev, message: e.target.value }))}
+                              className="flex-1 px-2 py-1.5 rounded border text-xs"
+                              style={{ borderColor: "rgba(183, 110, 121, 0.3)", backgroundColor: "rgba(255,255,255,0.5)" }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => { setRejectionMode(null); setRejectionInput({ guideline: "", message: "" }); }}
+                              className="text-[0.7rem] text-mid/60 hover:text-mid/80"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleRejection(p.slug, rejectionInput.guideline || undefined, rejectionInput.message || undefined)}
+                              disabled={rejectionLoading === p.slug}
+                              className="px-3 py-1.5 rounded-md text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                              style={{ backgroundColor: "var(--terracotta)" }}
+                            >
+                              {rejectionLoading === p.slug ? (
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Starting...
+                                </span>
+                              ) : (
+                                "Start Rejection Process"
+                              )}
+                            </button>
+                          </div>
+                          {rejectionResult?.slug === p.slug && (
+                            <p className={`text-xs font-[family-name:var(--font-dm-mono)] ${rejectionResult.status === "initiated" ? "text-olive" : "text-terracotta"}`}>
+                              {rejectionResult.message}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {appleApproveResult?.slug === p.slug && (
+                        <p className={`text-xs font-[family-name:var(--font-dm-mono)] ${appleApproveResult.status === "approved" ? "text-olive" : "text-terracotta"}`}>
+                          {appleApproveResult.message}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -940,6 +1142,121 @@ export default function FactoryPage() {
             </Card>
           );
         })()}
+
+        {/* ═══ APPLE REJECTED — Rework in Progress ════════════════════ */}
+        {appleRejectedProjects.length > 0 && (
+          <Card className="p-0 overflow-hidden" style={{ borderColor: "var(--terracotta)", borderWidth: 2, boxShadow: "0 0 30px rgba(183, 110, 121, 0.08)" }}>
+            <div className="px-5 pt-3.5 pb-3" style={{ backgroundColor: "rgba(183, 110, 121, 0.06)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <p className="label-caps" style={{ color: "var(--terracotta)", opacity: 0.9 }}>Apple Rejected</p>
+                  <span className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider" style={{ backgroundColor: "rgba(183, 110, 121, 0.12)", color: "var(--terracotta)" }}>
+                    Rework
+                  </span>
+                </div>
+                <span className="text-[0.8rem] text-mid/60 tabular-nums">
+                  {appleRejectedProjects.length} app{appleRejectedProjects.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+            <div className="divide-y divide-warm/60">
+              {appleRejectedProjects.map((p) => {
+                const name = p.displayName ?? p.slug.replace(/-/g, " ");
+                const shipping = p.phases.shipping as PhaseDetail;
+                const rework = shipping?.apple_rework;
+                const rejections = shipping?.rejections ?? [];
+                const latestRejection = rejections.length > 0 ? rejections[rejections.length - 1] : null;
+                const guideline = rework?.guideline ?? latestRejection?.guideline ?? "unknown";
+                const rejMessage = rework?.message ?? latestRejection?.reason ?? "";
+                const checklistStatus = rework?.checklist_status ?? "pending";
+
+                return (
+                  <div key={p.slug} className="px-5 py-4 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--terracotta)" }} />
+                        <div>
+                          <p className="text-sm font-medium text-charcoal">{name}</p>
+                          <p className="text-[0.75rem] text-mid/60 font-[family-name:var(--font-dm-mono)]">
+                            Rejection #{rejections.length} · Guideline {guideline}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Checklist status badge */}
+                        <span
+                          className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                          style={{
+                            backgroundColor: checklistStatus === "passed" ? "rgba(74, 222, 128, 0.15)" :
+                              checklistStatus === "failed" ? "rgba(183, 110, 121, 0.12)" :
+                              checklistStatus === "running" ? "rgba(91, 111, 168, 0.12)" :
+                              "rgba(196, 160, 72, 0.12)",
+                            color: checklistStatus === "passed" ? "#4ade80" :
+                              checklistStatus === "failed" ? "var(--terracotta)" :
+                              checklistStatus === "running" ? "#5B6FA8" :
+                              "#C4A048",
+                          }}
+                        >
+                          {checklistStatus === "passed" ? "Ready to Resubmit" :
+                            checklistStatus === "failed" ? "Issues Found" :
+                            checklistStatus === "running" ? "Verifying..." :
+                            "Analyzing..."}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Rejection message */}
+                    {rejMessage && (
+                      <div className="rounded-lg border px-3 py-2" style={{ borderColor: "rgba(183, 110, 121, 0.15)", backgroundColor: "rgba(183, 110, 121, 0.03)" }}>
+                        <p className="text-xs text-mid/70">
+                          {rejMessage.length > 200 ? rejMessage.slice(0, 200) + "..." : rejMessage}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Rework progress */}
+                    {rework && (
+                      <div className="flex items-center gap-4 text-[0.7rem] font-[family-name:var(--font-dm-mono)] text-mid/50">
+                        {rework.severity && <span>Severity: {rework.severity}</span>}
+                        {rework.pattern_match && <span>Pattern: {rework.pattern_match}</span>}
+                        {rework.fix_plan && <span>Fix plan written</span>}
+                      </div>
+                    )}
+
+                    {/* New pattern banner */}
+                    {rework?.is_new_pattern && rework?.guardrail_draft && !rework?.guardrail_confirmed && (
+                      <div className="rounded-lg border px-3 py-2" style={{ borderColor: "rgba(196, 160, 72, 0.3)", backgroundColor: "rgba(196, 160, 72, 0.06)" }}>
+                        <p className="text-xs font-medium" style={{ color: "#C4A048" }}>
+                          New rejection pattern detected — review guardrail draft and run: <code className="text-[0.65rem] px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(196, 160, 72, 0.12)" }}>bash ~/verto-workspace/tools/factory-guardrail-commit.sh {p.slug}</code>
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Rejection history */}
+                    {rejections.length > 1 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-mid/50 hover:text-mid/70">
+                          Rejection history ({rejections.length} total)
+                        </summary>
+                        <div className="mt-1 space-y-1 pl-3 border-l-2" style={{ borderColor: "rgba(183, 110, 121, 0.2)" }}>
+                          {rejections.map((r, i) => (
+                            <div key={i} className="flex items-baseline gap-2 text-[0.7rem] font-[family-name:var(--font-dm-mono)]">
+                              <span className="text-mid/40">{new Date(r.rejected_at).toLocaleDateString()}</span>
+                              <span className="font-medium" style={{ color: "var(--terracotta)" }}>{r.guideline}</span>
+                              <span className="text-mid/50 truncate">{r.reason?.slice(0, 60)}</span>
+                              {r.resubmitted_at && <span className="text-olive">resubmitted</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* ═══ SHIPPED PRODUCTS (SaaS / no KPI yet) ═══════════════════ */}
         {(() => {
@@ -971,28 +1288,6 @@ export default function FactoryPage() {
           );
         })()}
 
-        {/* ═══ POST-SHIP KPI TRACKING ═══════════════════════════════ */}
-        {(() => {
-          const shippedProjects = projects.filter(
-            (p) => p.status === "shipped" && p.latestKPI
-          );
-          if (shippedProjects.length === 0) return null;
-          return (
-            <Card className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="label-caps text-mid/80">Post-Ship Performance</p>
-                <span className="text-[0.8rem] text-mid/60 tabular-nums">
-                  {shippedProjects.length} app{shippedProjects.length !== 1 ? "s" : ""} tracking
-                </span>
-              </div>
-              <div className="space-y-3">
-                {shippedProjects.map((p) => (
-                  <KPICard key={p.slug} project={p} />
-                ))}
-              </div>
-            </Card>
-          );
-        })()}
 
         {/* ═══ IDEA QUEUE ═════════════════════════════════════════════ */}
         <Card className="p-5">
@@ -1046,7 +1341,11 @@ export default function FactoryPage() {
             return (
               <div className="space-y-2">
                 {items.map((idea) => (
-                  <IdeaRow key={idea.slug} idea={idea} />
+                  <IdeaRow
+                    key={idea.slug}
+                    idea={idea}
+                    onPromote={queueTab === "queued" ? handlePromote : undefined}
+                  />
                 ))}
               </div>
             );
@@ -1221,7 +1520,14 @@ function FactoryProjectRow({
                     </>
                   )}
                 </div>
-              ) : (
+              ) : null}
+              {/* Live current_action from factory-loop.sh — shows what the loop is doing right now */}
+              {project.current_action && (
+                <p className="text-[0.66rem] text-mid/55 truncate mt-0.5" title={project.current_action}>
+                  {project.current_action}
+                </p>
+              )}
+              {!currentPhaseName && (
                 <Badge color={statusColor}>
                   {STATUS_LABELS[project.status] ?? project.status}
                 </Badge>
@@ -1254,6 +1560,8 @@ function FactoryProjectRow({
             const phaseKey = label.replace(" ", "_");
             const phaseState = project.phases[phaseKey];
             const isComplete = phaseState?.status === "complete" || phaseState?.status === "drafted";
+            // Stale: phase was complete but build has since restarted. Needs re-verification.
+            const isStale = isComplete && Boolean((phaseState as { stale_since?: string })?.stale_since);
             const isCurrent = project.currentPhaseIdx >= 0 && i === project.currentPhaseIdx;
             const phaseAgent = PHASE_AGENTS[label];
             const agentColor = phaseAgent ? agentToken(phaseAgent).color : "var(--mid)";
@@ -1266,14 +1574,18 @@ function FactoryProjectRow({
                   style={{
                     backgroundColor: isCurrent
                       ? `${agentColor}25`
-                      : isComplete
-                        ? "var(--olive-soft, rgba(118, 135, 90, 0.22))"
-                        : "var(--warm)",
+                      : isStale
+                        ? "var(--amber-soft, rgba(196, 160, 72, 0.22))"
+                        : isComplete
+                          ? "var(--olive-soft, rgba(118, 135, 90, 0.22))"
+                          : "var(--warm)",
                     borderBottom: isCurrent ? `2px solid ${agentColor}` : undefined,
                   }}
-                  title={`${label}: ${phaseState?.status ?? "pending"}`}
+                  title={`${label}: ${phaseState?.status ?? "pending"}${isStale ? " (stale — code changed since, needs re-verification)" : ""}`}
                 >
-                  {isComplete && (
+                  {isStale ? (
+                    <span className="text-[0.68rem] font-bold" style={{ color: "var(--amber)" }}>!</span>
+                  ) : isComplete && (
                     <span className="text-[0.7rem] text-olive font-bold">&#10003;</span>
                   )}
                   {isCurrent && (
@@ -1533,6 +1845,26 @@ function FactoryProjectRow({
                                 );
                               })}
                             </div>
+                            {audit.subChecks && audit.subChecks.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-warm/40 space-y-1">
+                                <div className="text-[0.68rem] uppercase tracking-wider text-mid/70 mb-1.5 font-medium">Checks</div>
+                                {audit.subChecks.map((c) => {
+                                  const color = c.status === "pass" ? "var(--olive)" : c.status === "fail" ? "var(--terracotta)" : "var(--amber)";
+                                  const bg = c.status === "pass" ? "rgba(118, 135, 90, 0.08)" : c.status === "fail" ? "rgba(183, 110, 121, 0.10)" : "rgba(196, 160, 72, 0.10)";
+                                  const mark = c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : "!";
+                                  return (
+                                    <div key={c.id} className="flex items-center gap-2 text-[0.74rem] rounded-md px-2 py-1" style={{ backgroundColor: bg }}>
+                                      <span className="font-semibold tabular-nums flex-shrink-0" style={{ color, minWidth: 28 }}>{mark} {c.id}</span>
+                                      <span className="text-charcoal flex-1 truncate">{c.label}</span>
+                                      {c.score && <span className="text-[0.7rem] tabular-nums text-mid">{c.score}</span>}
+                                      {c.detail && (
+                                        <span className="text-[0.68rem] px-1.5 py-0.5 rounded-full" style={{ background: color, color: "white" }}>{c.detail}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                             {audit.missing.length > 0 && (
                               <div className="mt-2 pt-2 border-t border-warm/40 text-[0.72rem] text-mid/70">
                                 Missing: {audit.missing.map((m) => audit.labels?.[m] ?? m).join(", ")}
@@ -1605,7 +1937,7 @@ function FactoryProjectRow({
   );
 }
 
-function IdeaRow({ idea }: { idea: IdeaEntry }) {
+function IdeaRow({ idea, onPromote }: { idea: IdeaEntry; onPromote?: (slug: string) => void }) {
   const scoreColor =
     idea.score >= 80
       ? "var(--olive)"
@@ -1674,6 +2006,15 @@ function IdeaRow({ idea }: { idea: IdeaEntry }) {
           <Badge color="var(--terracotta)">painkiller</Badge>
         )}
         <span className="text-[0.75rem] text-mid/60">{idea.source}</span>
+        {onPromote && (
+          <button
+            onClick={() => onPromote(idea.slug)}
+            className="text-[0.7rem] px-2 py-1 rounded bg-olive/15 text-olive hover:bg-olive/25 transition-colors border border-olive/30 font-medium tracking-wide"
+            title="Create factory project from this idea"
+          >
+            → Factory
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1878,7 +2219,11 @@ function ShippedProductRow({ p }: { p: FactoryProject }) {
   const qgRaw = p.phases.quality_gate;
   const qgScore = qgRaw?.score ?? (qgRaw as unknown as Record<string, unknown> | undefined)?.design_score as number | undefined ?? null;
   const monetizationRaw = p.phases.monetization as unknown as Record<string, unknown> | undefined;
-  const mp = (p.phases.monetization as { pricing?: { monthly?: number; annual?: number } } | undefined)?.pricing;
+  // Pricing shape: legacy = {monthly: number, annual: number}, new = {monthly: {product_id, price}, annual: {product_id, price}}
+  const mpRaw = (p.phases.monetization as { pricing?: Record<string, unknown> } | undefined)?.pricing;
+  const priceOf = (v: unknown): number | null =>
+    typeof v === "number" ? v : (v && typeof v === "object" && "price" in v && typeof (v as { price: unknown }).price === "number" ? (v as { price: number }).price : null);
+  const mp = mpRaw ? { monthly: priceOf(mpRaw.monthly), annual: priceOf(mpRaw.annual) } : undefined;
   const tiersMonthly = (monetizationRaw?.tiers as Record<string,string> | undefined)?.monthly ?? '';
   const notes = (monetizationRaw?.summary ?? monetizationRaw?.notes ?? tiersMonthly) as string | undefined;
   const monthlyMatch = !mp && notes ? notes.match(/\$(\d+\.?\d*)/) : null;
@@ -2127,7 +2472,10 @@ function ApprovalPanel({
             <p className="label-caps text-[0.65rem] text-mid/70 mb-2">Monetization</p>
             {(() => {
               // Try structured pricing first, then parse from notes
-              const mp = monetization?.pricing;
+              const mpRaw = monetization?.pricing;
+              const priceOf = (v: unknown): number | null =>
+                typeof v === "number" ? v : (v && typeof v === "object" && "price" in v && typeof (v as { price: unknown }).price === "number" ? (v as { price: number }).price : null);
+              const mp = mpRaw ? { monthly: priceOf(mpRaw.monthly), annual: priceOf(mpRaw.annual) } : undefined;
               const monetizationRaw = monetization as unknown as Record<string, unknown> | undefined;
               // Flatten tiers object into a parseable string if present
               const tiersMonthly = (monetizationRaw?.tiers as Record<string,string> | undefined)?.monthly ?? '';

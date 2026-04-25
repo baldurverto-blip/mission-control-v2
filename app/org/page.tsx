@@ -12,7 +12,7 @@ interface Agent {
   id: string; name: string; title: string; role: string;
   capabilities: string; goals: Goal[];
   tier: "board" | "orchestrator" | "specialist";
-  type: "human" | "ai-openclaw" | "ai-claude" | "ai-gemini-cli";
+  type: "human" | "ai-openclaw" | "ai-claude" | "ai-gemini-cli" | "ai-cowork";
   model: string; adapter: string; invoke: string | null;
   reportsTo: string | null; escalatesTo: string | null;
   color: string; cronCount: number; crons: string[];
@@ -38,7 +38,7 @@ interface PulseEvent {
 // ─── Geometry — manual constellation layout, guaranteed no overlaps ──────────
 // Board at center (480, 420). Baldur top. 6 specialists in orbital positions.
 
-const W = 960, H = 820;
+const W = 960, H = 870;
 
 // Exact pixel centers for each orbital node (verified: no card overlaps)
 const NP: Record<string, { x: number; y: number }> = {
@@ -49,6 +49,7 @@ const NP: Record<string, { x: number; y: number }> = {
   bastion: { x: 320, y: 640 },
   vibe:    { x: 190, y: 420 },
   frigg:   { x: 190, y: 244 },
+  saga:    { x: 480, y: 640 },
 };
 
 // Board nucleus
@@ -58,8 +59,9 @@ const BW = 212, BH = 106;
 // Node card size
 const NW = 152, NH = 108;
 
-// Governance hexagon outline
-const HEX_PTS = Object.values(NP).map((p) => `${p.x},${p.y}`).join(" ");
+// Governance polygon outline (clockwise order for proper shape)
+const POLY_ORDER = ["main", "scout", "prism", "builder", "saga", "bastion", "vibe", "frigg"];
+const HEX_PTS = POLY_ORDER.map((id) => NP[id]).filter(Boolean).map((p) => `${p.x},${p.y}`).join(" ");
 
 // Connection paths
 const CONNS = [
@@ -75,11 +77,19 @@ const CONNS = [
   { d: `M${NP.main.x},${NP.main.y} C448,310 392,504 ${NP.bastion.x},${NP.bastion.y}`, color: "#C9A227", dash: "8 5", width: 1.1, escalation: false, delay: 0.4 },
   { d: `M${NP.main.x},${NP.main.y} C314,204 200,306 ${NP.vibe.x},${NP.vibe.y}`,       color: "#B07AA1", dash: "8 5", width: 1.1, escalation: false, delay: 0.5 },
   { d: `M${NP.main.x},${NP.main.y} C366,150 242,196 ${NP.frigg.x},${NP.frigg.y}`,     color: "#7A8B8A", dash: "8 5", width: 1.1, escalation: false, delay: 0.6 },
+  // Board → Saga (reports to Mads, straight vertical down)
+  {
+    d: `M${BCX},${BCY + BH / 2} L${NP.saga.x},${NP.saga.y - NH / 2}`,
+    color: "#2D8B6F", dash: "none", width: 1.5, escalation: false, delay: 0.05,
+  },
+  // Baldur → Saga (routing peer, dashed)
+  { d: `M${NP.main.x},${NP.main.y} C480,340 480,500 ${NP.saga.x},${NP.saga.y}`, color: "#2D8B6F", dash: "8 5", width: 1.1, escalation: false, delay: 0.65 },
   // Mimir escalation paths (inward, blue, faint — Builder/Bastion/Vibe/Prism → board)
   { d: `M${NP.prism.x},${NP.prism.y} C720,420 644,420 ${BCX + BW / 2},${BCY}`,        color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.7 },
   { d: `M${NP.builder.x},${NP.builder.y} C620,552 604,470 ${BCX + BW / 2},${BCY + 16}`, color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.8 },
   { d: `M${NP.bastion.x},${NP.bastion.y} C340,552 356,470 ${BCX - BW / 2},${BCY + 16}`, color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 0.9 },
   { d: `M${NP.vibe.x},${NP.vibe.y} C240,420 316,420 ${BCX - BW / 2},${BCY}`,          color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 1.0 },
+  { d: `M${NP.saga.x},${NP.saga.y} C480,560 490,490 ${BCX},${BCY + BH / 2 + 4}`,   color: "#5B6FA8", dash: "3 9", width: 0.8, escalation: true, delay: 1.1 },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -109,7 +119,7 @@ function isActive(agentId: string, pulses: PulseEvent[]): boolean {
 }
 
 function laneOf(a: Agent): "lane1" | "lane2" {
-  if (a.type === "human" || a.type === "ai-claude" || a.tier === "orchestrator") return "lane2";
+  if (a.type === "human" || a.type === "ai-claude" || a.type === "ai-cowork" || a.tier === "orchestrator") return "lane2";
   return "lane1";
 }
 
@@ -284,6 +294,7 @@ function OrbitalNode({ agent, selected, active, lastSeen, onSelect }: {
   const modelShort = agent.model.includes("MiniMax") ? "MiniMax"
     : agent.model.includes("gpt-5") ? "GPT-5.3"
     : agent.model.includes("claude") ? "Claude"
+    : agent.model.includes("Cowork") ? "Cowork"
     : agent.model.includes("Human") ? "Human"
     : (agent.model.split("/").pop()?.split(" ")[0] ?? "").slice(0, 7);
   const borderC = selected ? agent.color : `${agent.color}65`;
@@ -485,6 +496,7 @@ function ModelRoutingStrip({ agents }: { agents: Agent[] }) {
     { task: "Architecture decision",             via: "Mimir",     model: "Sonnet 4.6",     color: "#7A8FC8" },
     { task: "App Factory build phase",           via: "Mimir",     model: "Sonnet 4.6",     color: "#7A8FC8" },
     { task: "Orchestration & strategy",          via: "Baldur",    model: "GPT-5.3 Codex",  color: "#BC6143" },
+    { task: "Sales · outreach · pipeline · demos",                     via: "Saga",        model: "Claude Opus",    color: "#2D8B6F" },
     { task: "Research · builds · security · distribution · governance", via: "Specialists", model: "MiniMax-M2.5", color: "#76875A" },
   ];
 

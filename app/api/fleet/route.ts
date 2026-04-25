@@ -20,6 +20,8 @@ interface ProjectState {
   created_at: string;
   updated_at: string;
   failure_reason?: string | null;
+  update_in_review?: boolean;
+  update_version?: string;
 }
 
 interface KPIFile {
@@ -227,6 +229,10 @@ export async function GET() {
         // Health
         qgScore: p.qgScore,
         e2eStatus: p.e2eStatus,
+
+        // Update in review
+        updateInReview: p.state.update_in_review ?? false,
+        updateVersion: p.state.update_version ?? null,
       };
     });
 

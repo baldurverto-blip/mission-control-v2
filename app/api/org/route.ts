@@ -14,7 +14,7 @@ interface OrgAgent {
   name: string;
   title: string;
   tier: "board" | "orchestrator" | "specialist";
-  type: "human" | "ai-openclaw" | "ai-claude" | "ai-gemini-cli";
+  type: "human" | "ai-openclaw" | "ai-claude" | "ai-gemini-cli" | "ai-cowork";
   role: string;
   capabilities: string;
   goals: Goal[];
@@ -160,6 +160,11 @@ export async function GET() {
         name: "Governance Loop",
         steps: ["Frigg audit", "Value stream map", "Improvement register", "Proposals", "Implement"],
         agents: ["frigg", "main"],
+      },
+      {
+        name: "Revenue Lane",
+        steps: ["Scout prospect research", "Saga pipeline", "Mimir proposal draft", "Saga personalise", "Mads sends", "Deal conversion"],
+        agents: ["scout", "saga", "mimir"],
       },
     ];
 

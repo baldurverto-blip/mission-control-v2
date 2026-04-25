@@ -27,7 +27,11 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 
     const res = await fetch(url.toString(), fetchOpts);
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    const resHeaders: Record<string, string> = {};
+    if (req.method === "GET" && res.ok) {
+      resHeaders["Cache-Control"] = "max-age=25, stale-while-revalidate=10";
+    }
+    return NextResponse.json(data, { status: res.status, headers: resHeaders });
   } catch {
     return NextResponse.json({ offline: true, error: "Growth-Ops backend unreachable" }, { status: 503 });
   }

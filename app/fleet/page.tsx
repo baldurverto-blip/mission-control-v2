@@ -35,6 +35,8 @@ interface FleetProduct {
   signals: { type: string; severity: string; message: string }[];
   qgScore: number | null;
   e2eStatus: string | null;
+  updateInReview: boolean;
+  updateVersion: string | null;
 }
 
 interface FleetStats {
@@ -308,6 +310,24 @@ function ProductCard({
                 >
                   {statusLabel}
                 </span>
+                {product.updateInReview && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontFamily: "var(--font-dm-mono), monospace",
+                      color: "var(--amber-text)",
+                      background: "var(--amber-soft)",
+                      border: "1px solid var(--amber-border)",
+                      borderRadius: 4,
+                      padding: "1px 5px",
+                      fontWeight: 500,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {product.updateVersion ? `v${product.updateVersion} in review` : "Update in Review"}
+                  </span>
+                )}
                 <span
                   style={{
                     fontSize: 10,

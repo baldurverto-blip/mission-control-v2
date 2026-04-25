@@ -55,7 +55,15 @@ async function buildDynamicAudit(
         missing.push(art.file);
       }
     }
-    artifacts[phaseName] = { required, delivered, missing, labels };
+    // Parse sub-checks from CR/QG reports so UI can show per-dimension status
+    // instead of just "report present" 1/1.
+    let subChecks: SubCheck[] | undefined;
+    if (phaseName === "code_review" && delivered.includes("code-review-report.md")) {
+      subChecks = await parseCodeReviewReport(join(projectDir, "code-review-report.md"));
+    } else if (phaseName === "quality_gate" && delivered.includes("quality-gate-report.md")) {
+      subChecks = await parseQualityGateReport(join(projectDir, "quality-gate-report.md"));
+    }
+    artifacts[phaseName] = { required, delivered, missing, labels, ...(subChecks && subChecks.length > 0 ? { subChecks } : {}) };
   }
   return { slug, updated_at: new Date().toISOString(), phase: currentPhase, artifacts };
 }
@@ -76,6 +84,7 @@ interface PhaseState {
   score?: number;
   attempt?: number;
   reason?: string;
+  stale_since?: string; // G52: set when build restarts after this phase was complete
 }
 
 interface ProjectState {
@@ -89,6 +98,7 @@ interface ProjectState {
   failure_reason?: string | null;
   track?: string;
   product_type?: string;
+  current_action?: string | null;
 }
 
 interface ArtifactPhaseAudit {
@@ -96,6 +106,68 @@ interface ArtifactPhaseAudit {
   delivered: string[];
   missing: string[];
   labels?: Record<string, string>; // file → human label
+  // Sub-checks parsed from the report file (CR/QG). Each has a name, score or pass/fail,
+  // and a short detail line. Lets MC show "D0 Runtime 0/10 FAIL" per-dimension instead of
+  // just "report present" for CR/QG phases.
+  subChecks?: SubCheck[];
+}
+
+interface SubCheck {
+  id: string;          // e.g. "D0", "D1", or "C1", "H1"
+  label: string;       // e.g. "Runtime Verification"
+  score?: string;      // e.g. "0 / 10" — optional (CR checklist is pass/fail only)
+  weight?: string;     // e.g. "15%"
+  status: "pass" | "fail" | "warn"; // derived: score<threshold → fail; FAIL keyword → fail
+  detail?: string;     // one-line context (weight, HARD FAIL marker, etc)
+}
+
+async function parseQualityGateReport(path: string): Promise<SubCheck[]> {
+  try {
+    const content = await readFile(path, "utf-8");
+    const subs: SubCheck[] = [];
+    // Match lines like: ## D0 — Runtime Verification (weight 15%): **0 / 10 — HARD FAIL**
+    const re = /^##\s+(D\d+)\s*[—\-]\s*([^(:]+?)(?:\(weight\s*(\d+%)\))?\s*:\s*\*\*([^*]+)\*\*/gm;
+    let m;
+    while ((m = re.exec(content)) !== null) {
+      const [, id, rawLabel, weight, rawScore] = m;
+      const label = rawLabel.trim();
+      const scoreStr = rawScore.trim();
+      const scoreMatch = scoreStr.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
+      const scoreNum = scoreMatch ? parseFloat(scoreMatch[1]) : null;
+      const hardFail = /HARD FAIL/i.test(scoreStr);
+      const status: SubCheck["status"] = hardFail || (scoreNum !== null && scoreNum < 6)
+        ? "fail"
+        : (scoreNum !== null && scoreNum < 8) ? "warn" : "pass";
+      subs.push({ id, label, score: scoreMatch ? `${scoreMatch[1]} / 10` : undefined, weight, status, detail: hardFail ? "HARD FAIL" : undefined });
+    }
+    return subs;
+  } catch { return []; }
+}
+
+async function parseCodeReviewReport(path: string): Promise<SubCheck[]> {
+  try {
+    const content = await readFile(path, "utf-8");
+    const subs: SubCheck[] = [];
+    // Checklist Compliance rows: | 1 | Security — ... | ✅ |
+    const checklistMatch = content.match(/##\s+Checklist Compliance[^\n]*\n\n([\s\S]+?)\n\n---/);
+    if (checklistMatch) {
+      const rowRe = /^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*([✅❌✗✓⚠️].*?)\s*\|/gm;
+      let m;
+      while ((m = rowRe.exec(checklistMatch[1])) !== null) {
+        const [, num, labelCell, resultCell] = m;
+        const label = labelCell.split("—")[0].trim() || labelCell.trim();
+        const status: SubCheck["status"] = /✅|✓/.test(resultCell) ? "pass"
+          : /⚠️/.test(resultCell) ? "warn" : "fail";
+        subs.push({ id: `C${num}`, label, status, detail: labelCell.includes("—") ? labelCell.split("—").slice(1).join("—").trim() : undefined });
+      }
+    }
+    // Issues counts
+    const critCount = (content.match(/^###\s+CRITICAL[\s\S]*?(?=^###|\Z)/m)?.[0].match(/^[-*]\s/gm) || []).length;
+    const highCount = (content.match(/^###\s+HIGH[\s\S]*?(?=^###|\Z)/m)?.[0].match(/^[-*]\s/gm) || []).length;
+    if (critCount > 0) subs.push({ id: "CRIT", label: `${critCount} CRITICAL issue${critCount > 1 ? "s" : ""}`, status: "fail" });
+    if (highCount > 0) subs.push({ id: "HIGH", label: `${highCount} HIGH issue${highCount > 1 ? "s" : ""}`, status: "warn" });
+    return subs;
+  } catch { return []; }
 }
 
 interface ArtifactAudit {
@@ -485,6 +557,16 @@ export async function GET() {
       new Date(b.queued_at ?? 0).getTime() - new Date(a.queued_at ?? 0).getTime()
     );
 
+    // Factory intake gate: only qualified ideas at or above min_score feed the build loop.
+    // Proposed/refined ideas are funnel state, shown in Growth Ops — not here.
+    const minScore = (config as { idea_queue_min_score?: number }).idea_queue_min_score ?? 0;
+    ideaQueue.queue = ideaQueue.queue.filter((i) => {
+      if (i.status !== "qualified") return false;
+      const qualScore = (i as { qualification?: { score?: number } }).qualification?.score;
+      const score = qualScore ?? i.score ?? 0;
+      return score >= minScore;
+    });
+
     // Compute stats
     const building = projects.filter((p) =>
       ["research", "validation", "design", "build", "quality-gate", "monetization", "packaging"].includes(p.status)
@@ -538,10 +620,22 @@ export async function GET() {
       // Derive current phase from actual phase data, not top-level status
       // "submitted" means app is in review but distribution phases (marketing/promo) may still be active
       const isTerminal = TERMINAL_STATUSES.includes(p.status);
+      // Priority order (fixes MC display bug where a later phase is running but
+      // an earlier phase was marked "incomplete" by the artifact gate):
+      //   1. A phase currently in_progress — that's what's actually running
+      //   2. The phase named by top-level `status`, if it's not done yet
+      //   3. Fallback: first non-done phase
+      const inProgressIdx = trackPhases.findIndex((ph) => p.phases[ph]?.status === "in_progress");
+      const topStatusIdx = trackPhases.indexOf(p.status as any);
+      const topStatusActive = topStatusIdx >= 0 && !DONE_STATUSES.includes(p.phases[p.status]?.status);
       const nextIncompleteIdx = trackPhases.findIndex((ph) => !DONE_STATUSES.includes(p.phases[ph]?.status));
       const currentPhaseIdx = isTerminal
         ? -1  // fully done
-        : nextIncompleteIdx === -1 ? -1 : nextIncompleteIdx;
+        : inProgressIdx >= 0
+          ? inProgressIdx
+          : topStatusActive
+            ? topStatusIdx
+            : nextIncompleteIdx === -1 ? -1 : nextIncompleteIdx;
 
       // Extract latest KPI snapshot for dashboard display
       const latestKPI = p.kpis?.snapshots?.length

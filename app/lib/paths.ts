@@ -1,6 +1,8 @@
 import { join } from "path";
 
 export const WORKSPACE = join(process.env.HOME ?? "/Users/baldurclaw", "verto-workspace");
+export const DOCS = join(WORKSPACE, "docs");
+export const DOCS_INTERNAL = join(DOCS, "internal");
 export const BRAIN = join(WORKSPACE, "brain");
 export const OPS = join(WORKSPACE, "ops");
 export const RESEARCH = join(WORKSPACE, "research", "ideas");
@@ -28,6 +30,7 @@ export const LOGS_DIR = join(OPS, "logs");
 export const LEARNING_DIR = join(BRAIN, "learning");
 export const TASKS_JSON = join(OPS, "tasks.json");
 export const BOARD_GOALS_MD = join(WORKSPACE, "company", "board-goals.md");
+export const COMPANY_OVERVIEW_MD = join(DOCS_INTERNAL, "company-overview.md");
 export const BOARD_MEETINGS_DIR = join(OPS, "board-meetings");
 export const BOARD_MEETING_TRANSCRIPTS_DIR = join(BOARD_MEETINGS_DIR, "transcripts");
 export const BOARD_MEETING_SUMMARIES_DIR = join(BOARD_MEETINGS_DIR, "summaries");
@@ -36,6 +39,9 @@ export const BRAIN_MEMORY_MD = join(BRAIN, "MEMORY.md");
 export const BRAIN_CONTEXT_MD = join(BRAIN, "CONTEXT.md");
 export const BRAIN_PRINCIPLES_MD = join(BRAIN, "PRINCIPLES.md");
 export const BRAIN_NOW_MD = join(BRAIN, "NOW.md");
+export const AGENTMAIL_STATE_JSON = join(WORKSPACE, "state", "agentmail", "incoming-check-state.json");
+export const AGENTMAIL_DIGEST_DIR = join(OPS, "agentmail");
+export const AGENTMAIL_ALLOWLIST_TXT = join(OPS, "agentmail-allowlist.txt");
 export const CLAUDE_MEMORY_DIR = join(
   process.env.HOME ?? "/Users/baldurclaw",
   ".claude", "projects", "-Users-baldurclaw", "memory"

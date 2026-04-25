@@ -19,27 +19,33 @@ interface KPIs {
   failures: { recent: number; daysSince: number | null };
 }
 
+interface AgentMailStatus {
+  latestNewMessages: number;
+}
+
 interface CommandBarProps {
   pulseData: PulseData | null;
   kpis: KPIs | null;
   systemHealth: string;
   healthColor: string;
   roadmapPct: number;
+  agentmail?: AgentMailStatus | null;
 }
 
 // ─── Agent Constellation ─────────────────────────────────────────────
 
 const SPECIALIST_IDS = ALL_AGENT_IDS.filter((id) => id !== "baldur");
 
-// Orbital positions for 6 specialists around Baldur (center at 90,44)
-// Semi-arc above: evenly spaced with a second shoulder position
+// Orbital positions for 7 specialists around Baldur (center at 90,44)
+// Semi-arc above: evenly spaced
 const ORBITAL_POSITIONS: Record<string, { x: number; y: number }> = {
-  scout:   { x: 22,  y: 20 },
-  prism:   { x: 46,  y: 8 },
-  builder: { x: 72,  y: 2 },
-  bastion: { x: 108, y: 2 },
-  vibe:    { x: 134, y: 8 },
-  frigg:   { x: 158, y: 20 },
+  scout:   { x: 16,  y: 22 },
+  prism:   { x: 36,  y: 10 },
+  builder: { x: 60,  y: 3 },
+  saga:    { x: 90,  y: 0 },
+  bastion: { x: 120, y: 3 },
+  vibe:    { x: 144, y: 10 },
+  frigg:   { x: 164, y: 22 },
 };
 
 const BALDUR_POS = { x: 90, y: 44 };
@@ -235,11 +241,13 @@ function SystemVitals({
   kpis,
   roadmapPct,
   systemHealth,
+  agentmail,
 }: {
   pulseData: PulseData | null;
   kpis: KPIs | null;
   roadmapPct: number;
   systemHealth: string;
+  agentmail?: AgentMailStatus | null;
 }) {
   const totalToday = pulseData?.stats.totalToday ?? 0;
   const activeCount = pulseData?.stats.activeAgents.length ?? 0;
@@ -263,6 +271,11 @@ function SystemVitals({
           value={kpis ? `${kpis.cron.healthy}/${kpis.cron.total}` : "—"}
           label="crons"
           color={cronOk ? "var(--dark-muted)" : "#C9A227"}
+        />
+        <VitalPill
+          value={`${agentmail?.latestNewMessages ?? 0}`}
+          label="new mail"
+          color={(agentmail?.latestNewMessages ?? 0) > 0 ? "#C9A227" : "var(--dark-muted)"}
         />
       </div>
 
@@ -319,6 +332,7 @@ export function CommandBar({
   systemHealth,
   healthColor,
   roadmapPct,
+  agentmail,
 }: CommandBarProps) {
   return (
     <div
@@ -367,6 +381,7 @@ export function CommandBar({
           kpis={kpis}
           roadmapPct={roadmapPct}
           systemHealth={systemHealth}
+          agentmail={agentmail}
         />
       </div>
     </div>

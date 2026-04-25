@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { execSync } from 'child_process';
 import { existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'path';
+import { getClaudeCodeUsage } from '@/app/lib/openclaw-cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,43 +15,14 @@ export async function GET() {
     duration_ms: 0,
   };
 
-  // Claude Code - via ccusage
-  try {
-    const output = execSync('npx -y ccusage daily --json 2>/dev/null', {
-      encoding: 'utf8',
-      timeout: 30000,
-    });
-    
-    if (output.trim().startsWith('{')) {
-      const data = JSON.parse(output);
-      const today = new Date().toISOString().split('T')[0];
-      const todayData = data.daily?.find((d: any) => d.date === today);
-      const latestData = data.daily?.[data.daily.length - 1];
-      
-      result.providers['claude-code'] = {
-        status: 'ok',
-        date: todayData?.date || latestData?.date || today,
-        input_tokens: todayData?.inputTokens || latestData?.inputTokens || 0,
-        output_tokens: todayData?.outputTokens || latestData?.outputTokens || 0,
-        cache_creation_tokens: todayData?.cacheCreationTokens || latestData?.cacheCreationTokens || 0,
-        cache_read_tokens: todayData?.cacheReadTokens || latestData?.cacheReadTokens || 0,
-        total_tokens: todayData?.totalTokens || latestData?.totalTokens || 0,
-        total_cost: todayData?.totalCost || latestData?.totalCost || 0,
-        models: todayData?.modelsUsed || latestData?.modelsUsed || [],
-      };
-    }
-  } catch (e: any) {
-    result.providers['claude-code'] = {
-      status: 'error',
-      error: e.message || 'Failed to fetch Claude Code usage',
-    };
-  }
+  // Claude Code - via ccusage (cached, async)
+  result.providers['claude-code'] = await getClaudeCodeUsage();
 
   // OpenAI API
   try {
     const keyPath = join(process.env.HOME || '', '.openclaw/api-keys/openai.key');
     if (existsSync(keyPath)) {
-      const apiKey = require('fs').readFileSync(keyPath, 'utf8').trim();
+      const apiKey = readFileSync(keyPath, 'utf8').trim();
       const today = new Date().toISOString().split('T')[0];
       
       const response = await fetch(`https://api.openai.com/v1/usage?date=${today}`, {
