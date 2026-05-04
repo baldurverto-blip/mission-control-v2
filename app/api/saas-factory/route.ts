@@ -228,7 +228,9 @@ export async function GET() {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     return NextResponse.json({
-      projects: enriched.filter((p) => p.status !== "rejected"),
+      // Hide shipped + rejected from the factory lane.
+      // Shipped projects show up on /fleet automatically (api/fleet reads SAAS_FACTORY_DIR).
+      projects: enriched.filter((p) => p.status !== "rejected" && p.status !== "shipped"),
       ideaQueue,
       watchlist,
       config,

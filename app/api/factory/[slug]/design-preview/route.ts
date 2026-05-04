@@ -1,6 +1,77 @@
-import { readFile } from "fs/promises";
+import { readFile, readdir } from "fs/promises";
 import { join } from "path";
 import { resolveFactoryDir } from "@/app/lib/factory-paths";
+
+// ── Visual-spec discovery ─────────────────────────────────────────────────────
+
+type Screen = { file: string; title: string };
+
+async function loadVisualSpecScreens(specDir: string): Promise<Screen[]> {
+  let entries: string[];
+  try {
+    entries = await readdir(specDir);
+  } catch {
+    return [];
+  }
+
+  // Try to read index.html and parse ordering from screen-card hrefs
+  let ordered: string[] = [];
+  try {
+    const idx = await readFile(join(specDir, "index.html"), "utf-8");
+    const re = /class="screen-card"\s+href="([^"]+\.html)"/g;
+    for (const m of idx.matchAll(re)) ordered.push(m[1]);
+  } catch { /* no index */ }
+
+  const candidates = entries.filter(
+    (f) => f.endsWith(".html") && f !== "index.html",
+  );
+
+  // Use index ordering when available; otherwise alphabetical
+  const final = (ordered.length ? ordered.filter((f) => candidates.includes(f)) : candidates.sort());
+
+  const screens: Screen[] = [];
+  for (const file of final) {
+    let title = file.replace(/\.html$/, "").replace(/[-_]/g, " ");
+    try {
+      const html = await readFile(join(specDir, file), "utf-8");
+      const t = html.match(/<title>([^<]+)<\/title>/i)?.[1];
+      if (t) {
+        // Strip a leading "AppName — " prefix if present
+        title = t.replace(/^[^—–-]+[—–-]\s*/, "").replace(/&amp;/g, "&").trim();
+      }
+    } catch { /* keep filename-derived title */ }
+    screens.push({ file, title });
+  }
+  return screens;
+}
+
+function buildScreensSection(slug: string, screens: Screen[]): string {
+  if (!screens.length) return "";
+  const tiles = screens.map((s) => `
+    <a class="screen-tile" href="/api/factory/${slug}/visual-spec/${s.file}" target="_blank" rel="noopener">
+      <div class="screen-frame">
+        <iframe
+          src="/api/factory/${slug}/visual-spec/${s.file}"
+          loading="lazy"
+          scrolling="no"
+          title="${s.title}"
+        ></iframe>
+      </div>
+      <div class="screen-meta">
+        <div class="screen-title">${s.title}</div>
+        <div class="screen-file">${s.file} ↗</div>
+      </div>
+    </a>`).join("");
+
+  return `
+<div class="screens-block">
+  <div class="block-eyebrow">Screen Prototypes — actual mockups</div>
+  <div class="screens-grid">
+    ${tiles}
+  </div>
+  <p class="screens-hint">Tiles render the live HTML mockups. Click any tile to open it full-size.</p>
+</div>`;
+}
 
 // ── Token extraction ──────────────────────────────────────────────────────────
 
@@ -284,7 +355,12 @@ function mdToHtml(md: string): string {
 
 // ── Page builder ──────────────────────────────────────────────────────────────
 
-function buildHtmlPage(slug: string, markdown: string, primaryColor: string): string {
+function buildHtmlPage(
+  slug: string,
+  markdown: string,
+  primaryColor: string,
+  screensSection: string = "",
+): string {
   const appName = markdown.match(/^#\s+Design Brief\s*[—–-]\s*(.+)/m)?.[1]?.trim() ?? slug;
   const fonts   = extractFonts(markdown);
 
@@ -295,7 +371,9 @@ function buildHtmlPage(slug: string, markdown: string, primaryColor: string): st
     ? `<link href="https://fonts.googleapis.com/css2?family=${extraFonts.map((f) => encodeURIComponent(f) + ":wght@400;600;700").join("&family=")}&display=swap" rel="stylesheet">`
     : "";
 
-  const impression = buildImpression(appName, markdown);
+  // When real screen prototypes exist, drop the misleading synthetic phone scaffold —
+  // the screens-section IS the visual impression.
+  const impression = screensSection ? "" : buildImpression(appName, markdown);
   const body = mdToHtml(markdown);
 
   return `<!DOCTYPE html>
@@ -344,6 +422,24 @@ ${extraFontsLink}
 
   .hex { display: inline-flex; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 12.5px; }
   .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+
+  /* ── Screen prototypes ── */
+  .screens-block { margin: 8px 0 32px; }
+  .block-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mid); margin-bottom: 16px; }
+  .screens-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+  .screen-tile { display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease; }
+  .screen-tile:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(0,0,0,0.10); }
+  .screen-frame { position: relative; width: 100%; aspect-ratio: 390 / 600; overflow: hidden; background: #EFE8E4; pointer-events: none; }
+  .screen-frame iframe { position: absolute; top: 0; left: 0; width: 390px; height: 600px; border: none; transform-origin: top left; transform: scale(calc(var(--tile-w, 220) / 390)); }
+  /* Use container query for accurate scaling */
+  @supports (container-type: inline-size) {
+    .screen-frame { container-type: inline-size; }
+    .screen-frame iframe { transform: scale(0.56); width: 390px; height: 600px; }
+  }
+  .screen-meta { padding: 10px 14px 14px; }
+  .screen-title { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .screen-file { font-family: 'DM Mono', monospace; font-size: 10.5px; color: var(--mid); }
+  .screens-hint { margin-top: 14px; font-size: 12.5px; color: var(--mid); font-style: italic; }
 </style>
 </head>
 <body>
@@ -353,6 +449,7 @@ ${extraFontsLink}
 </div>
 <div class="content">
 ${impression}
+${screensSection}
 ${body}
 </div>
 </body>
@@ -369,28 +466,33 @@ export async function GET(
   const FACTORY = await resolveFactoryDir(slug);
   const htmlPath  = join(FACTORY, slug, "design-preview.html");
   const briefPath = join(FACTORY, slug, "design-brief.md");
+  const specDir   = join(FACTORY, slug, "visual-spec");
 
-  // Try the generated HTML preview first
+  // Single source of truth: render the design brief and embed any visual-spec
+  // screen prototypes inline. Falls back to a baked design-preview.html or, last,
+  // the brief alone with the synthetic scaffold.
+  try {
+    const md = await readFile(briefPath, "utf-8");
+    const screens = await loadVisualSpecScreens(specDir);
+    const screensSection = buildScreensSection(slug, screens);
+    const colorMatch = md.match(/`primary`\s*\|\s*(#[0-9A-Fa-f]{6})/i);
+    const primary = colorMatch?.[1] ?? "#3A7D6E";
+    const html = buildHtmlPage(slug, md, primary, screensSection);
+    return new Response(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  } catch { /* no brief — fall through */ }
+
+  // Fallbacks: a pre-baked HTML preview, then a 404
   try {
     const html = await readFile(htmlPath, "utf-8");
     return new Response(html, {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
-  } catch { /* no preview HTML — fall through to markdown render */ }
+  } catch { /* no preview HTML */ }
 
-  // Fall back to rendering design-brief.md
-  try {
-    const md = await readFile(briefPath, "utf-8");
-    const colorMatch = md.match(/`primary`\s*\|\s*(#[0-9A-Fa-f]{6})/i);
-    const primary = colorMatch?.[1] ?? "#3A7D6E";
-    const html = buildHtmlPage(slug, md, primary);
-    return new Response(html, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  } catch {
-    return new Response(
-      `<html><body style="font-family:sans-serif;padding:48px;background:#f5f2ec;color:#1c1917"><h2>No design brief found for <strong>${slug}</strong></h2><p>Design phase has not run yet.</p></body></html>`,
-      { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
-    );
-  }
+  return new Response(
+    `<html><body style="font-family:sans-serif;padding:48px;background:#f5f2ec;color:#1c1917"><h2>No design brief found for <strong>${slug}</strong></h2><p>Design phase has not run yet.</p></body></html>`,
+    { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
+  );
 }

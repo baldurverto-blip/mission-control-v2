@@ -408,9 +408,21 @@ function AnalyticsTab({ data, accent }: { data: FleetDetail; accent: string }) {
   );
 }
 
-function DistributionTab({ data, accent }: { data: FleetDetail; accent: string }) {
+interface SeoTotals { clicks?: number; impressions?: number; ctr?: number; position?: number }
+interface SeoLatest { recorded_at?: string; totals?: SeoTotals }
+interface SeoProperty {
+  slug: string;
+  site_url: string;
+  kind: string;
+  registered_at?: string;
+  host_filter?: string | null;
+  parent_site?: string | null;
+  latest?: SeoLatest | null;
+}
+
+function DistributionTab({ data, accent, seoEntry }: { data: FleetDetail; accent: string; seoEntry: SeoProperty | null }) {
   const d = data.distribution;
-  const hasContent = d.reddit || d.seo || d.engine || d.landingUrl;
+  const hasContent = d.reddit || d.seo || d.engine || d.landingUrl || seoEntry;
 
   if (!hasContent) return <Card><PendingNote text="No distribution data available yet." /></Card>;
 
@@ -451,6 +463,26 @@ function DistributionTab({ data, accent }: { data: FleetDetail; accent: string }
           </div>
         </Card>
       )}
+
+      {/* Search Performance — from SEO Engine (gsc-cli) */}
+      <Card>
+        <SectionLabel>Search Performance (Google)</SectionLabel>
+        {seoEntry?.latest?.totals ? (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+              <MetricBox label="Impressions (28d)" value={fmt(seoEntry.latest.totals.impressions)} color={(seoEntry.latest.totals.impressions ?? 0) > 0 ? accent : undefined} />
+              <MetricBox label="Clicks (28d)" value={fmt(seoEntry.latest.totals.clicks)} />
+              <MetricBox label="Avg position" value={seoEntry.latest.totals.position != null ? seoEntry.latest.totals.position.toFixed(1) : "—"} />
+              <MetricBox label="CTR" value={seoEntry.latest.totals.ctr != null ? `${(seoEntry.latest.totals.ctr * 100).toFixed(2)}%` : "—"} />
+            </div>
+            <p style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", marginTop: 10, opacity: 0.6 }}>
+              GSC property: {seoEntry.site_url} · last pull {seoEntry.latest.recorded_at ? relTime(seoEntry.latest.recorded_at) : "—"}
+            </p>
+          </>
+        ) : (
+          <PendingNote text="No GSC snapshot yet for this slug — covered by sc-domain:vertostudios.com property; per-app data appears once monitor cron runs (06:00 CET daily)." />
+        )}
+      </Card>
 
       {/* Distribution Engine */}
       {d.engine && (
@@ -629,6 +661,7 @@ export default function FleetDetailPage() {
   const slug = params.slug as string;
 
   const [data, setData] = useState<FleetDetail | null>(null);
+  const [seoProperties, setSeoProperties] = useState<SeoProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
@@ -649,11 +682,41 @@ export default function FleetDetailPage() {
     }
   }, [slug]);
 
+  const fetchSeo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/seo");
+      const json = await res.json();
+      setSeoProperties(json.properties ?? []);
+    } catch {
+      setSeoProperties([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60_000);
+    fetchSeo();
+    const interval = setInterval(() => {
+      fetchData();
+      fetchSeo();
+    }, 60_000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, fetchSeo]);
+
+  // Match SEO Engine property to this fleet slug. Fleet slugs may carry a date
+  // suffix (`pagemark-0316`) while SEO catalog slugs are clean (`pagemark`). Also
+  // the SEO catalog may use the full hostname as the slug (`hytrack.vertostudios.com`).
+  // Try in order: exact slug, host_filter prefix match, host_filter equals first
+  // hyphen segment, site_url contains the slug.
+  const fleetPrefix = slug.split("-")[0]; // "pagemark-0316" -> "pagemark"
+  const seoEntry = seoProperties.find((p) => {
+    if (p.slug === slug) return true;
+    if (p.slug === fleetPrefix) return true;
+    const hostPrefix = p.host_filter?.split(".")[0];
+    if (hostPrefix && hostPrefix === fleetPrefix) return true;
+    if (p.site_url.includes(`/${slug}.`) || p.site_url.includes(`:${slug}.`)) return true;
+    if (p.site_url.includes(`/${fleetPrefix}.`) || p.site_url.includes(`:${fleetPrefix}.`)) return true;
+    return false;
+  }) ?? null;
 
   if (loading) {
     return (
@@ -756,7 +819,7 @@ export default function FleetDetailPage() {
       <div className="fade-up" key={activeTab}>
         {activeTab === "overview" && <OverviewTab data={data} accent={accent} />}
         {activeTab === "analytics" && <AnalyticsTab data={data} accent={accent} />}
-        {activeTab === "distribution" && <DistributionTab data={data} accent={accent} />}
+        {activeTab === "distribution" && <DistributionTab data={data} accent={accent} seoEntry={seoEntry} />}
         {activeTab === "health" && <HealthTab data={data} accent={accent} />}
       </div>
     </div>

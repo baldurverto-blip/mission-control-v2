@@ -148,6 +148,7 @@ const VERCEL_PROJECT_IDS: Record<string, string> = {
   "chilllog": "prj_SP05kI0iUtsud4uo1qXLnpdZSBh8",
   safebite: "prj_2jHxzL2tnq6sfhcNlbZZtCvuhjoc",
   brief: "prj_QiRX3n88KBT1SBzYlfO1wEKQCnYx",
+  "ai-couples-communication-coa-0424": "prj_0Ij7TE5QNPKB7FgVFZjQYQRABUHU",
 };
 
 interface VercelAnalytics {
