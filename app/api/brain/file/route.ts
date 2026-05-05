@@ -15,6 +15,7 @@ const ALLOWED = new Set([
   "company-brain-research-and-signals.md",
   "company-brain-skills-and-tools.md",
   "company-brain-ops-and-governance.md",
+  "company-brain-learning-system.md",
   "company-brain-rollout-plan.md",
   "company-brain-maintenance-runbook.md",
   "company-brain-promotion-workflow.md",

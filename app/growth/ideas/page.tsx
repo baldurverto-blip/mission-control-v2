@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { Badge } from "../../components/Badge";
 import { EmptyState } from "../../components/EmptyState";
+import DiscoveryHealthCard from "./DiscoveryHealthCard";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -821,6 +822,9 @@ export default function IdeasPage() {
             {proposing ? "Discovering..." : "Run Proposer"}
           </button>
         </div>
+
+        {/* ── Pipeline Health (W8 of lively-foraging-armadillo) ── */}
+        <DiscoveryHealthCard />
 
         {/* ── Signal Fuel Bar (horizontal, above kanban) ── */}
         {hasSignalFuel && (

@@ -1,6 +1,6 @@
-import { readFile, stat } from "fs/promises";
+import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
-import { DOCS_INTERNAL, OPS } from "@/app/lib/paths";
+import { DOCS_INTERNAL, OPS, PROPOSALS_DIR, SKILLS_DIR, TASKS_JSON, WORKSPACE } from "@/app/lib/paths";
 
 export interface BrainDocSummary {
   name: string;
@@ -72,6 +72,46 @@ export interface CompanyBrainData {
     withSourceOfTruth: number;
   };
   status: BrainStatus;
+  learningLoop: BrainLearningLoopHealth;
+}
+
+export interface LearningLoopOutputSummary {
+  name: string | null;
+  path: string | null;
+  modifiedAt: string | null;
+  reviewedCount: number | null;
+  queueCounts: {
+    researchWiki: number;
+    companyBrain: number;
+    skills: number;
+    tasks: number;
+    proposals: number;
+  };
+  recommendedNextPromotions: string[];
+}
+
+export interface LearningLoopTaskSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority?: string;
+}
+
+export interface BrainLearningLoopHealth {
+  latestOutput: LearningLoopOutputSummary;
+  wiki: {
+    pageCount: number;
+    logModifiedAt: string | null;
+    latestLogEntry: string | null;
+    freshCount: number;
+    staleCount: number;
+  };
+  downstream: {
+    skillsTotal: number;
+    wikiLoopSkillExists: boolean;
+    openLearningTasks: LearningLoopTaskSummary[];
+    recentProposalCount: number;
+  };
 }
 
 const COMPANY_BRAIN_FILES = [
@@ -89,6 +129,7 @@ const COMPANY_BRAIN_FILES = [
   "company-brain-research-and-signals.md",
   "company-brain-skills-and-tools.md",
   "company-brain-ops-and-governance.md",
+  "company-brain-learning-system.md",
 ] as const;
 
 const CORE_DOC_NAMES = new Set<string>([
@@ -135,7 +176,17 @@ const BROWSE_SECTION_CONFIG = [
     summary: "How work is coordinated, tracked, and governed across the studio.",
     names: ["company-brain-ops-and-governance.md"],
   },
+  {
+    id: "learning",
+    title: "Learning system",
+    summary: "How raw evidence becomes wiki synthesis, Company Brain updates, skills, tasks, and proposals.",
+    names: ["company-brain-learning-system.md"],
+  },
 ] as const;
+
+const RESEARCH_ROOT = join(WORKSPACE, "research");
+const RESEARCH_OUTPUTS_DIR = join(RESEARCH_ROOT, "outputs");
+const RESEARCH_WIKI_DIR = join(RESEARCH_ROOT, "wiki");
 
 function extractTitle(content: string, fallback: string): string {
   return content.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? fallback;
@@ -174,6 +225,139 @@ function parseLogEntries(content: string): BrainLogEntry[] {
       .map((line) => line.slice(2).trim());
     return { date: heading.trim(), bullets };
   }).filter((entry) => entry.bullets.length > 0).slice(0, 4);
+}
+
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countSectionItems(content: string, heading: string): number {
+  const section = content.match(new RegExp(`^###\\s+${escapeRegex(heading)}\\n([\\s\\S]*?)(?=^###\\s+|^##\\s+|(?![\\s\\S]))`, "m"))?.[1] ?? "";
+  return (section.match(/^- `[^`]+`/gm) ?? []).length;
+}
+
+function parseRecommendedNextPromotions(content: string): string[] {
+  const section = content.match(/^##\s+Recommended next promotions\n([\s\S]*?)(?=^##\s+|(?![\s\S]))/m)?.[1] ?? "";
+  return section
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^\d+\.\s+/.test(line))
+    .map((line) => line.replace(/^\d+\.\s+/, ""))
+    .slice(0, 5);
+}
+
+async function listFilesRecursive(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return listFilesRecursive(path);
+    if (entry.isFile()) return [path];
+    return [];
+  }));
+  return nested.flat();
+}
+
+async function readLatestLearningLoopOutput(): Promise<LearningLoopOutputSummary> {
+  const files = (await readdir(RESEARCH_OUTPUTS_DIR).catch(() => [] as string[]))
+    .filter((name) => name.endsWith("-wiki-learning-loop.md"))
+    .sort();
+  const latest = files.at(-1) ?? null;
+  if (!latest) {
+    return {
+      name: null,
+      path: null,
+      modifiedAt: null,
+      reviewedCount: null,
+      queueCounts: { researchWiki: 0, companyBrain: 0, skills: 0, tasks: 0, proposals: 0 },
+      recommendedNextPromotions: [],
+    };
+  }
+
+  const path = join(RESEARCH_OUTPUTS_DIR, latest);
+  const [content, stats] = await Promise.all([
+    readFile(path, "utf-8").catch(() => ""),
+    stat(path).catch(() => null),
+  ]);
+  const reviewedCount = Number(content.match(/^- Candidate files:\s+(\d+)/m)?.[1] ?? NaN);
+
+  return {
+    name: latest,
+    path: `research/outputs/${latest}`,
+    modifiedAt: stats?.mtime.toISOString() ?? null,
+    reviewedCount: Number.isFinite(reviewedCount) ? reviewedCount : null,
+    queueCounts: {
+      researchWiki: countSectionItems(content, "research/wiki/"),
+      companyBrain: countSectionItems(content, "docs/internal/company-brain-*.md"),
+      skills: countSectionItems(content, "brain/skills/"),
+      tasks: countSectionItems(content, "ops/tasks.json"),
+      proposals: countSectionItems(content, "brain/proposals/"),
+    },
+    recommendedNextPromotions: parseRecommendedNextPromotions(content),
+  };
+}
+
+async function readLearningTasks(): Promise<LearningLoopTaskSummary[]> {
+  const raw = await readFile(TASKS_JSON, "utf-8").catch(() => "[]");
+  try {
+    const parsed = JSON.parse(raw) as Array<{ id?: string; title?: string; status?: string; priority?: string; tags?: string[] }>;
+    return parsed
+      .filter((task) => task.status !== "done")
+      .filter((task) => task.tags?.some((tag) => ["learning-loop", "company-brain", "research"].includes(tag)) || /learn|brain|wiki/i.test(task.title ?? ""))
+      .map((task) => ({
+        id: task.id ?? "unknown",
+        title: task.title ?? "Untitled",
+        status: task.status ?? "unknown",
+        priority: task.priority,
+      }))
+      .slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+async function getBrainLearningLoopHealth(): Promise<BrainLearningLoopHealth> {
+  const [latestOutput, wikiFiles, wikiLogStats, wikiLogContent, skillFiles, learningTasks, proposalFiles] = await Promise.all([
+    readLatestLearningLoopOutput(),
+    listFilesRecursive(RESEARCH_WIKI_DIR),
+    stat(join(RESEARCH_WIKI_DIR, "log.md")).catch(() => null),
+    readFile(join(RESEARCH_WIKI_DIR, "log.md"), "utf-8").catch(() => ""),
+    readdir(SKILLS_DIR).catch(() => [] as string[]),
+    readLearningTasks(),
+    readdir(PROPOSALS_DIR).catch(() => [] as string[]),
+  ]);
+
+  const wikiMarkdownFiles = wikiFiles.filter((path) => path.endsWith(".md"));
+  const wikiStats = await Promise.all(wikiMarkdownFiles.map(async (path) => ({ path, stats: await stat(path).catch(() => null) })));
+  const now = Date.now();
+  const freshCount = wikiStats.filter(({ stats }) => stats && (now - stats.mtime.getTime()) / (1000 * 60 * 60 * 24) <= 7).length;
+  const staleCount = wikiStats.filter(({ stats }) => stats && (now - stats.mtime.getTime()) / (1000 * 60 * 60 * 24) > 21).length;
+  const latestLogEntry = wikiLogContent
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- ["))
+    .at(-1) ?? null;
+  const proposalStats = await Promise.all(proposalFiles
+    .filter((name) => name.endsWith(".md"))
+    .map(async (name) => stat(join(PROPOSALS_DIR, name)).catch(() => null)));
+  const recentProposalCount = proposalStats.filter((stats) => stats && (now - stats.mtime.getTime()) / (1000 * 60 * 60 * 24) <= 30).length;
+
+  return {
+    latestOutput,
+    wiki: {
+      pageCount: wikiMarkdownFiles.length,
+      logModifiedAt: wikiLogStats?.mtime.toISOString() ?? null,
+      latestLogEntry,
+      freshCount,
+      staleCount,
+    },
+    downstream: {
+      skillsTotal: skillFiles.filter((name) => name.endsWith(".md")).length,
+      wikiLoopSkillExists: skillFiles.includes("wiki-learning-loop.md"),
+      openLearningTasks: learningTasks,
+      recentProposalCount,
+    },
+  };
 }
 
 function getFreshness(lastVerified: string | null): BrainDocSummary["freshness"] {
@@ -268,10 +452,11 @@ async function readStatus(): Promise<BrainStatus> {
 }
 
 export async function getCompanyBrainData(): Promise<CompanyBrainData> {
-  const [docs, logContent, status] = await Promise.all([
+  const [docs, logContent, status, learningLoop] = await Promise.all([
     Promise.all(COMPANY_BRAIN_FILES.map((name) => readBrainDoc(name))),
     readFile(join(DOCS_INTERNAL, "wiki-log.md"), "utf-8").catch(() => ""),
     readStatus(),
+    getBrainLearningLoopHealth(),
   ]);
 
   const coreDocs = docs.filter((doc) => CORE_DOC_NAMES.has(doc.name));
@@ -299,5 +484,6 @@ export async function getCompanyBrainData(): Promise<CompanyBrainData> {
       withSourceOfTruth: docs.filter((doc) => Boolean(doc.sourceOfTruth)).length,
     },
     status,
+    learningLoop,
   };
 }

@@ -105,6 +105,91 @@ export default async function BrainPage() {
           </Card>
         </div>
 
+        <Card className="fade-up mt-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="label-caps mb-2">Learning loop</p>
+              <h2 className="text-2xl text-charcoal">Archive → wiki → skill/task/proposal health</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-mid">
+                This panel shows whether recent raw evidence is being reviewed, promoted into durable wiki/Company Brain synthesis,
+                and converted into reusable skills, task-board work, or gated proposals instead of disappearing into archives.
+              </p>
+            </div>
+            <div className="rounded-md border border-warm bg-raised px-4 py-3 text-xs text-mid lg:min-w-[260px]">
+              <p><span className="text-charcoal">Latest audit:</span> {data.learningLoop.latestOutput.name ?? "Not found"}</p>
+              <p className="mt-1"><span className="text-charcoal">Modified:</span> {formatDate(data.learningLoop.latestOutput.modifiedAt)}</p>
+              {data.learningLoop.latestOutput.path ? <p className="mt-1 text-[11px]">{data.learningLoop.latestOutput.path}</p> : null}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-5">
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-1">Archive reviewed</p>
+              <p className="text-2xl text-charcoal">{data.learningLoop.latestOutput.reviewedCount ?? "—"}</p>
+              <p className="mt-2 text-xs text-mid">Candidate files in the latest audit window.</p>
+            </div>
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-1">Wiki queue</p>
+              <p className="text-2xl text-charcoal">{data.learningLoop.latestOutput.queueCounts.researchWiki}</p>
+              <p className="mt-2 text-xs text-mid">Items flagged for durable research/wiki synthesis.</p>
+            </div>
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-1">Company Brain</p>
+              <p className="text-2xl text-charcoal">{data.learningLoop.latestOutput.queueCounts.companyBrain}</p>
+              <p className="mt-2 text-xs text-mid">Founder-facing synthesis candidates.</p>
+            </div>
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-1">Skills/tasks</p>
+              <p className="text-2xl text-charcoal">{data.learningLoop.latestOutput.queueCounts.skills}/{data.learningLoop.latestOutput.queueCounts.tasks}</p>
+              <p className="mt-2 text-xs text-mid">Reusable methods and action-board candidates.</p>
+            </div>
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-1">Proposals</p>
+              <p className="text-2xl text-charcoal">{data.learningLoop.latestOutput.queueCounts.proposals}</p>
+              <p className="mt-2 text-xs text-mid">Doctrine/preference changes needing gated promotion.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-2">Wiki health</p>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <p><span className="block text-2xl text-charcoal">{data.learningLoop.wiki.pageCount}</span><span className="text-xs text-mid">pages</span></p>
+                <p><span className="block text-2xl text-charcoal">{data.learningLoop.wiki.freshCount}</span><span className="text-xs text-mid">fresh</span></p>
+                <p><span className="block text-2xl text-charcoal">{data.learningLoop.wiki.staleCount}</span><span className="text-xs text-mid">stale</span></p>
+              </div>
+              <p className="mt-3 text-xs leading-6 text-mid">{data.learningLoop.wiki.latestLogEntry ?? "No research/wiki log entry found."}</p>
+            </div>
+
+            <div className="rounded-md border border-warm bg-raised px-4 py-3">
+              <p className="label-caps mb-2">Downstream conversion</p>
+              <div className="grid gap-3 md:grid-cols-3">
+                <p className="text-sm text-mid"><span className="block text-2xl text-charcoal">{data.learningLoop.downstream.skillsTotal}</span>skills total {data.learningLoop.downstream.wikiLoopSkillExists ? "· loop skill exists" : "· loop skill missing"}</p>
+                <p className="text-sm text-mid"><span className="block text-2xl text-charcoal">{data.learningLoop.downstream.openLearningTasks.length}</span>open learning/company-brain tasks</p>
+                <p className="text-sm text-mid"><span className="block text-2xl text-charcoal">{data.learningLoop.downstream.recentProposalCount}</span>recent proposals</p>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs uppercase tracking-[0.14em] text-terracotta">Next promotions</p>
+                  {data.learningLoop.latestOutput.recommendedNextPromotions.length > 0 ? (
+                    <ul className="space-y-2 text-xs leading-5 text-charcoal">
+                      {data.learningLoop.latestOutput.recommendedNextPromotions.map((item) => <li key={item}>• {item}</li>)}
+                    </ul>
+                  ) : <p className="text-xs text-mid">No recommendations in the latest audit.</p>}
+                </div>
+                <div>
+                  <p className="mb-2 text-xs uppercase tracking-[0.14em] text-terracotta">Open tasks</p>
+                  {data.learningLoop.downstream.openLearningTasks.length > 0 ? (
+                    <ul className="space-y-2 text-xs leading-5 text-charcoal">
+                      {data.learningLoop.downstream.openLearningTasks.map((task) => <li key={task.id}>• {task.title} <span className="text-mid">({task.status})</span></li>)}
+                    </ul>
+                  ) : <p className="text-xs text-mid">No open learning-loop tasks found.</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
           <div className="space-y-6">
             <Card className="fade-up">
