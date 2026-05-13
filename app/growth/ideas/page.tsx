@@ -816,11 +816,21 @@ export default function IdeasPage() {
               </span>
             </div>
           </div>
-          <button onClick={triggerPropose} disabled={proposing}
-            className="px-3 py-1.5 rounded-lg text-[0.8rem] font-medium transition-all"
-            style={{ backgroundColor: proposing ? "var(--warm)" : "var(--charcoal)", color: proposing ? "var(--mid)" : "var(--paper)" }}>
-            {proposing ? "Discovering..." : "Run Proposer"}
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/growth/sweep"
+              className="px-3 py-1.5 rounded-lg text-[0.8rem] font-medium transition-all"
+              style={{ backgroundColor: "var(--terracotta)", color: "var(--paper)" }}
+              title="Walk through queued + parked ideas, reject with reason — feeds the scorer learning loop"
+            >
+              Reject sweep →
+            </a>
+            <button onClick={triggerPropose} disabled={proposing}
+              className="px-3 py-1.5 rounded-lg text-[0.8rem] font-medium transition-all"
+              style={{ backgroundColor: proposing ? "var(--warm)" : "var(--charcoal)", color: proposing ? "var(--mid)" : "var(--paper)" }}>
+              {proposing ? "Discovering..." : "Run Proposer"}
+            </button>
+          </div>
         </div>
 
         {/* ── Pipeline Health (W8 of lively-foraging-armadillo) ── */}
