@@ -45,6 +45,7 @@ interface AppleReworkState {
   guardrail_draft?: string;
   guardrail_confirmed?: boolean;
   resolved_at?: string;
+  operator_blockers?: string[];
 }
 
 interface PhaseDetail extends PhaseState {
@@ -1221,6 +1222,21 @@ export default function FactoryPage() {
                         {rework.severity && <span>Severity: {rework.severity}</span>}
                         {rework.pattern_match && <span>Pattern: {rework.pattern_match}</span>}
                         {rework.fix_plan && <span>Fix plan written</span>}
+                      </div>
+                    )}
+
+                    {/* Operator blockers */}
+                    {rework?.operator_blockers && rework.operator_blockers.length > 0 && (
+                      <div className="rounded-lg border px-3 py-2.5 space-y-2" style={{ borderColor: "rgba(183, 110, 121, 0.2)", backgroundColor: "rgba(183, 110, 121, 0.03)" }}>
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-wider" style={{ color: "var(--terracotta)" }}>What to fix</p>
+                        <ol className="space-y-1.5 list-none">
+                          {rework.operator_blockers.map((blocker, i) => (
+                            <li key={i} className="flex gap-2 text-xs text-mid/80 leading-snug">
+                              <span className="shrink-0 w-4 h-4 mt-0.5 rounded-full flex items-center justify-center text-[0.6rem] font-bold" style={{ backgroundColor: "rgba(183, 110, 121, 0.15)", color: "var(--terracotta)" }}>{i + 1}</span>
+                              <span dangerouslySetInnerHTML={{ __html: blocker.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, '<code class="text-[0.7rem] px-1 py-0.5 rounded" style="background:rgba(0,0,0,0.06)">$1</code>') }} />
+                            </li>
+                          ))}
+                        </ol>
                       </div>
                     )}
 
