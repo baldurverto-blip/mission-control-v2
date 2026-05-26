@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
 import { FACTORY_DIR, SAAS_FACTORY_DIR } from "@/app/lib/paths";
+import { getFleetRegistryEntry } from "@/app/lib/fleet-registry";
+import { fetchPostHogFleetMetrics } from "@/app/lib/posthog-fleet";
+import {
+  fetchRevenueCatFleetMetrics,
+  metricsForRevenueCatRegistryEntry,
+  summarizeRevenueCat,
+} from "@/app/lib/revenuecat-fleet";
+import { buildDataQuality, buildRecommendation, buildTemperature, summarizePostHog } from "@/app/lib/fleet-insights";
 
 interface PhaseState {
   status: string;
@@ -37,13 +45,22 @@ interface KPIFile {
     status?: string;
     mrr?: number | null;
     active_subs?: number | null;
+    active_trials?: number | null;
+    revenue_28d?: number | null;
+    active_users_28d?: number | null;
+    new_customers_28d?: number | null;
     churn_rate?: number | null;
+    trial_starts?: number | null;
+    trial_to_paid_rate?: number | null;
   };
   retention?: {
     status?: string;
     dau?: number | null;
+    wau?: number | null;
+    mau?: number | null;
     d1?: number | null;
     d7?: number | null;
+    d30?: number | null;
   };
   reddit?: {
     total_comments?: number;
@@ -179,15 +196,67 @@ async function scanDir(dir: string, track: string) {
 
 export async function GET() {
   try {
-    const [mobileProducts, saasProducts] = await Promise.all([
+    const [mobileProducts, saasProducts, posthogResult, revenuecatResult] = await Promise.all([
       scanDir(FACTORY_DIR, "mobile"),
       scanDir(SAAS_FACTORY_DIR, "saas"),
+      fetchPostHogFleetMetrics(),
+      fetchRevenueCatFleetMetrics(),
     ]);
 
     const all = [...mobileProducts, ...saasProducts];
 
     const products = all.map((p) => {
       const k = p.kpis;
+      const registry = getFleetRegistryEntry(p.state.slug, p.name);
+      const posthogRaw = posthogResult.byApp[registry.posthogAppName] ?? null;
+      const posthog = summarizePostHog(posthogRaw, registry, p.state.status);
+      const revenuecatRaw = metricsForRevenueCatRegistryEntry(revenuecatResult, registry);
+      const revenuecat = summarizeRevenueCat(revenuecatRaw, registry, p.state.status);
+      const revenue = revenuecat
+        ? {
+            status: "ok",
+            mrr: revenuecat.mrr,
+            active_subs: revenuecat.activeSubscriptions,
+            active_trials: revenuecat.activeTrials,
+            revenue_28d: revenuecat.revenue28d,
+            active_users_28d: revenuecat.activeUsers28d,
+            new_customers_28d: revenuecat.newCustomers28d,
+            source: "revenuecat-api",
+            last_updated: revenuecat.updatedAt,
+          }
+        : k?.revenue ?? null;
+      const dataQuality = buildDataQuality({
+        status: p.state.status,
+        appStore: k?.app_store ?? null,
+        revenue,
+        posthogResult,
+        posthog,
+        revenuecatResult,
+        revenuecat,
+        registry,
+      });
+      const temperature = buildTemperature({
+        status: p.state.status,
+        appStore: k?.app_store ?? null,
+        revenue,
+        posthogResult,
+        posthog,
+        revenuecatResult,
+        revenuecat,
+        registry,
+      });
+      const recommendation = buildRecommendation({
+        status: p.state.status,
+        appStore: k?.app_store ?? null,
+        revenue,
+        posthogResult,
+        posthog,
+        revenuecatResult,
+        revenuecat,
+        registry,
+      });
+      const productionPostHog = posthog?.includedInFleet ? posthog : null;
+
       return {
         slug: p.state.slug,
         name: p.name,
@@ -204,13 +273,29 @@ export async function GET() {
         downloads30d: k?.app_store?.downloads_30d ?? 0,
 
         // Revenue
-        mrr: k?.revenue?.mrr ?? null,
-        activeSubs: k?.revenue?.active_subs ?? null,
-        churnRate: k?.revenue?.churn_rate ?? null,
+        mrr: revenue?.mrr ?? null,
+        activeSubs: revenue?.active_subs ?? null,
+        activeTrials: revenue?.active_trials ?? null,
+        revenue28d: revenue?.revenue_28d ?? null,
+        revenueActiveUsers28d: revenue?.active_users_28d ?? null,
+        revenueNewCustomers28d: revenue?.new_customers_28d ?? null,
+        churnRate: revenue?.churn_rate ?? null,
+        revenuecat,
 
         // Retention
-        dau: k?.retention?.dau ?? null,
-        d1Retention: k?.retention?.d1 ?? null,
+        dau: productionPostHog?.dau ?? k?.retention?.dau ?? null,
+        wau: productionPostHog?.wau ?? k?.retention?.wau ?? null,
+        mau: productionPostHog?.mau ?? k?.retention?.mau ?? null,
+        d1Retention: productionPostHog?.d1Retention ?? k?.retention?.d1 ?? null,
+        d7Retention: productionPostHog?.d7Retention ?? k?.retention?.d7 ?? null,
+        users30d: productionPostHog?.users30d ?? null,
+        installs30d: productionPostHog?.installs30d ?? null,
+        activationRate: productionPostHog?.activationRate ?? null,
+        coreActionUsers: productionPostHog?.coreActionUsers ?? null,
+        paywallUsers: productionPostHog?.paywallUsers ?? null,
+        monetizedUsers: productionPostHog?.monetizedUsers ?? null,
+        posthog,
+        telemetryScope: posthog?.telemetryScope ?? (registry.telemetryScope === "test" ? "test" : "production"),
 
         // Distribution
         redditComments: k?.reddit?.total_comments ?? 0,
@@ -233,6 +318,11 @@ export async function GET() {
         // Update in review
         updateInReview: p.state.update_in_review ?? false,
         updateVersion: p.state.update_version ?? null,
+
+        // Operator readout
+        dataQuality,
+        temperature,
+        recommendation,
       };
     });
 
@@ -246,13 +336,32 @@ export async function GET() {
     products.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
 
     // Aggregate stats
+    const productionPostHogApps = products.flatMap((p) => (p.posthog?.includedInFleet ? [p.posthog] : []));
+    const productionPostHogNames = new Set(productionPostHogApps.map((p) => p.appName));
+    const productionRevenueCatApps = products.flatMap((p) => (p.revenuecat?.includedInFleet ? [p.revenuecat] : []));
+    const testTelemetryExcluded = Object.values(posthogResult.byApp)
+      .filter((p) => !productionPostHogNames.has(p.appName))
+      .reduce((sum, p) => sum + p.users30d, 0);
+
     const stats = {
       totalProducts: products.length,
       live: products.filter((p) => p.status === "shipped" || p.appStoreStatus === "live").length,
       inReview: products.filter((p) => p.status === "submitted" || p.status === "waiting_for_review").length,
       rejected: products.filter((p) => p.status === "rejected").length,
-      totalMRR: products.reduce((sum, p) => sum + (p.mrr ?? 0), 0),
+      totalMRR: productionRevenueCatApps.reduce((sum, p) => sum + p.mrr, 0),
+      totalRevenue28d: productionRevenueCatApps.reduce((sum, p) => sum + p.revenue28d, 0),
+      totalActiveSubs: productionRevenueCatApps.reduce((sum, p) => sum + p.activeSubscriptions, 0),
       totalDownloads: products.reduce((sum, p) => sum + p.downloads30d, 0),
+      totalPostHogUsers: productionPostHogApps.reduce((sum, p) => sum + p.users30d, 0),
+      totalPostHogInstalls: productionPostHogApps.reduce((sum, p) => sum + p.installs30d, 0),
+      appsWithPostHog: productionPostHogApps.length,
+      appsWithRevenueCat: productionRevenueCatApps.length,
+      openRecommendations: products.filter((p) => p.recommendation.priority === "high" || p.recommendation.priority === "medium").length,
+      posthogStatus: posthogResult.status,
+      posthogUpdatedAt: posthogResult.updatedAt,
+      revenuecatStatus: revenuecatResult.status,
+      revenuecatUpdatedAt: revenuecatResult.updatedAt,
+      testTelemetryExcluded,
       totalRedditKarma: products.reduce((sum, p) => sum + p.redditKarma, 0),
     };
 

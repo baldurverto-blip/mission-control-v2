@@ -54,6 +54,36 @@ interface FleetDetail {
       d7?: number | null;
       d30?: number | null;
     } | null;
+    posthog: {
+      appName: string;
+      users30d: number;
+      installs30d: number;
+      openUsers30d: number;
+      dau: number;
+      wau: number;
+      mau: number;
+      onboardedUsers: number;
+      paywallUsers: number;
+      monetizedUsers: number;
+      coreActionUsers: number;
+      coreActions: number;
+      activationRate: number | null;
+      onboardingRate: number | null;
+      paywallRate: number | null;
+      monetizationRate: number | null;
+      d1Eligible: number;
+      d1Returned: number;
+      d1Retention: number | null;
+      d7Eligible: number;
+      d7Returned: number;
+      d7Retention: number | null;
+      lastEventAt: string | null;
+      topEvents: { event: string; events: number; users: number }[];
+      topScreens: { screen: string; events: number; users: number }[];
+      telemetryScope: "production" | "test";
+      telemetryNote: string | null;
+      includedInFleet: boolean;
+    } | null;
     waitlist: {
       signup_count?: number;
       landing_page_url?: string;
@@ -91,6 +121,24 @@ interface FleetDetail {
     waitlist: Record<string, unknown> | null;
     hasAppStoreListing: boolean;
   };
+  dataQuality: {
+    level: "trusted" | "partial" | "stale" | "blind" | "test";
+    label: string;
+    issues: string[];
+    sources: string[];
+  };
+  temperature: {
+    tone: "hot" | "warm" | "cold" | "blind" | "test";
+    label: string;
+    summary: string;
+  };
+  recommendation: {
+    priority: "high" | "medium" | "low" | "info";
+    owner: "baldur" | "builder" | "vibe" | "scout";
+    title: string;
+    detail: string;
+    confidence: "high" | "medium" | "low";
+  };
 }
 
 // ── Brand accents ──────────────────────────────────────────────────────
@@ -126,6 +174,18 @@ const STATUS_DOT: Record<string, string> = {
 function fmt(v: number | null | undefined, prefix = ""): string {
   if (v === null || v === undefined) return "—";
   return `${prefix}${v}`;
+}
+
+function fmtPct(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  return `${v}%`;
+}
+
+function signalColor(kind: string): string {
+  if (kind === "high" || kind === "hot" || kind === "blind" || kind === "stale") return "var(--terracotta)";
+  if (kind === "medium" || kind === "partial") return "var(--amber-text)";
+  if (kind === "test" || kind === "info") return "var(--lilac)";
+  return "var(--olive)";
 }
 
 function dateStr(ts: string | null): string {
@@ -347,10 +407,54 @@ function AnalyticsTab({ data, accent }: { data: FleetDetail; accent: string }) {
   if (!a) return <Card><PendingNote text="No analytics data available yet." /></Card>;
 
   const revPending = a.revenue?.status === "pending";
-  const retPending = a.retention?.status === "pending";
+  const productionPostHog = a.posthog?.includedInFleet ? a.posthog : null;
+  const retPending = a.retention?.status === "pending" && !productionPostHog;
+  const recColor = signalColor(data.recommendation.priority);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Operator Recommendation */}
+      <Card>
+        <SectionLabel>Temperature Check</SectionLabel>
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: signalColor(data.temperature.tone),
+              marginTop: 6,
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+              <span style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 22, color: "var(--charcoal)" }}>
+                {data.temperature.label}
+              </span>
+              <Badge color={recColor}>{data.recommendation.priority}</Badge>
+              <span style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: recColor, textTransform: "uppercase" }}>
+                {data.recommendation.owner}
+              </span>
+              <span style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: signalColor(data.dataQuality.level), textTransform: "uppercase" }}>
+                {data.dataQuality.label}
+              </span>
+            </div>
+            <p style={{ fontSize: 12, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", margin: "0 0 8px", lineHeight: 1.55 }}>
+              {data.temperature.summary}
+            </p>
+            <p style={{ fontSize: 12, fontFamily: "var(--font-dm-mono), monospace", color: "var(--charcoal)", margin: 0, lineHeight: 1.55 }}>
+              <span style={{ color: recColor }}>{data.recommendation.title}:</span> {data.recommendation.detail}
+            </p>
+            {data.dataQuality.issues.length > 0 && (
+              <p style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", margin: "10px 0 0", opacity: 0.7 }}>
+                Data notes: {data.dataQuality.issues.join(" · ")}
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+
       {/* App Store */}
       <Card>
         <SectionLabel>App Store</SectionLabel>
@@ -360,6 +464,57 @@ function AnalyticsTab({ data, accent }: { data: FleetDetail; accent: string }) {
           <MetricBox label="Impressions" value={fmt(a.appStore?.impressions_30d)} />
           <MetricBox label="Last sync" value={a.appStore?.last_updated ? relTime(a.appStore.last_updated) : "—"} />
         </div>
+      </Card>
+
+      {/* PostHog */}
+      <Card>
+        <SectionLabel>Product Usage (PostHog)</SectionLabel>
+        {a.posthog ? (
+          <>
+            {a.posthog.telemetryScope === "test" && (
+              <div style={{ marginBottom: 12, padding: "8px 10px", background: "var(--lilac-soft)", borderRadius: 8, fontSize: 11, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", lineHeight: 1.5 }}>
+                {a.posthog.telemetryNote ?? "Non-production telemetry excluded from fleet temperature."}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+              <MetricBox label="Users 30d" value={fmt(a.posthog.users30d)} color={a.posthog.users30d > 0 ? accent : undefined} pending={!a.posthog.includedInFleet} />
+              <MetricBox label="Installs" value={fmt(a.posthog.installs30d)} pending={!a.posthog.includedInFleet} />
+              <MetricBox label="Core Users" value={fmt(a.posthog.coreActionUsers)} color={a.posthog.coreActionUsers > 0 ? accent : undefined} pending={!a.posthog.includedInFleet} />
+              <MetricBox label="Activation" value={fmtPct(a.posthog.activationRate)} pending={!a.posthog.includedInFleet} />
+              <MetricBox label="Paywall" value={fmt(a.posthog.paywallUsers)} pending={!a.posthog.includedInFleet} />
+              <MetricBox label="Monetized" value={fmt(a.posthog.monetizedUsers)} pending={!a.posthog.includedInFleet} />
+            </div>
+            {(a.posthog.topEvents.length > 0 || a.posthog.topScreens.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+                <div>
+                  <p style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 7px" }}>Top events</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {a.posthog.topEvents.slice(0, 5).map((event) => (
+                      <span key={event.event} style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--charcoal)", background: "var(--bg)", borderRadius: 5, padding: "2px 7px" }}>
+                        {event.event} <span style={{ color: "var(--mid)", opacity: 0.65 }}>{event.users}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 7px" }}>Top screens</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {a.posthog.topScreens.slice(0, 5).map((screen) => (
+                      <span key={screen.screen} style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--charcoal)", background: "var(--bg)", borderRadius: 5, padding: "2px 7px" }}>
+                        {screen.screen} <span style={{ color: "var(--mid)", opacity: 0.65 }}>{screen.users}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <p style={{ fontSize: 10, fontFamily: "var(--font-dm-mono), monospace", color: "var(--mid)", margin: "12px 0 0", opacity: 0.65 }}>
+              App name: {a.posthog.appName} · last event {a.posthog.lastEventAt ? relTime(a.posthog.lastEventAt) : "—"}
+            </p>
+          </>
+        ) : (
+          <PendingNote text="No PostHog events matched this app name in the last 30 days." />
+        )}
       </Card>
 
       {/* Revenue */}
@@ -378,14 +533,17 @@ function AnalyticsTab({ data, accent }: { data: FleetDetail; accent: string }) {
       <Card>
         <SectionLabel>Retention</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
-          <MetricBox label="DAU" value={fmt(a.retention?.dau)} pending={retPending} />
-          <MetricBox label="WAU" value={fmt(a.retention?.wau)} pending={retPending} />
-          <MetricBox label="MAU" value={fmt(a.retention?.mau)} pending={retPending} />
-          <MetricBox label="D1" value={a.retention?.d1 != null ? `${a.retention.d1}%` : "—"} color={accent} pending={retPending} />
-          <MetricBox label="D7" value={a.retention?.d7 != null ? `${a.retention.d7}%` : "—"} pending={retPending} />
+          <MetricBox label="DAU" value={fmt(productionPostHog?.dau ?? a.retention?.dau)} pending={retPending} />
+          <MetricBox label="WAU" value={fmt(productionPostHog?.wau ?? a.retention?.wau)} pending={retPending} />
+          <MetricBox label="MAU" value={fmt(productionPostHog?.mau ?? a.retention?.mau)} pending={retPending} />
+          <MetricBox label="D1" value={fmtPct(productionPostHog?.d1Retention ?? a.retention?.d1)} color={accent} pending={retPending} />
+          <MetricBox label="D7" value={fmtPct(productionPostHog?.d7Retention ?? a.retention?.d7)} pending={retPending} />
           <MetricBox label="D30" value={a.retention?.d30 != null ? `${a.retention.d30}%` : "—"} pending={retPending} />
         </div>
-        {retPending && <PendingNote text="Retention data pending — analytics not yet configured" />}
+        {productionPostHog && (
+          <PendingNote text={`D1 sample ${productionPostHog.d1Returned}/${productionPostHog.d1Eligible}; D7 sample ${productionPostHog.d7Returned}/${productionPostHog.d7Eligible}.`} />
+        )}
+        {retPending && <PendingNote text="Retention data pending — PostHog has no production retention sample for this app yet." />}
       </Card>
 
       {/* Waitlist */}

@@ -22,7 +22,38 @@ interface FleetProduct {
   activeSubs: number | null;
   churnRate: number | null;
   dau: number | null;
+  wau: number | null;
+  mau: number | null;
   d1Retention: number | null;
+  d7Retention: number | null;
+  users30d: number | null;
+  installs30d: number | null;
+  activationRate: number | null;
+  coreActionUsers: number | null;
+  paywallUsers: number | null;
+  monetizedUsers: number | null;
+  telemetryScope: "production" | "test";
+  posthog: {
+    appName: string;
+    users30d: number;
+    installs30d: number;
+    dau: number;
+    wau: number;
+    mau: number;
+    activationRate: number | null;
+    onboardingRate: number | null;
+    paywallRate: number | null;
+    monetizationRate: number | null;
+    d1Retention: number | null;
+    d7Retention: number | null;
+    coreActionUsers: number;
+    paywallUsers: number;
+    monetizedUsers: number;
+    lastEventAt: string | null;
+    telemetryScope: "production" | "test";
+    telemetryNote: string | null;
+    includedInFleet: boolean;
+  } | null;
   redditComments: number;
   redditKarma: number;
   waitlistCount: number;
@@ -37,6 +68,24 @@ interface FleetProduct {
   e2eStatus: string | null;
   updateInReview: boolean;
   updateVersion: string | null;
+  dataQuality: {
+    level: "trusted" | "partial" | "stale" | "blind" | "test";
+    label: string;
+    issues: string[];
+    sources: string[];
+  };
+  temperature: {
+    tone: "hot" | "warm" | "cold" | "blind" | "test";
+    label: string;
+    summary: string;
+  };
+  recommendation: {
+    priority: "high" | "medium" | "low" | "info";
+    owner: "baldur" | "builder" | "vibe" | "scout";
+    title: string;
+    detail: string;
+    confidence: "high" | "medium" | "low";
+  };
 }
 
 interface FleetStats {
@@ -46,6 +95,13 @@ interface FleetStats {
   rejected: number;
   totalMRR: number;
   totalDownloads: number;
+  totalPostHogUsers: number;
+  totalPostHogInstalls: number;
+  appsWithPostHog: number;
+  openRecommendations: number;
+  posthogStatus: "ok" | "missing_env" | "error";
+  posthogUpdatedAt: string;
+  testTelemetryExcluded: number;
   totalRedditKarma: number;
 }
 
@@ -84,6 +140,34 @@ function fmt(value: number | null, prefix = ""): string {
   if (value === 0) return `${prefix}0`;
   if (value >= 1000) return `${prefix}${(value / 1000).toFixed(1)}k`;
   return `${prefix}${value}`;
+}
+
+function fmtPct(value: number | null): string {
+  if (value === null || value === undefined) return "—";
+  return `${value}%`;
+}
+
+function toneColor(tone: FleetProduct["temperature"]["tone"]): string {
+  if (tone === "hot") return "var(--terracotta)";
+  if (tone === "warm") return "var(--olive)";
+  if (tone === "test") return "var(--lilac)";
+  if (tone === "blind") return "var(--amber-text)";
+  return "var(--mid)";
+}
+
+function qualityColor(level: FleetProduct["dataQuality"]["level"]): string {
+  if (level === "trusted") return "var(--olive)";
+  if (level === "partial") return "var(--amber-text)";
+  if (level === "stale" || level === "blind") return "var(--terracotta)";
+  if (level === "test") return "var(--lilac)";
+  return "var(--mid)";
+}
+
+function priorityColor(priority: FleetProduct["recommendation"]["priority"]): string {
+  if (priority === "high") return "var(--terracotta)";
+  if (priority === "medium") return "var(--amber-text)";
+  if (priority === "low") return "var(--olive)";
+  return "var(--mid)";
 }
 
 function shipAge(shipDate: string | null): string {
@@ -161,15 +245,6 @@ function AppIcon({
 
 // ── Distribution Layer Dots ────────────────────────────────────────────
 
-const LAYER_ICONS: Record<string, { label: string; icon: string }> = {
-  aso: { label: "ASO", icon: "A" },
-  seo: { label: "SEO", icon: "S" },
-  social: { label: "Social", icon: "R" },
-  launch: { label: "Launch", icon: "L" },
-  portfolio: { label: "Portfolio", icon: "P" },
-  amplifier: { label: "Amplifier", icon: "+" },
-};
-
 function DistLayers({
   reddit,
   seo,
@@ -222,6 +297,8 @@ function ProductCard({
   const statusColor = STATUS_DOT[product.status] ?? "var(--mid)";
   const statusLabel = STATUS_LABELS[product.status] ?? product.status;
   const age = shipAge(product.shipDate);
+  const tempColor = toneColor(product.temperature.tone);
+  const recColor = priorityColor(product.recommendation.priority);
 
   return (
     <Link
@@ -284,6 +361,23 @@ function ProductCard({
                   }}
                 >
                   {product.name}
+                </span>
+                <span
+                  title={product.temperature.summary}
+                  style={{
+                    fontSize: 9,
+                    fontFamily: "var(--font-dm-mono), monospace",
+                    color: tempColor,
+                    background: `${tempColor}14`,
+                    border: `1px solid ${tempColor}24`,
+                    borderRadius: 5,
+                    padding: "1px 6px",
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {product.temperature.label}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -367,13 +461,72 @@ function ProductCard({
             }}
           >
             <MetricCell label="Downloads" value={fmt(product.downloads30d)} accent={accent} />
+            <MetricCell label="PH Users" value={fmt(product.users30d)} accent={accent} />
+            <MetricCell label="Activation" value={fmtPct(product.activationRate)} accent={accent} />
             <MetricCell label="MRR" value={fmt(product.mrr, "$")} accent={accent} />
-            <MetricCell label="DAU" value={fmt(product.dau)} accent={accent} />
-            <MetricCell
-              label="D1 Ret."
-              value={product.d1Retention !== null ? `${product.d1Retention}%` : "—"}
-              accent={accent}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 9,
+              alignItems: "flex-start",
+              background: "var(--raised)",
+              border: `1px solid ${recColor}20`,
+              borderRadius: 9,
+              padding: "9px 10px",
+              marginBottom: 12,
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: recColor,
+                marginTop: 5,
+                flexShrink: 0,
+              }}
             />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "var(--font-dm-mono), monospace",
+                    color: "var(--charcoal)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {product.recommendation.title}
+                </span>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontFamily: "var(--font-dm-mono), monospace",
+                    color: recColor,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {product.recommendation.owner}
+                </span>
+              </div>
+              <p
+                style={{
+                  fontSize: 10,
+                  lineHeight: 1.45,
+                  fontFamily: "var(--font-dm-mono), monospace",
+                  color: "var(--mid)",
+                  margin: 0,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {product.recommendation.detail}
+              </p>
+            </div>
           </div>
 
           {/* Distribution + Signals footer */}
@@ -391,6 +544,21 @@ function ProductCard({
                 seo={product.seoPosts}
                 waitlist={product.waitlistCount}
               />
+              <span
+                title={product.dataQuality.issues.join(" · ") || product.dataQuality.sources.join(" · ")}
+                style={{
+                  fontSize: 10,
+                  fontFamily: "var(--font-dm-mono), monospace",
+                  color: qualityColor(product.dataQuality.level),
+                  background: `${qualityColor(product.dataQuality.level)}12`,
+                  borderRadius: 5,
+                  padding: "2px 7px",
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {product.dataQuality.label}
+              </span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -442,7 +610,7 @@ function MetricCell({
   value: string;
   accent: string;
 }) {
-  const isActive = value !== "—" && value !== "$0" && value !== "0";
+  const isActive = value !== "—" && value !== "$0" && value !== "0" && value !== "0%";
   return (
     <div style={{ textAlign: "center" }}>
       <div
@@ -561,11 +729,26 @@ export default function FleetPage() {
           }}
         >
           <HeroStat label="Live" value={String(stats.live)} color="var(--olive)" />
-          <HeroStat label="In Review" value={String(stats.inReview)} color="var(--lilac)" />
+          <HeroStat label="PH Active" value={fmt(stats.totalPostHogUsers)} color={stats.totalPostHogUsers > 0 ? "var(--olive)" : "var(--mid)"} />
+          <HeroStat label="PH Installs" value={fmt(stats.totalPostHogInstalls)} color={stats.totalPostHogInstalls > 0 ? "var(--charcoal)" : "var(--mid)"} />
           <HeroStat label="MRR" value={fmt(stats.totalMRR, "$")} color="var(--charcoal)" />
-          <HeroStat label="Downloads" value={fmt(stats.totalDownloads)} color="var(--charcoal)" />
-          <HeroStat label="Reddit" value={fmt(stats.totalRedditKarma)} color="var(--amber)" />
+          <HeroStat label="Actions" value={String(stats.openRecommendations)} color={stats.openRecommendations > 0 ? "var(--terracotta)" : "var(--olive)"} />
+          <HeroStat label="Test Excluded" value={fmt(stats.testTelemetryExcluded)} color={stats.testTelemetryExcluded > 0 ? "var(--lilac)" : "var(--mid)"} />
         </div>
+      )}
+
+      {stats && (
+        <p
+          style={{
+            fontFamily: "var(--font-dm-mono), monospace",
+            fontSize: 11,
+            color: "var(--mid)",
+            margin: "-18px 0 28px",
+            opacity: 0.75,
+          }}
+        >
+          PostHog {stats.posthogStatus} · {stats.appsWithPostHog} production app{stats.appsWithPostHog === 1 ? "" : "s"} reporting · Preserve and other non-shipped telemetry excluded from fleet temperature.
+        </p>
       )}
 
       {/* Error */}

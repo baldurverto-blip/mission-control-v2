@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
 import { FACTORY_DIR, SAAS_FACTORY_DIR } from "@/app/lib/paths";
+import { getFleetRegistryEntry } from "@/app/lib/fleet-registry";
+import { fetchPostHogFleetMetrics } from "@/app/lib/posthog-fleet";
+import {
+  buildDataQuality,
+  buildRecommendation,
+  buildTemperature,
+  summarizePostHog,
+  type AppStoreKPI,
+  type RevenueKPI,
+} from "@/app/lib/fleet-insights";
 
 async function findProjectDir(slug: string): Promise<string | null> {
   for (const base of [FACTORY_DIR, SAAS_FACTORY_DIR]) {
@@ -97,6 +107,7 @@ export async function GET(
       screenshotCount,
       seoLearnings,
       appStoreListing,
+      posthogResult,
     ] = await Promise.all([
       readJson<Record<string, unknown>>(join(dir, "state.json")),
       readJson<Record<string, unknown>>(join(dir, "kpis.json")),
@@ -107,18 +118,51 @@ export async function GET(
       countScreenshots(dir),
       readJson<Record<string, unknown>>(join(dir, "seo-learnings.json")),
       readMd(join(dir, "app-store-listing.md")),
+      fetchPostHogFleetMetrics(),
     ]);
 
     if (!state) {
       return NextResponse.json({ error: "No state.json found" }, { status: 404 });
     }
 
+    const name = typeof state.name === "string" && state.name.trim() ? state.name : slug;
+    const status = typeof state.status === "string" ? state.status : "unknown";
+    const registry = getFleetRegistryEntry(slug, name);
+    const posthogRaw = posthogResult.byApp[registry.posthogAppName] ?? null;
+    const posthog = summarizePostHog(posthogRaw, registry, status);
+    const appStore = (kpis?.app_store ?? null) as AppStoreKPI | null;
+    const revenue = (kpis?.revenue ?? null) as RevenueKPI | null;
+    const dataQuality = buildDataQuality({
+      status,
+      appStore,
+      revenue,
+      posthogResult,
+      posthog,
+      registry,
+    });
+    const temperature = buildTemperature({
+      status,
+      appStore,
+      revenue,
+      posthogResult,
+      posthog,
+      registry,
+    });
+    const recommendation = buildRecommendation({
+      status,
+      appStore,
+      revenue,
+      posthogResult,
+      posthog,
+      registry,
+    });
+
     // Build overview
     const overview = {
       slug,
-      name: state.name ?? slug,
+      name,
       track: state.track ?? "mobile",
-      status: state.status,
+      status,
       productType: state.product_type,
       createdAt: state.created_at,
       updatedAt: state.updated_at,
@@ -127,18 +171,17 @@ export async function GET(
     };
 
     // Analytics from kpis.json
-    const analytics = kpis
-      ? {
-          shipDate: kpis.shipped_at ?? null,
-          lastIngested: kpis.last_ingested ?? null,
-          appStore: kpis.app_store ?? null,
-          revenue: kpis.revenue ?? null,
-          retention: kpis.retention ?? null,
-          waitlist: kpis.waitlist ?? null,
-          signals: kpis.signals ?? [],
-          signalsLastEvaluated: kpis.signals_last_evaluated ?? null,
-        }
-      : null;
+    const analytics = {
+      shipDate: kpis?.shipped_at ?? null,
+      lastIngested: kpis?.last_ingested ?? null,
+      appStore: kpis?.app_store ?? null,
+      revenue: kpis?.revenue ?? null,
+      retention: kpis?.retention ?? null,
+      posthog,
+      waitlist: kpis?.waitlist ?? null,
+      signals: kpis?.signals ?? [],
+      signalsLastEvaluated: kpis?.signals_last_evaluated ?? null,
+    };
 
     // Distribution
     const distribution = {
@@ -179,6 +222,9 @@ export async function GET(
       distribution,
       health,
       marketing,
+      dataQuality,
+      temperature,
+      recommendation,
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
