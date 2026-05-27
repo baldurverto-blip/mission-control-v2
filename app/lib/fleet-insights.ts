@@ -81,6 +81,10 @@ function hasRevenueSource(input: InsightInput): boolean {
   return !!input.revenuecat || input.revenue?.status === "ok" || hasRevenue(input.revenue);
 }
 
+function hasMonetizationMismatch(input: InsightInput): boolean {
+  return !!input.posthog && input.posthog.monetizedUsers > 0 && !!input.revenuecat && !hasRevenue(input.revenue);
+}
+
 export function summarizePostHog(
   metrics: PostHogAppMetrics | null,
   registry: FleetRegistryEntry,
@@ -133,6 +137,10 @@ export function buildDataQuality(input: InsightInput): DataQuality {
     issues.push("RevenueCat project/app is not matched to this Fleet product");
   }
 
+  if (hasMonetizationMismatch(input)) {
+    issues.push("PostHog monetization events do not match RevenueCat paid state");
+  }
+
   if (!input.posthog && input.status === "shipped") {
     return { level: "blind", label: "blind", issues, sources };
   }
@@ -160,6 +168,14 @@ export function buildTemperature(input: InsightInput): FleetTemperature {
       tone: "blind",
       label: "Blind",
       summary: "No production PostHog signal is available for this app.",
+    };
+  }
+
+  if (hasMonetizationMismatch(input)) {
+    return {
+      tone: "hot",
+      label: "Revenue mismatch",
+      summary: "PostHog shows monetization, but RevenueCat reports no active paid state.",
     };
   }
 
@@ -238,12 +254,22 @@ export function buildRecommendation(input: InsightInput): FleetRecommendation {
     };
   }
 
-  if (ph && ph.monetizedUsers > 0 && !hasRevenue(input.revenue)) {
+  if (ph && ph.monetizedUsers > 0 && !input.revenuecat && !hasRevenue(input.revenue)) {
     return {
       priority: "medium",
       owner: "baldur",
       title: "Map RevenueCat reporting",
       detail: `PostHog sees ${ph.monetizedUsers} monetization user(s), but Mission Control has no matched RevenueCat project/app for this product.`,
+      confidence: "medium",
+    };
+  }
+
+  if (ph && ph.monetizedUsers > 0 && input.revenuecat && !hasRevenue(input.revenue)) {
+    return {
+      priority: "medium",
+      owner: "builder",
+      title: "Reconcile monetization events",
+      detail: `PostHog sees ${ph.monetizedUsers} monetization user(s), but RevenueCat reports $0 MRR and 0 active subscriptions. Verify purchase/trial event naming against RevenueCat customer state.`,
       confidence: "medium",
     };
   }

@@ -20,6 +20,10 @@ interface FleetProduct {
   downloads30d: number;
   mrr: number | null;
   activeSubs: number | null;
+  activeTrials: number | null;
+  revenue28d: number | null;
+  revenueActiveUsers28d: number | null;
+  revenueNewCustomers28d: number | null;
   churnRate: number | null;
   dau: number | null;
   wau: number | null;
@@ -50,6 +54,22 @@ interface FleetProduct {
     paywallUsers: number;
     monetizedUsers: number;
     lastEventAt: string | null;
+    telemetryScope: "production" | "test";
+    telemetryNote: string | null;
+    includedInFleet: boolean;
+  } | null;
+  revenuecat: {
+    projectId: string;
+    projectName: string;
+    apiSource: "v2" | "dashboard-session" | "v2+dashboard-session";
+    mrr: number;
+    revenue28d: number;
+    activeSubscriptions: number;
+    activeTrials: number;
+    newCustomers28d: number;
+    activeUsers28d: number;
+    currency: string;
+    updatedAt: string;
     telemetryScope: "production" | "test";
     telemetryNote: string | null;
     includedInFleet: boolean;
@@ -94,13 +114,18 @@ interface FleetStats {
   inReview: number;
   rejected: number;
   totalMRR: number;
+  totalRevenue28d: number;
+  totalActiveSubs: number;
   totalDownloads: number;
   totalPostHogUsers: number;
   totalPostHogInstalls: number;
   appsWithPostHog: number;
+  appsWithRevenueCat: number;
   openRecommendations: number;
   posthogStatus: "ok" | "missing_env" | "error";
   posthogUpdatedAt: string;
+  revenuecatStatus: "ok" | "missing_env" | "error";
+  revenuecatUpdatedAt: string;
   testTelemetryExcluded: number;
   totalRedditKarma: number;
 }
@@ -138,13 +163,13 @@ const STATUS_DOT: Record<string, string> = {
 function fmt(value: number | null, prefix = ""): string {
   if (value === null || value === undefined) return "—";
   if (value === 0) return `${prefix}0`;
+  if (prefix === "$") {
+    const maximumFractionDigits = Math.abs(value) < 100 ? 2 : 0;
+    return `${prefix}${value.toLocaleString(undefined, { maximumFractionDigits })}`;
+  }
   if (value >= 1000) return `${prefix}${(value / 1000).toFixed(1)}k`;
-  return `${prefix}${value}`;
-}
-
-function fmtPct(value: number | null): string {
-  if (value === null || value === undefined) return "—";
-  return `${value}%`;
+  if (!Number.isInteger(value)) return `${prefix}${value.toFixed(1)}`;
+  return `${prefix}${value.toLocaleString()}`;
 }
 
 function toneColor(tone: FleetProduct["temperature"]["tone"]): string {
@@ -462,8 +487,8 @@ function ProductCard({
           >
             <MetricCell label="Downloads" value={fmt(product.downloads30d)} accent={accent} />
             <MetricCell label="PH Users" value={fmt(product.users30d)} accent={accent} />
-            <MetricCell label="Activation" value={fmtPct(product.activationRate)} accent={accent} />
             <MetricCell label="MRR" value={fmt(product.mrr, "$")} accent={accent} />
+            <MetricCell label="Subs" value={fmt(product.activeSubs)} accent={accent} />
           </div>
 
           <div
@@ -730,9 +755,9 @@ export default function FleetPage() {
         >
           <HeroStat label="Live" value={String(stats.live)} color="var(--olive)" />
           <HeroStat label="PH Active" value={fmt(stats.totalPostHogUsers)} color={stats.totalPostHogUsers > 0 ? "var(--olive)" : "var(--mid)"} />
-          <HeroStat label="PH Installs" value={fmt(stats.totalPostHogInstalls)} color={stats.totalPostHogInstalls > 0 ? "var(--charcoal)" : "var(--mid)"} />
+          <HeroStat label="Active Subs" value={fmt(stats.totalActiveSubs)} color={stats.totalActiveSubs > 0 ? "var(--olive)" : "var(--mid)"} />
           <HeroStat label="MRR" value={fmt(stats.totalMRR, "$")} color="var(--charcoal)" />
-          <HeroStat label="Actions" value={String(stats.openRecommendations)} color={stats.openRecommendations > 0 ? "var(--terracotta)" : "var(--olive)"} />
+          <HeroStat label="Rev 28d" value={fmt(stats.totalRevenue28d, "$")} color={stats.totalRevenue28d > 0 ? "var(--olive)" : "var(--mid)"} />
           <HeroStat label="Test Excluded" value={fmt(stats.testTelemetryExcluded)} color={stats.testTelemetryExcluded > 0 ? "var(--lilac)" : "var(--mid)"} />
         </div>
       )}
@@ -747,7 +772,7 @@ export default function FleetPage() {
             opacity: 0.75,
           }}
         >
-          PostHog {stats.posthogStatus} · {stats.appsWithPostHog} production app{stats.appsWithPostHog === 1 ? "" : "s"} reporting · Preserve and other non-shipped telemetry excluded from fleet temperature.
+          PostHog {stats.posthogStatus} · {stats.appsWithPostHog} production app{stats.appsWithPostHog === 1 ? "" : "s"} reporting · RevenueCat {stats.revenuecatStatus} · {stats.appsWithRevenueCat} app{stats.appsWithRevenueCat === 1 ? "" : "s"} matched · Preserve and other non-shipped telemetry excluded.
         </p>
       )}
 

@@ -370,15 +370,29 @@ export async function fetchPostHogFleetMetrics(force = false): Promise<PostHogFl
 
   const sql = `
     SELECT
-      properties.$app_name AS app,
+      coalesce(
+        nullIf(toString(properties.$app_name), ''),
+        nullIf(toString(properties.app_name), ''),
+        nullIf(toString(properties.appName), ''),
+        nullIf(toString(properties.app), '')
+      ) AS app,
       distinct_id,
       event,
       toDate(timestamp) AS day,
       toString(timestamp) AS event_time,
-      properties.$screen_name AS screen
+      coalesce(
+        nullIf(toString(properties.$screen_name), ''),
+        nullIf(toString(properties.screen_name), ''),
+        nullIf(toString(properties.screen), '')
+      ) AS screen
     FROM events
     WHERE timestamp >= now() - INTERVAL 30 DAY
-      AND properties.$app_name IS NOT NULL
+      AND coalesce(
+        nullIf(toString(properties.$app_name), ''),
+        nullIf(toString(properties.app_name), ''),
+        nullIf(toString(properties.appName), ''),
+        nullIf(toString(properties.app), '')
+      ) IS NOT NULL
     ORDER BY timestamp DESC
     LIMIT 50000
   `;

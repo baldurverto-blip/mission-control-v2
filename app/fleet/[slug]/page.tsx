@@ -41,9 +41,30 @@ interface FleetDetail {
       status?: string;
       mrr?: number | null;
       active_subs?: number | null;
+      active_trials?: number | null;
+      revenue_28d?: number | null;
+      active_users_28d?: number | null;
+      new_customers_28d?: number | null;
       churn_rate?: number | null;
       trial_starts?: number | null;
       trial_to_paid_rate?: number | null;
+    } | null;
+    revenuecat: {
+      projectId: string;
+      projectName: string;
+      apiSource: "v2" | "dashboard-session" | "v2+dashboard-session";
+      apps: { id: string; name: string; type: string; bundleId: string | null }[];
+      mrr: number;
+      revenue28d: number;
+      activeSubscriptions: number;
+      activeTrials: number;
+      newCustomers28d: number;
+      activeUsers28d: number;
+      currency: string;
+      updatedAt: string;
+      telemetryScope: "production" | "test";
+      telemetryNote: string | null;
+      includedInFleet: boolean;
     } | null;
     retention: {
       status?: string;
@@ -173,7 +194,14 @@ const STATUS_DOT: Record<string, string> = {
 
 function fmt(v: number | null | undefined, prefix = ""): string {
   if (v === null || v === undefined) return "—";
-  return `${prefix}${v}`;
+  if (v === 0) return `${prefix}0`;
+  if (prefix === "$") {
+    const maximumFractionDigits = Math.abs(v) < 100 ? 2 : 0;
+    return `${prefix}${v.toLocaleString(undefined, { maximumFractionDigits })}`;
+  }
+  if (v >= 1000) return `${prefix}${(v / 1000).toFixed(1)}k`;
+  if (!Number.isInteger(v)) return `${prefix}${v.toFixed(1)}`;
+  return `${prefix}${v.toLocaleString()}`;
 }
 
 function fmtPct(v: number | null | undefined): string {
@@ -406,7 +434,7 @@ function AnalyticsTab({ data, accent }: { data: FleetDetail; accent: string }) {
   const a = data.analytics;
   if (!a) return <Card><PendingNote text="No analytics data available yet." /></Card>;
 
-  const revPending = a.revenue?.status === "pending";
+  const revPending = !a.revenuecat && a.revenue?.status === "pending";
   const productionPostHog = a.posthog?.includedInFleet ? a.posthog : null;
   const retPending = a.retention?.status === "pending" && !productionPostHog;
   const recColor = signalColor(data.recommendation.priority);
@@ -520,13 +548,19 @@ function AnalyticsTab({ data, accent }: { data: FleetDetail; accent: string }) {
       {/* Revenue */}
       <Card>
         <SectionLabel>Revenue</SectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
           <MetricBox label="MRR" value={fmt(a.revenue?.mrr, "$")} color={accent} pending={revPending} />
+          <MetricBox label="Rev 28d" value={fmt(a.revenue?.revenue_28d, "$")} color={accent} pending={revPending} />
           <MetricBox label="Active Subs" value={fmt(a.revenue?.active_subs)} pending={revPending} />
-          <MetricBox label="Trial Starts" value={fmt(a.revenue?.trial_starts)} pending={revPending} />
+          <MetricBox label="Active Trials" value={fmt(a.revenue?.active_trials)} pending={revPending} />
+          <MetricBox label="New Customers" value={fmt(a.revenue?.new_customers_28d)} pending={revPending} />
           <MetricBox label="Churn" value={a.revenue?.churn_rate != null ? `${a.revenue.churn_rate}%` : "—"} pending={revPending} />
         </div>
-        {revPending && <PendingNote text="Revenue data pending — RevenueCat API not yet configured" />}
+        {a.revenuecat ? (
+          <PendingNote text={`RevenueCat project: ${a.revenuecat.projectName} · ${a.revenuecat.apiSource.replace("-", " ")} · ${a.revenuecat.apps.map((app) => app.bundleId ?? app.name).join(", ")} · synced ${relTime(a.revenuecat.updatedAt)}.`} />
+        ) : (
+          <PendingNote text="RevenueCat project not matched yet — add the app's v2 RevenueCat key or project mapping to populate revenue, subscriptions, and trials." />
+        )}
       </Card>
 
       {/* Retention */}

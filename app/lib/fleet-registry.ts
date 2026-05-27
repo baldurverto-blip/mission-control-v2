@@ -80,7 +80,7 @@ const REGISTRY: Record<string, FleetRegistryEntry> = {
   sync: {
     slug: "sync",
     posthogAppName: "Sync",
-    revenueCatProjectNames: ["Sync"],
+    revenueCatProjectNames: ["Sync", "project-v71VEYxh"],
     revenueCatBundleIds: ["com.vertostudios.sync"],
     telemetryScope: "production",
     coreEvents: ["checkin_completed", "radar_opened", "conversation_logged"],

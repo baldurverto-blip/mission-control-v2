@@ -221,6 +221,9 @@ export async function GET() {
             revenue_28d: revenuecat.revenue28d,
             active_users_28d: revenuecat.activeUsers28d,
             new_customers_28d: revenuecat.newCustomers28d,
+            churn_rate: null,
+            trial_starts: null,
+            trial_to_paid_rate: null,
             source: "revenuecat-api",
             last_updated: revenuecat.updatedAt,
           }

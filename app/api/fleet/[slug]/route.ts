@@ -5,6 +5,11 @@ import { FACTORY_DIR, SAAS_FACTORY_DIR } from "@/app/lib/paths";
 import { getFleetRegistryEntry } from "@/app/lib/fleet-registry";
 import { fetchPostHogFleetMetrics } from "@/app/lib/posthog-fleet";
 import {
+  fetchRevenueCatFleetMetrics,
+  metricsForRevenueCatRegistryEntry,
+  summarizeRevenueCat,
+} from "@/app/lib/revenuecat-fleet";
+import {
   buildDataQuality,
   buildRecommendation,
   buildTemperature,
@@ -108,6 +113,7 @@ export async function GET(
       seoLearnings,
       appStoreListing,
       posthogResult,
+      revenuecatResult,
     ] = await Promise.all([
       readJson<Record<string, unknown>>(join(dir, "state.json")),
       readJson<Record<string, unknown>>(join(dir, "kpis.json")),
@@ -119,6 +125,7 @@ export async function GET(
       readJson<Record<string, unknown>>(join(dir, "seo-learnings.json")),
       readMd(join(dir, "app-store-listing.md")),
       fetchPostHogFleetMetrics(),
+      fetchRevenueCatFleetMetrics(),
     ]);
 
     if (!state) {
@@ -130,14 +137,33 @@ export async function GET(
     const registry = getFleetRegistryEntry(slug, name);
     const posthogRaw = posthogResult.byApp[registry.posthogAppName] ?? null;
     const posthog = summarizePostHog(posthogRaw, registry, status);
+    const revenuecatRaw = metricsForRevenueCatRegistryEntry(revenuecatResult, registry);
+    const revenuecat = summarizeRevenueCat(revenuecatRaw, registry, status);
+    const revenue = revenuecat
+      ? ({
+          status: "ok",
+          mrr: revenuecat.mrr,
+          active_subs: revenuecat.activeSubscriptions,
+          active_trials: revenuecat.activeTrials,
+          revenue_28d: revenuecat.revenue28d,
+          active_users_28d: revenuecat.activeUsers28d,
+          new_customers_28d: revenuecat.newCustomers28d,
+          churn_rate: null,
+          trial_starts: null,
+          trial_to_paid_rate: null,
+          source: "revenuecat-api",
+          last_updated: revenuecat.updatedAt,
+        } satisfies RevenueKPI & Record<string, unknown>)
+      : (kpis?.revenue ?? null) as RevenueKPI | null;
     const appStore = (kpis?.app_store ?? null) as AppStoreKPI | null;
-    const revenue = (kpis?.revenue ?? null) as RevenueKPI | null;
     const dataQuality = buildDataQuality({
       status,
       appStore,
       revenue,
       posthogResult,
       posthog,
+      revenuecatResult,
+      revenuecat,
       registry,
     });
     const temperature = buildTemperature({
@@ -146,6 +172,8 @@ export async function GET(
       revenue,
       posthogResult,
       posthog,
+      revenuecatResult,
+      revenuecat,
       registry,
     });
     const recommendation = buildRecommendation({
@@ -154,6 +182,8 @@ export async function GET(
       revenue,
       posthogResult,
       posthog,
+      revenuecatResult,
+      revenuecat,
       registry,
     });
 
@@ -175,7 +205,8 @@ export async function GET(
       shipDate: kpis?.shipped_at ?? null,
       lastIngested: kpis?.last_ingested ?? null,
       appStore: kpis?.app_store ?? null,
-      revenue: kpis?.revenue ?? null,
+      revenue,
+      revenuecat,
       retention: kpis?.retention ?? null,
       posthog,
       waitlist: kpis?.waitlist ?? null,
