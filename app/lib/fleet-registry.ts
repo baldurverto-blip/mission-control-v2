@@ -116,8 +116,7 @@ const REGISTRY: Record<string, FleetRegistryEntry> = {
     posthogAppName: "Preserve",
     revenueCatProjectNames: ["Preserve"],
     revenueCatBundleIds: ["ai.vertostudios.preserve"],
-    telemetryScope: "test",
-    telemetryNote: "Preserve is not in production yet; PostHog activity is test/build telemetry and is excluded from fleet temperature.",
+    telemetryScope: "production",
     coreEvents: ["food_scan_completed", "injection_logged", "paywall_converted", "purchase_completed"],
   },
 };
