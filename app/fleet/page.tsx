@@ -82,6 +82,14 @@ interface FleetProduct {
   seoPages: number;
   distributionStatus: string | null;
   activeLayers: string[];
+  aso: {
+    keywordChars: number | null;
+    lastPulled: string | null;
+    livePending: boolean;
+    queuedForBuild: string | null;
+    proposalKeywords: string | null;
+    cppName: string | null;
+  } | null;
   activeSignals: number;
   signals: { type: string; severity: string; message: string }[];
   qgScore: number | null;
@@ -584,6 +592,56 @@ function ProductCard({
               >
                 {product.dataQuality.label}
               </span>
+              {product.aso &&
+                (product.aso.livePending ? (
+                  <span
+                    title={`Live CPP “${product.aso.cppName ?? ""}” awaiting push (no build) — run: aso-loop.py card <slug>`}
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "var(--font-dm-mono), monospace",
+                      color: "#C8743A",
+                      background: "#C8743A18",
+                      borderRadius: 5,
+                      padding: "2px 7px",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ASO ⚠ push
+                  </span>
+                ) : product.aso.queuedForBuild ? (
+                  <span
+                    title={`Keyword change queued for build ${product.aso.queuedForBuild}: ${product.aso.proposalKeywords ?? ""}`}
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "var(--font-dm-mono), monospace",
+                      color: "#B08400",
+                      background: "#B0840014",
+                      borderRadius: 5,
+                      padding: "2px 7px",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ASO ⏳ b{product.aso.queuedForBuild}
+                  </span>
+                ) : product.aso.keywordChars != null ? (
+                  <span
+                    title={`Keyword field ${product.aso.keywordChars}/100 chars${product.aso.lastPulled ? ` · pulled ${product.aso.lastPulled.slice(0, 10)}` : ""}`}
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "var(--font-dm-mono), monospace",
+                      color: "#6B7280",
+                      background: "#6B728012",
+                      borderRadius: 5,
+                      padding: "2px 7px",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ASO {product.aso.keywordChars}/100
+                  </span>
+                ) : null)}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

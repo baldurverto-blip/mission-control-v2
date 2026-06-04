@@ -80,6 +80,13 @@ interface KPIFile {
     engine_status?: string;
     active_layers?: string[];
   };
+  aso?: {
+    last_pulled?: string;
+    current?: { keywords?: string; keyword_chars?: number; subtitle?: string; version?: string };
+    proposal?: { keywords?: string; keyword_chars?: number; status?: string; rationale?: string };
+    cpp?: { name?: string; status?: string };
+    ppo?: { test?: string; status?: string };
+  };
 }
 
 // Products that have been shipped/submitted belong in Fleet
@@ -309,6 +316,23 @@ export async function GET() {
         seoPages: k?.seo?.total_indexed_pages ?? 0,
         distributionStatus: k?.distribution_engine?.engine_status ?? null,
         activeLayers: k?.distribution_engine?.active_layers ?? [],
+
+        // ASO loop (PULL channel) — current listing + any pending keyword/CPP push
+        aso: k?.aso
+          ? {
+              keywordChars: k.aso.current?.keyword_chars ?? null,
+              lastPulled: k.aso.last_pulled ?? null,
+              // Live push (CPP / promo / PPO screenshots) — no build needed
+              livePending: k.aso.cpp?.status === "pending_approval",
+              // Metadata change locked on a live version — rides the next build
+              queuedForBuild:
+                k.aso.proposal?.status === "queued_for_build"
+                  ? (k.aso.proposal as { target_build?: string }).target_build ?? "next"
+                  : null,
+              proposalKeywords: k.aso.proposal?.keywords ?? null,
+              cppName: k.aso.cpp?.status === "pending_approval" ? k.aso.cpp?.name ?? null : null,
+            }
+          : null,
 
         // Signals
         activeSignals: k?.signals?.length ?? 0,
