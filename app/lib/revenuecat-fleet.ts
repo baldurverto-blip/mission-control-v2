@@ -88,8 +88,7 @@ function readEnvFiles(): Record<string, string> {
   const candidates = Array.from(new Set([
     join(process.cwd(), ".env.local"),
     join(homedir(), "projects/mission-control-v2/.env.local"),
-    join(homedir(), ".openclaw/.env.bws"),
-    join(homedir(), ".openclaw/.env"),
+    // ~/.openclaw fallbacks removed 2026-06-08 (pre-Phase-5): MC's own REVENUECAT_SECRET_KEY suffices.
   ]));
 
   const values: Record<string, string> = {};
